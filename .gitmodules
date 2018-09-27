@@ -16,3 +16,6 @@
 [submodule "plugins/obs-websocket"]
 	path = plugins/obs-websocket
 	url = https://github.com/obsproject/obs-websocket.git
+[submodule "UI/frontend-plugins/streamfx"]
+	path = UI/frontend-plugins/streamfx
+	url = https://github.com/Xaymar/obs-StreamFX.git
