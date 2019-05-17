@@ -1,56 +1,69 @@
-image:
- - Ubuntu
- - Visual Studio 2017
+# Generic Settings
+version: '{build}-{branch}'
+max_jobs: 2
+clone_depth: 1
+
+# Build Image & Environment
+platform: x64
+
+matrix:
+  fast_finish: true
 
 environment:
-  CURL_VERSION: 7.56.1
-  CEF_VERSION: 75.1.16+g16a67c4+chromium-75.0.3770.100
-  APPVEYOR_YML_DISABLE_PS_LINUX: true
-  TWITCH-CLIENTID:
-    secure: D3vFGk41HZaJWAZu5slwAHZhB868mGI2aIMS03L2rt4=
-  TWITCH-HASH:
-    secure: IRP5JLwBmPMjA7ADbZu6x2u4thqeEF9HaU1xolhaj74=
-  MIXER-CLIENTID:
-    secure: lQXRRvkeZDVSTUcSaR/kthiKu89K18IubKN913PC0ldjHBQ6sWa8a/t4i1f441N3RPfzAbTrXf2ijRCYYub2Qw==
-  MIXER-HASH:
-    secure: fIxeDxHkiNodwPeNGX+E9tSpyjg/XuT+U9N+jtpT7xU=
-  RESTREAM-CLIENTID:
-    secure: 4KGqX7PbL100GhXWzMFziaHrD/XT9/QKFTGinmPqwOkfRSMMEkUyL998/z3cclUd
-  RESTREAM-HASH:
-    secure: +tu/wCCG3tXnFpjzzXF6zyAOJyt8w48qx47K1bIn/Gs=
-
-install:
-  - git submodule update --init --recursive
-  - cmd: C:\projects\obs-studio\CI\install-qt-win.cmd
-  - cmd: C:\projects\obs-studio\CI\install-script-win.cmd
-  - sh: ./CI/install-dependencies-linux-ubuntu16.sh
-  - sh: ./CI/before-script-linux.sh
-  - sh: ./CI/install-script-linux.sh
-
-build_script:
-  - cmd: call msbuild /m /p:Configuration=%build_config% C:\projects\obs-studio\build32\obs-studio.sln /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
-  - cmd: call msbuild /m /p:Configuration=%build_config% C:\projects\obs-studio\build64\obs-studio.sln /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
-  - sh: cd ./build && make -j4 && cd -
-
-before_deploy:
-  - cmd: C:\projects\obs-studio\CI\before-deploy-win.cmd
-
-deploy_script:
-  - ps: Push-AppveyorArtifact "build.zip" -FileName "$(git describe).zip"
-
-test: off
+  global: 
+    CURL_VERSION: 7.56.1
+    CEF_VERSION: 3.3440.1805.gbe070f9
+    APPVEYOR_YML_DISABLE_PS_LINUX: true
+  matrix:
+  - APPVEYOR_BUILD_WORKER_IMAGE: "Ubuntu"
+    CMAKE_GENERATOR_64: "Unix Makefiles"
+    VERSION_OVERRIDE: "0.0.0.0-gcc"
+    COMPILER_FLAGS_64: -m64
+  - APPVEYOR_BUILD_WORKER_IMAGE: "Visual Studio 2017"
+    CMAKE_GENERATOR_32: "Visual Studio 15 2017"
+    CMAKE_GENERATOR_64: "Visual Studio 15 2017 Win64"
+    CMAKE_SYSTEM_VERSION: "10.0.17134.0"
+    VERSION_OVERRIDE: "0.0.0.0-vs2017"
 
 cache:
   - dependencies2017.zip
   - vlc.zip
-  - 'cef_binary_%CEF_VERSION%_windows32_minimal.zip'
-  - 'cef_binary_%CEF_VERSION%_windows64_minimal.zip'
-  - Qt_5.10.1.7z
+  - 'cef_binary_%CEF_VERSION%_windows32.zip'
+  - 'cef_binary_%CEF_VERSION%_windows64.zip'
+
+install:
+  - git submodule update --init --recursive
+  - cmd: ./CI/xaymar/install-win.cmd
+  - sh: ./CI/xaymar/install-ubuntu16.sh
+
+build_script:
+  - cmd: node ./CI/xaymar/builder.js
+  - sh: node ./CI/xaymar/builder.js
+
+test: off
+
+artifacts:
+  - path: build32/*.7z
+  - path: build64/*.7z
+
+deploy:
+- provider: GitHub
+  auth_token:
+    secure: vushyTq6uZybHo5y1EFXQ4Ze6RSGF8TeKWjpQavc20MJRYHCZcIyc55BmY2Cfc7z
+  draft: true
+  force_update: true
+  on:
+    APPVEYOR_REPO_TAG: true
 
 notifications:
-  - provider: Webhook
-    url:
-      secure: k1kpaz4CB5Rg5a3MTb4XKnd76fJ+9ozz5RACVnNjdgmAjA1OSssZ6LZ3g0NGfzc/
-    headers:
-      Authorization:
-        secure: A0PBwpHtsYzBOuye1EeS0fl562T0NZEInwZp0ZVER1wLQSeE6gzWGrRo2a0E7hii
+- provider: Webhook
+  url:
+    secure: PTtt5ALhmK0q42jYyx4/Qa1Uf18+gLMXKGdzJjDISJsLoTbnbjJs20iYKkdkXzjCxz4P+OtNsDAlcvpt22zFFaDx+DKfX3WrKdupfw3uW+DJzaIkFZ1njl4NRC3v2ZieNekM6fFm0uoql9sz13hWQ/XKfmq2WQf6hHJ9rO1FluU=
+  method: POST
+  body: >-
+    {
+      "content": "**Build {{status}}**: {{buildUrl}}\n[{{commitId}}] {{commitMessage}}\nBy {{commitAuthor}} on {{commitDate}}"
+    }
+  on_build_success: true
+  on_build_failure: true
+  on_build_status_changed: true
