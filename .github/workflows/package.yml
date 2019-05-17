@@ -1,0 +1,339 @@
+name: CI
+
+on: [push, pull_request]
+
+env:
+  CEF_BUILD_VERSION: '3770'
+  CEF_VERSION: '75.1.16+g16a67c4+chromium-75.0.3770.100'
+
+jobs:
+  windows:
+    runs-on: windows-2019
+    name: "Windows 64bit"
+    env:
+      CMAKE_GENERATOR: "Visual Studio 16 2019"
+      CMAKE_GENERATOR_PLATFORM: "x64"
+      CMAKE_GENERATOR_TOOLSET: "host=x64"
+      CMAKE_SYSTEM_VERSION: "10.0.19041.0"
+      VERSION_OVERRIDE: "0.0.0.0-windows-64"
+      WINDOWS_DEPS_VERSION: '26.1.0'
+      QT_VERSION: '5.15.2'
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+      - name: 'Cache: Pre-Built Dependencies'
+        id: deps-cache
+        uses: actions/cache@v1
+        env:
+          CACHE_NAME: 'windows-deps-cache'
+        with:
+          path: ${{ github.workspace }}/cmbuild/deps
+          key: ${{ runner.os }}-pr-${{ env.CACHE_NAME }}-${{ env.WINDOWS_DEPS_VERSION }}
+      - name: 'Install: Pre-Built Dependencies'
+        shell: bash
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -kLO https://github.com/Xaymar/obs-studio/releases/download/${{ env.WINDOWS_DEPS_VERSION }}/dependencies_windows.7z -f --retry 5 -C -
+          7z x dependencies_windows.7z -o"${{ github.workspace }}/cmbuild/deps"
+      - name: 'Cache: Qt5'
+        uses: actions/cache@v2
+        id: cache-qt
+        with:
+          path: "../Qt"
+          key: ${{ runner.os }}-${{ env.QT_VERSION }}
+      - name: 'Install prerequisite: QT'
+        uses: jurplel/install-qt-action@v2
+        with:
+          version: "${{ env.QT_VERSION }}"
+          cached: ${{ steps.cache-qt.outputs.cache-hit }}
+          arch: "win64_msvc2019_64"
+      - name: 'Cache: Chromium Embedded Framework'
+        id: cef-cache
+        uses: actions/cache@v1
+        env:
+          CACHE_NAME: 'windows-cef-64-cache'
+        with:
+          path: ${{ github.workspace }}/cmbuild/cef_binary_${{ env.CEF_VERSION }}_windows64_minimal
+          key: ${{ runner.os }}-pr-${{ env.CACHE_NAME }}-${{ env.CEF_BUILD_VERSION }}
+      - name: 'Install: Chromium Embedded Framework'
+        shell: bash
+        if: steps.cef-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -kL https://cdn-fastly.obsproject.com/downloads/cef_binary_${{ env.CEF_VERSION }}_windows64_minimal.zip -f --retry 5 -o cef.zip
+          7z x cef.zip -o"${{ github.workspace }}/cmbuild"
+      - name: "Configure"
+        shell: bash
+        run: |
+          cmake -H. -Bbuild \
+            -G"${{ env.CMAKE_GENERATOR }}" \
+            -A"${{ env.CMAKE_GENERATOR_PLATFORM }}" \
+            -T"${{ env.CMAKE_GENERATOR_TOOLSET }}" \
+            -DCMAKE_SYSTEM_VERSION="${{ env.CMAKE_SYSTEM_VERSION }}" \
+            -DBUILD_AMD_ENCODER=ON \
+            -DBUILD_CAPTIONS=ON \
+            -DCOMPILE_D3D12_HOOK=ON \
+            -DCOMPILE_LUA=ON \
+            -DCOMPILE_PYTHON=ON \
+            -DDepsPath="${{ github.workspace }}/cmbuild/deps/win64" \
+            -DBUILD_BROWSER=OFF -DCEF_ROOT_DIR="${{ github.workspace }}/cmbuild/cef_binary_${{ env.CEF_VERSION }}_windows64_minimal" \
+            -DCPACK_GENERATOR=7Z \
+            -DCPACK_SOURCE_GENERATOR=7Z \
+            -DCOPIED_DEPENDENCIES=FALSE \
+            -DCOPY_DEPENDENCIES=FALSE \
+            -DOBS_VERSION_OVERRIDE="${{ env.VERSION_OVERRIDE }}"
+      - name: "Build"
+        shell: bash
+        run: |
+          cmake --build build --config RelWithDebInfo --target PACKAGE
+      - name: "Upload Artifacts"
+        uses: actions/upload-artifact@v2-preview
+        with:
+          name: windows64
+          path: build/*.7z
+  ubuntu:
+    runs-on: ubuntu-latest
+    name: "Ubuntu 64bit"
+    env:
+      VERSION_OVERRIDE: "0.0.0.0-ubuntu-64"
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+      - name: Install prerequisites (Apt)
+        shell: bash
+        run: |
+          sudo dpkg --add-architecture amd64
+          sudo apt-get -qq update
+          sudo apt-get install -y \
+           build-essential \
+           checkinstall \
+           cmake \
+           libasound2-dev \
+           libavcodec-dev \
+           libavdevice-dev \
+           libavfilter-dev \
+           libavformat-dev \
+           libavutil-dev \
+           libcurl4-openssl-dev \
+           libfdk-aac-dev \
+           libfontconfig-dev \
+           libfreetype6-dev \
+           libgl1-mesa-dev \
+           libjack-jackd2-dev \
+           libjansson-dev \
+           libluajit-5.1-dev \
+           libpulse-dev \
+           libqt5x11extras5-dev \
+           libsndio-dev \
+           libspeexdsp-dev \
+           libswresample-dev \
+           libswscale-dev \
+           libudev-dev \
+           libv4l-dev \
+           libva-dev \
+           libvlc-dev \
+           libx11-dev \
+           libx264-dev \
+           libxcb-randr0-dev \
+           libxcb-shm0-dev \
+           libxcb-xinerama0-dev \
+           libxcomposite-dev \
+           libxinerama-dev \
+           libmbedtls-dev \
+           pkg-config \
+           python3-dev \
+           qtbase5-dev \
+           libqt5svg5-dev \
+           swig \
+           libcmocka-dev \
+           linux-generic \
+           v4l2loopback-dkms
+      - name: 'Cache: Chromium Embedded Framework'
+        id: cef-cache
+        uses: actions/cache@v1
+        env:
+          CACHE_NAME: 'cef-cache'
+        with:
+          path: ${{ github.workspace }}/cmbuild/cef_binary_${{ env.CEF_BUILD_VERSION }}_linux64
+          key: ${{ runner.os }}-pr-${{ env.CACHE_NAME }}-${{ env.CEF_BUILD_VERSION }}
+      - name: 'Install: Chromium Embedded Framework'
+        if: steps.cef-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          curl -kL https://cdn-fastly.obsproject.com/downloads/cef_binary_${{ env.CEF_BUILD_VERSION }}_linux64.tar.bz2 -f --retry 5 -o cef.tar.bz2
+          if [ ! -d "${{ github.workspace }}/cmbuild" ]; then mkdir "${{ github.workspace }}/cmbuild"; fi
+          tar -C"${{ github.workspace }}/cmbuild" -xjf cef.tar.bz2
+      - name: 'Configure'
+        shell: bash
+        run: |
+          cmake -H. -Bbuild \
+            -DUNIX_STRUCTURE=0 \
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/obs-studio-portable" \
+            -DENABLE_UNIT_TESTS=ON \
+            -DENABLE_VLC=ON \
+            -DBUILD_CAPTIONS=ON \
+            -DWITH_RTMPS=ON \
+            -DBUILD_BROWSER=ON -DCEF_ROOT_DIR="${{ github.workspace }}/cmbuild/cef_binary_${{ env.CEF_BUILD_VERSION }}_linux64" \
+            -DCPACK_GENERATOR=7Z \
+            -DCPACK_SOURCE_GENERATOR=7Z \
+            -DOBS_VERSION_OVERRIDE="${{ env.VERSION_OVERRIDE }}"
+      - name: "Build"
+        shell: bash
+        run: |
+          cmake --build build --config RelWithDebInfo --target package --parallel 4
+      - name: "Upload Artifacts"
+        uses: actions/upload-artifact@v2-preview
+        with:
+          name: ubuntu64
+          path: build/*.7z
+  macos:
+    runs-on: macos-latest
+    name: "MacOS 64bit"
+    env:
+      MIN_MACOS_VERSION: '10.13'      
+      MACOS_DEPS_VERSION: '2020-12-11'
+      VLC_VERSION: '3.0.8'
+      SPARKLE_VERSION: '1.23.0'
+      QT_VERSION: '5.15.2'
+      VERSION_OVERRIDE: "0.0.0.0-macos-64"
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+          
+      - name: 'Install: Homebrew'
+        shell: bash
+        run: |
+          if [ -d /usr/local/opt/openssl@1.0.2t ]; then
+              brew uninstall openssl@1.0.2t
+              brew untap local/openssl
+          fi
+
+          if [ -d /usr/local/opt/python@2.7.17 ]; then
+              brew uninstall python@2.7.17
+              brew untap local/python2
+          fi
+          brew bundle --file ./CI/scripts/macos/Brewfile
+          if [ ! -d "${{ github.workspace }}/cmbuild" ]; then mkdir "${{ github.workspace }}/cmbuild"; fi
+
+      - name: 'Cache: Chromium Embedded Framework'
+        id: cef-cache
+        uses: actions/cache@v1
+        env:
+          CACHE_NAME: 'cef-cache'
+        with:
+          path: ${{ github.workspace }}/cmbuild/cef_binary_${{ env.CEF_BUILD_VERSION }}_macosx64
+          key: ${{ runner.os }}-pr-${{ env.CACHE_NAME }}-${{ env.CEF_BUILD_VERSION }}
+      - name: 'Install: Chromium Embedded Framework'
+        if: steps.cef-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          curl -L -O https://obs-nightly.s3-us-west-2.amazonaws.com/cef_binary_${{ env.CEF_BUILD_VERSION }}_macosx64.tar.bz2
+          tar -xf ./cef_binary_${{ env.CEF_BUILD_VERSION }}_macosx64.tar.bz2 -C ${{ github.workspace }}/cmbuild/
+          cd ${{ github.workspace }}/cmbuild/cef_binary_${{ env.CEF_BUILD_VERSION }}_macosx64
+          sed -i '.orig' '/add_subdirectory(tests\/ceftests)/d' ./CMakeLists.txt
+          sed -i '.orig' s/\"10.9\"/\"${{ env.MIN_MACOS_VERSION }}\"/ ./cmake/cef_variables.cmake
+          mkdir build && cd build
+          cmake  -DCMAKE_CXX_FLAGS="-std=c++11 -stdlib=libc++ -Wno-deprecated-declarations" -DCMAKE_EXE_LINKER_FLAGS="-std=c++11 -stdlib=libc++" -DCMAKE_OSX_DEPLOYMENT_TARGET=${{ env.MIN_MACOS_VERSION }}  ..
+          make -j4
+          mkdir libcef_dll
+          cd ../../
+
+      - name: 'Cache: VLC'
+        id: vlc-cache
+        uses: actions/cache@v1
+        env:
+          CACHE_NAME: 'vlc-cache'
+        with:
+          path: ${{ github.workspace }}/cmbuild/vlc-${{ env.VLC_VERSION }}
+          key: ${{ runner.os }}-pr-${{ env.CACHE_NAME }}-${{ env.VLC_VERSION }}
+      - name: 'Install: VLC'
+        if: steps.vlc-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          curl -L -O https://downloads.videolan.org/vlc/${{ env.VLC_VERSION }}/vlc-${{ env.VLC_VERSION }}.tar.xz
+          if [ ! -d "${{ github.workspace }}/cmbuild" ]; then mkdir "${{ github.workspace }}/cmbuild"; fi
+          tar -xf ./vlc-${{ env.VLC_VERSION }}.tar.xz -C "${{ github.workspace }}/cmbuild"
+
+      - name: 'Cache: Sparkle'
+        id: sparkle-cache
+        uses: actions/cache@v1
+        env:
+          CACHE_NAME: 'sparkle-cache'
+        with:
+          path: ${{ github.workspace }}/cmbuild/sparkle
+          key: ${{ runner.os }}-pr-${{ env.CACHE_NAME }}-${{ env.SPARKLE_VERSION }}
+      - name: 'Install: Sparkle'
+        if: steps.sparkle-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          curl -L -o sparkle.tar.bz2 https://github.com/sparkle-project/Sparkle/releases/download/${{ env.SPARKLE_VERSION }}/Sparkle-${{ env.SPARKLE_VERSION }}.tar.bz2
+          mkdir ${{ github.workspace }}/cmbuild/sparkle
+          tar -xf ./sparkle.tar.bz2 -C ${{ github.workspace }}/cmbuild/sparkle
+      - name: 'Install: Sparkle (Part 2)'
+        shell: bash
+        run: |
+          sudo cp -R ${{ github.workspace }}/cmbuild/sparkle/Sparkle.framework /Library/Frameworks/Sparkle.framework
+
+      - name: 'Cache: Pre-built Dependencies'
+        id: deps-cache
+        uses: actions/cache@v1
+        env:
+          CACHE_NAME: 'deps-cache'
+        with:
+          path: /tmp/obsdeps
+          key: ${{ runner.os }}-pr-${{ env.CACHE_NAME }}-${{ env.MACOS_DEPS_VERSION }}
+      - name: 'Install: Pre-built Dependencies'
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          curl -L -O https://github.com/obsproject/obs-deps/releases/download/${{ env.MACOS_DEPS_VERSION }}/macos-deps-${{ env.MACOS_DEPS_VERSION }}.tar.gz
+          tar -xf ./macos-deps-${{ env.MACOS_DEPS_VERSION }}.tar.gz -C "/tmp"
+      
+      - name: 'Cache: Pre-built Qt5'
+        id: deps-qt-cache
+        uses: actions/cache@v1
+        env:
+          CACHE_NAME: 'deps-qt-cache'
+        with:
+          path: /tmp/obsdeps
+          key: ${{ runner.os }}-pr-${{ env.CACHE_NAME }}-${{ env.MACOS_DEPS_VERSION }}
+      - name: 'Install: Pre-built Qt5'
+        if: steps.deps-qt-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          curl -L -O https://github.com/obsproject/obs-deps/releases/download/${{ env.MACOS_DEPS_VERSION }}/macos-qt-${{ env.QT_VERSION }}-${{ env.MACOS_DEPS_VERSION }}.tar.gz
+          tar -xf ./macos-qt-${{ env.QT_VERSION }}-${{ env.MACOS_DEPS_VERSION }}.tar.gz -C "/tmp"
+          xattr -r -d com.apple.quarantine /tmp/obsdeps
+
+      - name: 'Configure'
+        shell: bash
+        run: |
+          cmake -H. -Bbuild \
+            -DENABLE_UNIT_TESTS=YES \
+            -DENABLE_SPARKLE_UPDATER=ON \
+            -DDISABLE_PYTHON=ON \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=${{ env.MIN_MACOS_VERSION }} \
+            -DQTDIR="/tmp/obsdeps" \
+            -DSWIGDIR="/tmp/obsdeps" \
+            -DDepsPath="/tmp/obsdeps" \
+            -DVLCPath="${{ github.workspace }}/cmbuild/vlc-${{ env.VLC_VERSION }}" \
+            -DENABLE_VLC=ON \
+            -DBUILD_BROWSER=ON -DCEF_ROOT_DIR="${{ github.workspace }}/cmbuild/cef_binary_${{ env.CEF_BUILD_VERSION }}_macosx64" -DBROWSER_DEPLOY=ON \
+            -DWITH_RTMPS=ON \
+            -DCPACK_GENERATOR=7Z \
+            -DCPACK_SOURCE_GENERATOR=7Z \
+            -DOBS_VERSION_OVERRIDE="${{ env.VERSION_OVERRIDE }}"
+      - name: "Build"
+        shell: bash
+        run: |
+          cmake --build build --config RelWithDebInfo --target package --parallel 4
+      - name: "Upload Artifacts"
+        uses: actions/upload-artifact@v2-preview
+        with:
+          name: macos64
+          path: build/*.7z
