@@ -1,0 +1,197 @@
+name: CI
+
+on: [push, pull_request]
+
+env:
+  CEF_BUILD_VERSION: 3770
+  CEF_VERSION: "75.1.16+g16a67c4+chromium-75.0.3770.100"
+
+jobs:
+  ubuntu64:
+    name: "Linux/Ubuntu 64-bit"
+    runs-on: ubuntu-18.04
+    env:
+      CMAKE_GENERATOR: "Ninja"
+      VERSION_OVERRIDE: "0.0.0.0-ubuntu1804"
+    steps:
+    - name: "Clone Repository"
+      uses: actions/checkout@v1
+    - name: "Prerequisites: Submodules"
+      shell: bash
+      run: git submodule update --init --recursive
+    - name: "Prerequisites: Apt-Get"
+      shell: bash
+      run: |
+        sudo dpkg --add-architecture amd64
+        sudo apt-get -qq update
+        sudo apt-get install -y \
+        build-essential \
+        checkinstall \
+        cmake \
+        swig \
+        pkg-config \
+        gcc-multilib \
+        python3-dev:amd64 \
+        libasound2-dev:amd64 \
+        libavcodec-dev:amd64 \
+        libavdevice-dev:amd64 \
+        libavfilter-dev:amd64 \
+        libavformat-dev:amd64 \
+        libavutil-dev:amd64 \
+        libcurl4-openssl-dev:amd64 \
+        libfdk-aac-dev:amd64 \
+        libfontconfig-dev:amd64 \
+        libfreetype6-dev:amd64 \
+        libgl1-mesa-dev:amd64 \
+        libjack-jackd2-dev:amd64 \
+        libjansson-dev:amd64 \
+        libluajit-5.1-dev:amd64 \
+        libpulse-dev:amd64 \
+        libqt5x11extras5-dev:amd64 \
+        libspeexdsp-dev:amd64 \
+        libswresample-dev:amd64 \
+        libswscale-dev:amd64 \
+        libudev-dev:amd64 \
+        libv4l-dev:amd64 \
+        libvlc-dev:amd64 \
+        libx11-dev:amd64 \
+        libx264-dev:amd64 \
+        libxcb-randr0-dev:amd64 \
+        libxcb-shm0-dev:amd64 \
+        libxcb-xinerama0-dev:amd64 \
+        libxcomposite-dev:amd64 \
+        libxinerama-dev:amd64 \
+        qtbase5-dev:amd64 \
+        libqt5svg5-dev:amd64 \
+        ninja-build
+    - name: "Prerequisites: mbedTLS"
+      shell: bash
+      run: |
+        mkdir "${{ github.workspace }}/cmbuild"
+        pushd "${{ github.workspace }}/cmbuild"
+        mkdir "mbedtls"
+        pushd "mbedtls"
+        curl -L -O https://github.com/ARMmbed/mbedtls/archive/mbedtls-2.12.0.tar.gz
+        tar -xf mbedtls-2.12.0.tar.gz
+        mkdir "build"
+        pushd "build"
+        cmake -DENABLE_TESTING=Off -DUSE_SHARED_MBEDTLS_LIBRARY=On ../mbedtls-mbedtls-2.12.0
+        cmake --build .
+        sudo cmake --build . --target install
+        popd
+        popd
+        popd
+    - name: "Prerequisites: Chromium Embedded Framework"
+      shell: bash
+      run: |
+        curl -kL https://cdn-fastly.obsproject.com/downloads/cef_binary_${{ env.CEF_BUILD_VERSION }}_linux64.tar.bz2 -f --retry 5 -o cef.tar.bz2
+        if [ ! -d "${{ github.workspace }}/cmbuild" ]; then mkdir "${{ github.workspace }}/cmbuild"; fi
+        tar -C"${{ github.workspace }}/cmbuild" -xjf cef.tar.bz2 
+    - name: "Configure"
+      shell: bash
+      run: |
+        cmake -H. -Bbuild64 -G"${{ env.CMAKE_GENERATOR }}" -DBUILD_AMD_ENCODER=true -DBUILD_BROWSER=true -DBUILD_CAPTIONS=true -DCOMPILE_LUA=true -DCOMPILE_PYTHON=true -DCEF_ROOT_DIR="${{ github.workspace }}/cmbuild/cef_binary_${{ env.CEF_BUILD_VERSION }}_linux64" -DCPACK_GENERATOR=7Z -DCPACK_SOURCE_GENERATOR=7Z -DCOPIED_DEPENDENCIES=FALSE -DCOPY_DEPENDENCIES=true -DOBS_VERSION_OVERRIDE="${{ env.VERSION_OVERRIDE }}"
+    - name: "Build"
+      shell: bash
+      run: |
+        cmake --build build64 --config RelWithDebInfo --target package
+    - name: "Upload Artifacts"
+      uses: actions/upload-artifact@v2-preview
+      with:
+        path: build64/*.7z
+  win32:
+    name: "Windows 32-bit"
+    runs-on: windows-2019
+    env:
+      CMAKE_GENERATOR: "Visual Studio 16 2019"
+      CMAKE_SYSTEM_VERSION: "10.0.18363.657"
+      VERSION_OVERRIDE: "0.0.0.0-vs2019"
+    steps:
+    - name: "Clone Repository"
+      uses: actions/checkout@v1
+    - name: "Prerequisites: Submodules"
+      shell: bash
+      run: git submodule update --init --recursive
+    - name: "Prerequisites: QT"
+      uses: jurplel/install-qt-action@v2
+      with:
+        version: '5.14.1'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win32_msvc2017'
+        dir: '${{ github.workspace }}/cmbuild/'
+    - name: "Prerequisites: Dependencies"
+      shell: bash
+      run: |
+        curl -kL "https://cdn.xaymar.com/obs/dependencies_25.0.0.zip" -f --retry 5 -o dependencies2017.zip
+        7z x dependencies2017.zip -o"${{ github.workspace }}/cmbuild/deps"
+    - name: "Prerequisites: VLC"
+      shell: bash
+      run: |
+        curl -kL https://cdn-fastly.obsproject.com/downloads/vlc.zip -f --retry 5 -o vlc.zip
+        7z x vlc.zip -o"${{ github.workspace }}/cmbuild/vlc"
+    - name: "Prerequisites: Chromium Embedded Framework"
+      shell: bash
+      run: |
+        curl -kL https://cdn-fastly.obsproject.com/downloads/cef_binary_${{ env.CEF_VERSION }}_windows32_minimal.zip -f --retry 5 -o cef.zip
+        7z x cef.zip -o"${{ github.workspace }}/cmbuild"
+    - name: "Configure"
+      shell: bash
+      run: |
+        cmake -H. -Bbuild32 -G"${{ env.CMAKE_GENERATOR }}" -A"Win32" -DCMAKE_SYSTEM_VERSION="${{ env.CMAKE_SYSTEM_VERSION }}" -DBUILD_AMD_ENCODER=true -DBUILD_BROWSER=true -DBUILD_CAPTIONS=true -DCOMPILE_D3D12_HOOK=true -DCOMPILE_LUA=true -DCOMPILE_PYTHON=true -DDepsPath="${{ github.workspace }}/cmbuild/deps/win32" -DQTDIR="${{ github.workspace }}/cmbuild/QT/5.14.1/msvc2017" -DCEF_ROOT_DIR="${{ github.workspace }}/cmbuild/cef_binary_${{ env.CEF_VERSION }}_windows32_minimal" -DCPACK_GENERATOR=7Z -DCPACK_SOURCE_GENERATOR=7Z -DCOPIED_DEPENDENCIES=FALSE -DCOPY_DEPENDENCIES=true -DOBS_VERSION_OVERRIDE="${{ env.VERSION_OVERRIDE }}"
+    - name: "Build"
+      shell: bash
+      run: |
+        cmake --build build32 --config RelWithDebInfo --target PACKAGE
+    - name: "Upload Artifacts"
+      uses: actions/upload-artifact@v2-preview
+      with:
+        path: build32/*.7z
+  win64:
+    name: "Windows 64-bit"
+    runs-on: windows-2019
+    env:
+      CMAKE_GENERATOR: "Visual Studio 16 2019"
+      CMAKE_SYSTEM_VERSION: "10.0.18363.657"
+      VERSION_OVERRIDE: "0.0.0.0-vs2019"
+    steps:
+    - name: "Clone Repository"
+      uses: actions/checkout@v1
+    - name: "Prerequisites: Submodules"
+      shell: bash
+      run: git submodule update --init --recursive
+    - name: "Prerequisites: QT"
+      uses: jurplel/install-qt-action@v2
+      with:
+        version: '5.14.1'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2017_64'
+        dir: '${{ github.workspace }}/cmbuild/'
+    - name: "Prerequisites: Dependencies"
+      shell: bash
+      run: |
+        curl -kL "https://cdn.xaymar.com/obs/dependencies_25.0.0.zip" -f --retry 5 -o dependencies2017.zip
+        7z x dependencies2017.zip -o"${{ github.workspace }}/cmbuild/deps"
+    - name: "Prerequisites: VLC"
+      shell: bash
+      run: |
+        curl -kL https://cdn-fastly.obsproject.com/downloads/vlc.zip -f --retry 5 -o vlc.zip
+        7z x vlc.zip -o"${{ github.workspace }}/cmbuild/vlc"
+    - name: "Prerequisites: Chromium Embedded Framework"
+      shell: bash
+      run: |
+        curl -kL https://cdn-fastly.obsproject.com/downloads/cef_binary_${{ env.CEF_VERSION }}_windows64_minimal.zip -f --retry 5 -o cef.zip
+        7z x cef.zip -o"${{ github.workspace }}/cmbuild"
+    - name: "Configure"
+      shell: bash
+      run: |
+        cmake -H. -Bbuild64 -G"${{ env.CMAKE_GENERATOR }}" -A"x64" -DCMAKE_SYSTEM_VERSION="${{ env.CMAKE_SYSTEM_VERSION }}" -DBUILD_AMD_ENCODER=true -DBUILD_BROWSER=true -DBUILD_CAPTIONS=true -DCOMPILE_D3D12_HOOK=true -DCOMPILE_LUA=true -DCOMPILE_PYTHON=true -DDepsPath="${{ github.workspace }}/cmbuild/deps/win64" -DQTDIR="${{ github.workspace }}/cmbuild/QT/5.14.1/msvc2017_64" -DCEF_ROOT_DIR="${{ github.workspace }}/cmbuild/cef_binary_${{ env.CEF_VERSION }}_windows64_minimal" -DCPACK_GENERATOR=7Z -DCPACK_SOURCE_GENERATOR=7Z -DCOPIED_DEPENDENCIES=FALSE -DCOPY_DEPENDENCIES=true -DOBS_VERSION_OVERRIDE="${{ env.VERSION_OVERRIDE }}"
+    - name: "Build"
+      shell: bash
+      run: |
+        cmake --build build64 --config RelWithDebInfo --target PACKAGE
+    - name: "Upload Artifacts"
+      uses: actions/upload-artifact@v2-preview
+      with:
+        path: build64/*.7z
