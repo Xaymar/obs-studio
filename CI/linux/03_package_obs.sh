@@ -20,13 +20,13 @@ package_obs() {
     step "Package OBS..."
     cmake --build ${BUILD_DIR} -t package
 
-    DEB_NAME=$(find ${BUILD_DIR} -maxdepth 1 -type f -name "obs*.deb" | sort -rn | head -1)
-
-    if [ "${DEB_NAME}" ]; then
-        mv ${DEB_NAME} ${BUILD_DIR}/${FILE_NAME}
-    else
-        error "ERROR No suitable OBS debian package generated"
-    fi
+#    DEB_NAME=$(find ${BUILD_DIR} -maxdepth 1 -type f -name "obs*.deb" | sort -rn | head -1)
+#
+#    if [ "${DEB_NAME}" ]; then
+#        mv ${DEB_NAME} ${BUILD_DIR}/${FILE_NAME}
+#    else
+#        error "ERROR No suitable OBS debian package generated"
+#    fi
 }
 
 package-obs-standalone() {

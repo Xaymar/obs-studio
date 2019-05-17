@@ -232,15 +232,15 @@ function(setup_target_browser target)
     endif()
   endforeach()
 
-  add_custom_command(
-    TARGET ${target}
-    POST_BUILD
-    COMMAND
-      "${CMAKE_COMMAND}" --install . --config $<CONFIG> --prefix
-      $<TARGET_BUNDLE_CONTENT_DIR:${target}> --component obs_browser_dev >
-      /dev/null
-    COMMENT "Installing Chromium Embedded Framework for development"
-    VERBATIM)
+#  add_custom_command(
+#    TARGET ${target}
+#    POST_BUILD
+#    COMMAND
+#      "${CMAKE_COMMAND}" --install . --config $<CONFIG> --prefix
+#      $<TARGET_BUNDLE_CONTENT_DIR:${target}> --component obs_browser_dev >
+#      /dev/null
+#    COMMENT "Installing Chromium Embedded Framework for development"
+#    VERBATIM)
 endfunction()
 
 # Helper function to set-up OBS frameworks for macOS bundling

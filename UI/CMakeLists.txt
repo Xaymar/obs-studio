@@ -366,12 +366,12 @@ if(OS_WINDOWS)
   add_subdirectory(win-update/updater)
 
 elseif(OS_MACOS)
-  set_target_properties(
-    obs
-    PROPERTIES OUTPUT_NAME ${OBS_BUNDLE_NAME}
-               MACOSX_BUNDLE ON
-               MACOSX_BUNDLE_INFO_PLIST
-               ${CMAKE_SOURCE_DIR}/cmake/bundle/macOS/Info.plist.in)
+#  set_target_properties(
+#    obs
+#    PROPERTIES OUTPUT_NAME ${OBS_BUNDLE_NAME}
+#               MACOSX_BUNDLE ON
+#               MACOSX_BUNDLE_INFO_PLIST
+#               ${CMAKE_SOURCE_DIR}/cmake/bundle/macOS/Info.plist.in)
 
   if(XCODE)
     set_target_properties(

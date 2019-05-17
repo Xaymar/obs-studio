@@ -26,16 +26,16 @@ package_obs() {
     step "Package OBS..."
     cmake --build ${BUILD_DIR} -t package
 
-    DMG_NAME=$(/usr/bin/find "${BUILD_DIR}" -type f -name "OBS-*.dmg" -depth 1 | sort -rn | head -1)
-
-    if [ "${DMG_NAME}" ]; then
-        mv "${DMG_NAME}" "${BUILD_DIR}/${FILE_NAME}"
-
-        step "Codesign OBS disk image..."
-        /usr/bin/codesign --force --sign "${CODESIGN_IDENT:--}" "${BUILD_DIR}/${FILE_NAME}"
-    else
-        error "ERROR No suitable OBS disk image generated"
-    fi
+#    DMG_NAME=$(/usr/bin/find "${BUILD_DIR}" -type f -name "OBS-*.dmg" -depth 1 | sort -rn | head -1)
+#
+#    if [ "${DMG_NAME}" ]; then
+#        mv "${DMG_NAME}" "${BUILD_DIR}/${FILE_NAME}"
+#
+#        step "Codesign OBS disk image..."
+#        /usr/bin/codesign --force --sign "${CODESIGN_IDENT:--}" "${BUILD_DIR}/${FILE_NAME}"
+#    else
+#        error "ERROR No suitable OBS disk image generated"
+#    fi
 }
 
 notarize_obs() {
