@@ -205,6 +205,7 @@ set(obs_SOURCES
 	${obs_PLATFORM_SOURCES}
 	${obs_libffutil_SOURCES}
 	../deps/json11/json11.cpp
+	obs.cpp
 	obs-app.cpp
 	window-dock.cpp
 	api-interface.cpp
