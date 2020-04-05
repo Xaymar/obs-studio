@@ -15,7 +15,13 @@ add_library(obs-frontend-api SHARED
 	${obs-frontend-api_SOURCES}
 	${obs-frontend-api_HEADERS})
 target_link_libraries(obs-frontend-api
-	libobs)
+	PUBLIC
+		libobs)
+
+target_include_directories(obs-frontend-api
+	PUBLIC
+		"$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
+		"$<INSTALL_INTERFACE:${OBS_INCLUDE_DESTINATION}>")
 
 if(UNIX AND NOT APPLE)
 	set_target_properties(obs-frontend-api
@@ -26,4 +32,5 @@ if(UNIX AND NOT APPLE)
 			)
 endif()
 
-install_obs_core(obs-frontend-api)
+install_obs_core(obs-frontend-api EXPORT obs-frontend-api)
+install_obs_headers(obs-frontend-api.h)
