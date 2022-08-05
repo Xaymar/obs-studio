@@ -351,7 +351,7 @@ jobs:
         if: ${{ success() && (github.event_name != 'pull_request' || env.SEEKING_TESTERS == '1') }}
         run: |
           CI/windows/03_package_obs.ps1 -BuildArch ${{ matrix.arch }} -Package
-          $ArtifactName = Get-ChildItem -filter "obs-studio-*-windows-${{ matrix.arch }}.tar.gz" -File
+          $ArtifactName = Get-ChildItem -filter "obs-studio-*.tar.gz" -File
           Write-Output "FILE_NAME=${ArtifactName}" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: 'Upload build artifact'
