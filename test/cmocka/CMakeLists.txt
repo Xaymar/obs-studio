@@ -46,6 +46,17 @@ if(ENABLE_VULKAN)
   target_link_libraries(test_vulkan_device PRIVATE OBS::libobs OBS::vma Vulkan::Headers cmocka::cmocka)
   add_test(test_vulkan_device test_vulkan_device)
 
+  # Queue global priority: default, opt-in realtime, refusal fallback; skips without a device.
+  add_executable(test_vulkan_priority test_vulkan_priority.cpp)
+  target_include_directories(test_vulkan_priority PRIVATE ${CMOCKA_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/libobs-vulkan)
+  target_compile_definitions(
+    test_vulkan_priority
+    PRIVATE OBS_VULKAN_MODULE="$<TARGET_FILE_DIR:libobs-vulkan>/libobs-vulkan"
+  )
+  add_dependencies(test_vulkan_priority libobs-vulkan)
+  target_link_libraries(test_vulkan_priority PRIVATE OBS::libobs OBS::vma Vulkan::Headers cmocka::cmocka)
+  add_test(test_vulkan_priority test_vulkan_priority)
+
   # Textures, clear and stage-surface readback; skips without a device.
   add_executable(test_vulkan_readback test_vulkan_readback.cpp)
   target_include_directories(test_vulkan_readback PRIVATE ${CMOCKA_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/libobs-vulkan)
@@ -206,6 +217,7 @@ if(ENABLE_VULKAN)
   # missing layer fails these tests instead of skipping the message check.
   set_tests_properties(
     test_vulkan_device
+    test_vulkan_priority
     test_vulkan_readback
     test_vulkan_upload
     test_vulkan_swapchain

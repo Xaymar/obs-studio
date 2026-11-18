@@ -320,4 +320,8 @@ EXPORT int obs_vulkan_validation_messages(void);
 EXPORT void obs_vulkan_test_stage_mip(gs_device_t *device, gs_stagesurf_t *dst, gs_texture_t *src, uint32_t level);
 // Test hook: glslang process references currently held (devices plus running compiles).
 EXPORT int obs_vulkan_glslang_refs(void);
+// Host API (optional, not a graphics import): global priority the graphics queue of devices created from now on
+// asks for, as a VkQueueGlobalPriorityKHR value (128 low, the default; 256 medium; 512 high; 1024 realtime).
+// OBS_VULKAN_REALTIME=1 overrides it with realtime. Returns 0 for any other value (unchanged), 1 otherwise.
+EXPORT int obs_vulkan_set_global_priority(int level);
 }

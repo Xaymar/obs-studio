@@ -116,6 +116,27 @@ static void test_optional_not_exported(void **)
 	os_dlclose(module);
 }
 
+// Exports beyond the graphics imports, allowed on purpose: the host API (documented in vulkan-subsystem.hpp) and the
+// test hooks. None may be a graphics import name, so they cannot change what libobs probes.
+static void test_extra_exports_allowlist(void **)
+{
+	void *module = open_module();
+	assert_non_null(module);
+	const char *extra[] = {"obs_vulkan_set_global_priority", "obs_vulkan_validation_messages",
+			       "obs_vulkan_test_stage_mip", "obs_vulkan_glslang_refs"};
+	auto required = imports_for_platform("GRAPHICS_IMPORT(");
+	auto optional = imports_for_platform("GRAPHICS_IMPORT_OPTIONAL(");
+	for (const char *name : extra) {
+		assert_non_null(os_dlsym(module, name));
+		for (auto *list : {&required, &optional}) {
+			for (auto &import : *list) {
+				assert_string_not_equal(import.c_str(), name);
+			}
+		}
+	}
+	os_dlclose(module);
+}
+
 static void test_identity(void **)
 {
 	void *module = open_module();
@@ -136,6 +157,7 @@ int main()
 		cmocka_unit_test(test_module_loads),
 		cmocka_unit_test(test_required_exports),
 		cmocka_unit_test(test_optional_not_exported),
+		cmocka_unit_test(test_extra_exports_allowlist),
 		cmocka_unit_test(test_identity),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);

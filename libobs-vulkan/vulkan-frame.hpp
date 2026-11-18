@@ -13,6 +13,9 @@ struct vk_queue {
 	uint64_t next_value = 1;
 	std::vector<uint64_t> failed_values; // timeline values whose submission failed (signalled from the host)
 	float priority = 0.5f;               // granted: 0.25 low, 0.5 medium (default), 0.75 high, 1.0 realtime
+	// VK_KHR_global_priority level asked for, and the one vkCreateDevice accepted (0: none, the driver default).
+	VkQueueGlobalPriorityKHR requested = (VkQueueGlobalPriorityKHR)0;
+	VkQueueGlobalPriorityKHR global_priority = (VkQueueGlobalPriorityKHR)0;
 };
 
 // One host-visible, persistently mapped block of a frame's upload arena.
