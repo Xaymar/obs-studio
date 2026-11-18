@@ -1,5 +1,7 @@
-// Skeleton: every required graphics export is a stub until the real implementation lands.
+// Graphics exports. Device lifetime is real; the rest are still stubs until later tasks.
 #include "vulkan-subsystem.hpp"
+
+#include <vector>
 
 extern "C" {
 
@@ -20,14 +22,54 @@ EXPORT const char *device_preprocessor_name(void)
 
 EXPORT int device_create(gs_device_t **device, uint32_t adapter)
 {
-	return GS_ERROR_NOT_SUPPORTED;
+	*device = nullptr;
+	auto d = new gs_device;
+	int ret = vk_device_init(d, adapter); // frees everything it created on failure
+	if (ret != GS_SUCCESS) {
+		delete d;
+		return ret;
+	}
+	*device = d;
+	return GS_SUCCESS;
 }
 
-EXPORT void device_destroy(gs_device_t *device) {}
+EXPORT void device_destroy(gs_device_t *device)
+{
+	if (!device)
+		return;
+	vk_device_free(device);
+	delete device;
+}
 
+// Vulkan has no current-context state; commands are recorded per frame and submitted explicitly.
 EXPORT void device_enter_context(gs_device_t *device) {}
 
 EXPORT void device_leave_context(gs_device_t *device) {}
+
+EXPORT const char *gpu_get_driver_version(void)
+{
+	return vk_driver_version();
+}
+
+EXPORT const char *gpu_get_renderer(void)
+{
+	return vk_adapter_name();
+}
+
+EXPORT bool device_enum_adapters(gs_device_t *device, bool (*callback)(void *, const char *, uint32_t), void *param)
+{
+	uint32_t n = 0;
+	vkEnumeratePhysicalDevices(device->instance, &n, nullptr);
+	std::vector<VkPhysicalDevice> phys(n);
+	vkEnumeratePhysicalDevices(device->instance, &n, phys.data());
+	for (uint32_t i = 0; i < n; ++i) {
+		VkPhysicalDeviceProperties props;
+		vkGetPhysicalDeviceProperties(phys[i], &props);
+		if (!callback(param, props.deviceName, i))
+			break;
+	}
+	return true;
+}
 
 EXPORT void *device_get_device_obj(gs_device_t *device)
 {

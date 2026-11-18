@@ -103,6 +103,10 @@ static void test_optional_not_exported(void **)
 	assert_true(names.size() > 10);
 	size_t exported = 0;
 	for (auto &name : names) {
+		// Implemented for real (Task 2), so exporting them is correct.
+		if (name == "device_enum_adapters" || name == "gpu_get_driver_version" || name == "gpu_get_renderer") {
+			continue;
+		}
 		if (os_dlsym(module, name.c_str())) {
 			print_message("optional export must be absent: %s\n", name.c_str());
 			++exported;
