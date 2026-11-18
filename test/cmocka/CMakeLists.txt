@@ -220,8 +220,8 @@ if(ENABLE_VULKAN)
   add_test(test_vulkan_tracker test_vulkan_tracker)
 
   # Every test that creates a device runs under the validation layer with synchronization validation, so the hazard
-  # checks behind the tracker run in every ctest invocation. CI also sets OBS_VULKAN_REQUIRE_VALIDATION=1 so a
-  # missing layer fails these tests instead of skipping the message check.
+  # checks behind the tracker run in every ctest invocation. Set OBS_VULKAN_REQUIRE_VALIDATION=1 to make a missing
+  # validation layer fail the test. cmocka's skip() exits 0, so SKIPPED (no Vulkan 1.3 device) reports Skipped.
   set_tests_properties(
     test_vulkan_device
     test_vulkan_priority
@@ -233,7 +233,9 @@ if(ENABLE_VULKAN)
     test_vulkan_depth
     test_vulkan_effects
     test_vulkan_video_vulkan
-    PROPERTIES ENVIRONMENT "OBS_VULKAN_VALIDATION=1;VK_KHRONOS_VALIDATION_VALIDATE_SYNC=true"
+    PROPERTIES
+      ENVIRONMENT "OBS_VULKAN_VALIDATION=1;VK_KHRONOS_VALIDATION_VALIDATE_SYNC=true"
+      SKIP_REGULAR_EXPRESSION "SKIPPED"
   )
 endif()
 

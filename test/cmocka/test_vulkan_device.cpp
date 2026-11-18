@@ -81,7 +81,7 @@ static void test_device_destroy_leaves_no_validation_errors(void **)
 	gs_device *device = create_or_skip();
 	if (messages() < 0) {
 		destroy(device);
-		// CI sets OBS_VULKAN_REQUIRE_VALIDATION=1: a missing validation layer then fails instead of skipping.
+		// Set OBS_VULKAN_REQUIRE_VALIDATION=1 to make a missing validation layer fail the test.
 		const char *rq = getenv("OBS_VULKAN_REQUIRE_VALIDATION");
 		if (rq && !strcmp(rq, "1")) {
 			fail_msg("validation layer required (OBS_VULKAN_REQUIRE_VALIDATION=1) but missing");

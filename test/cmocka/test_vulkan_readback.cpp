@@ -20,7 +20,7 @@ extern "C" {
 #include <cmocka.h>
 }
 
-// CI sets OBS_VULKAN_REQUIRE_VALIDATION=1: a missing validation layer then fails instead of skipping the check.
+// Set OBS_VULKAN_REQUIRE_VALIDATION=1 to make a missing validation layer fail the test.
 static void require_validation()
 {
 	const char *rq = getenv("OBS_VULKAN_REQUIRE_VALIDATION");
