@@ -42,6 +42,9 @@ static inline struct obs_mem_header *hdr_of(void *obj)
 
 void obs_mem_init(void *obj, obs_mem_destroy_cb destroy)
 {
+	if (!obj)
+		return;
+
 	struct obs_mem_header *hdr = hdr_of(obj);
 	hdr->refs = 1;
 	hdr->weak = NULL;

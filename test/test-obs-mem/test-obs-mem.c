@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <obs-mem.h>
 #include <util/bmem.h>
@@ -13,7 +14,8 @@ struct test_obj {
 	bool want_weak;
 	obs_mem_weak_t *weak_in_dtor;
 	void *ref_in_dtor;
-	volatile long *signal;
+	volatile long *destroy_count; /* race test only: survives the poisoning below */
+	bool poison;
 };
 
 static void test_destroy(void *ptr)
@@ -28,6 +30,12 @@ static void test_destroy(void *ptr)
 
 	/* The test owns the memory so it can inspect the object afterwards. */
 	obs_mem_finalize(obj);
+
+	if (obj->poison) {
+		/* Stands in for freed memory: a positive refs lets a late upgrade "succeed" so it gets detected. */
+		os_atomic_inc_long(obj->destroy_count);
+		memset(obj, 0x11, sizeof(*obj));
+	}
 }
 
 static struct test_obj *test_create(void)
@@ -132,14 +140,17 @@ static void test_finalize_forced(void)
 #define RACE_THREADS 4
 #define RACE_ITERATIONS 100000
 
+static volatile long race_upgraded;
+static volatile long race_missed;
+
 struct race_ctx {
+	volatile long destroy_count;
 	/* A creates the object, B tries to upgrade; the flags hand it between the two. */
 	void *volatile shared_weak;
 	volatile long ready;
 	volatile long done;
 	volatile long stop;
 	volatile long bad;
-	volatile long upgraded;
 };
 
 static void *race_thread_b(void *param)
@@ -153,11 +164,13 @@ static void *race_thread_b(void *param)
 		obs_mem_weak_t *weak = ctx->shared_weak;
 		struct test_obj *obj = obs_mem_weak_get_strong(weak);
 		if (obj) {
-			/* Holding a ref means the destroy callback can't have run. */
-			if (os_atomic_load_long(&obj->destroyed))
+			/* Holding a ref means the destroy callback can't have run; if it did, the pin failed. */
+			if (os_atomic_load_long(&ctx->destroy_count))
 				os_atomic_inc_long(&ctx->bad);
-			os_atomic_inc_long(&ctx->upgraded);
+			os_atomic_inc_long(&race_upgraded);
 			obs_mem_release(obj);
+		} else {
+			os_atomic_inc_long(&race_missed);
 		}
 
 		os_atomic_store_long(&ctx->ready, 0);
@@ -174,18 +187,24 @@ static void *race_thread_a(void *param)
 
 	for (int i = 0; i < RACE_ITERATIONS; i++) {
 		struct test_obj *obj = test_create();
+		obj->poison = true;
+		obj->destroy_count = &ctx.destroy_count;
+		os_atomic_store_long(&ctx.destroy_count, 0);
 		obs_mem_weak_t *weak = obs_mem_get_weak(obj);
 
 		ctx.shared_weak = weak;
 		os_atomic_store_long(&ctx.done, 0);
 		os_atomic_store_long(&ctx.ready, 1);
 
+		/* Vary the delay so the release lands at different points of B's upgrade. */
+		for (volatile int k = 0; k < (i * 7) % 200; k++)
+			;
 		obs_mem_release(obj);
 
 		while (!os_atomic_load_long(&ctx.done))
 			;
 
-		assert(obj->destroyed == 1);
+		assert(ctx.destroy_count == 1);
 		assert(obs_mem_weak_expired(weak));
 		obs_mem_weak_release(weak);
 		bfree(obj);
@@ -206,6 +225,9 @@ static void test_upgrade_race(void)
 		pthread_create(&threads[i], NULL, race_thread_a, NULL);
 	for (size_t i = 0; i < RACE_THREADS / 2; i++)
 		pthread_join(threads[i], NULL);
+
+	printf("upgrade race: %ld upgraded, %ld expired\n", race_upgraded, race_missed);
+	assert(race_upgraded > 0 && race_missed > 0);
 }
 
 int main(void)

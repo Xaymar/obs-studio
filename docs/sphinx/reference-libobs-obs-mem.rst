@@ -35,6 +35,8 @@ Strong Reference Functions
                    call :c:func:`obs_mem_finalize` and then free the object
                    with :c:func:`bfree`.
 
+   A NULL *obj* is ignored.
+
 ---------------------
 
 .. function:: void *obs_mem_acquire(void *obj)
