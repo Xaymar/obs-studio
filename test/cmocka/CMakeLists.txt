@@ -176,7 +176,7 @@ if(ENABLE_VULKAN)
   target_compile_definitions(test_vulkan_video PRIVATE OBS_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   target_compile_features(test_vulkan_video PRIVATE cxx_std_17)
   add_dependencies(test_vulkan_video libobs-vulkan)
-  target_link_libraries(test_vulkan_video PRIVATE OBS::libobs cmocka::cmocka)
+  target_link_libraries(test_vulkan_video PRIVATE OBS::libobs cmocka::cmocka $<$<PLATFORM_ID:Windows>:gdi32>)
   set(_video_vulkan "${CMAKE_CURRENT_BINARY_DIR}/video_vulkan.bin")
   set(_video_d3d11 "${CMAKE_CURRENT_BINARY_DIR}/video_d3d11.bin")
   add_test(
@@ -203,6 +203,13 @@ if(ENABLE_VULKAN)
       test_vulkan_video_compare
       PROPERTIES FIXTURES_REQUIRED "video_vulkan;video_d3d11" SKIP_REGULAR_EXPRESSION "SKIPPED"
     )
+  endif()
+
+  # Queue priority measurement only (not a test, not installed): the synthetic D3D11 foreground load. The OBS side
+  # load is `test_vulkan_video load`. See docs/superpowers/specs/2026-11-17-libobs-vulkan-priority-measurement.md.
+  if(WIN32)
+    add_executable(vulkan_priority_fg_load vulkan_priority_fg_load.cpp)
+    target_link_libraries(vulkan_priority_fg_load PRIVATE d3d11 dxgi d3dcompiler)
   endif()
 
   # Pure logic: compiles the tracker directly, needs no device or loader.

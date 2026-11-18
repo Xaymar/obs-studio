@@ -4,6 +4,10 @@
 //   test_vulkan_video render <module path> vulkan|d3d11 <output file>
 //                                                      renders, checks the device type and pixels, writes images
 //   test_vulkan_video compare <file a> <file b>            per image and channel: max |a - b| <= 2
+//   test_vulkan_video load <module path> vulkan|d3d11|d3d11-release <seconds>
+//                          side load for the queue priority measurement (not run by ctest): a 1920x1080 NV12 60 fps
+//                          canvas with a few scaled sources, every frame read back and copied out by a raw video
+//                          callback. d3d11-release also does what release builds (GPU_PRIORITY_VAL set) do.
 //
 // ctest runs `render` for libobs-vulkan (under the validation layer with synchronization validation: zero messages)
 // and for libobs-d3d11 (Windows) in separate processes, then `compare`. Nothing golden is committed.
@@ -21,6 +25,13 @@
 #include <algorithm>
 #include <string>
 #include <vector>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <winternl.h>
+#include <d3d11.h>
+#include <d3dkmthk.h>
+#endif
 
 #include <obs.h>
 #include <graphics/vec2.h>
@@ -570,6 +581,125 @@ static bool read_images(const char *path, std::vector<image> &images)
 	return true;
 }
 
+/* ---- priority measurement side load ---- */
+
+static bool hags_enabled; // libobs-d3d11 logged that HAGS is on
+
+static void load_log(int lvl, const char *fmt, va_list args, void *)
+{
+	char buf[4096];
+	vsnprintf(buf, sizeof(buf), fmt, args);
+	hags_enabled |= strstr(buf, "Hardware-Accelerated GPU Scheduling enabled") != nullptr;
+	printf("%s: %s\n", lvl <= LOG_ERROR ? "error" : lvl <= LOG_WARNING ? "warning" : "info", buf);
+}
+
+struct load_stats {
+	long frames = 0;
+	std::vector<uint8_t> copy; // the encoder stand-in's destination
+};
+
+static void on_load_frame(void *param, struct video_data *frame)
+{
+	auto s = (load_stats *)param;
+	s->copy.resize(1920 * 1080 * 3 / 2);
+	for (uint32_t y = 0; y < 1080; ++y) {
+		memcpy(&s->copy[y * 1920], frame->data[0] + (size_t)y * frame->linesize[0], 1920);
+	}
+	for (uint32_t y = 0; y < 540; ++y) {
+		memcpy(&s->copy[1920 * 1080 + y * 1920], frame->data[1] + (size_t)y * frame->linesize[1], 1920);
+	}
+	++s->frames;
+}
+
+// What libobs-d3d11's set_priority does when built with GPU_PRIORITY_VAL (release builds; empty in this build, so
+// the module itself does nothing). The value is not public; 7, the maximum, is assumed.
+static void d3d11_release_priority()
+{
+#ifdef _WIN32
+	obs_enter_graphics();
+	auto dev = (ID3D11Device *)gs_get_device_obj();
+	obs_leave_graphics();
+	IDXGIDevice *dxgi = nullptr;
+	dev->QueryInterface(__uuidof(IDXGIDevice), (void **)&dxgi);
+	const NTSTATUS st = D3DKMTSetProcessSchedulingPriorityClass(
+		GetCurrentProcess(),
+		hags_enabled ? D3DKMT_SCHEDULINGPRIORITYCLASS_HIGH : D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME);
+	const HRESULT hr = st == 0 ? dxgi->SetGPUThreadPriority(7) : E_FAIL;
+	printf("d3d11-release: HAGS %s, priority class %s: status 0x%lx, SetGPUThreadPriority(7): 0x%lx\n",
+	       hags_enabled ? "on" : "off", hags_enabled ? "HIGH" : "REALTIME", (unsigned long)st, (unsigned long)hr);
+	dxgi->Release();
+#endif
+}
+
+static int run_load(const char *module, const char *kind, int seconds)
+{
+	base_set_log_handler(load_log, nullptr);
+	if (!obs_startup("en-US", nullptr, nullptr)) {
+		return 1;
+	}
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#endif
+	obs_add_data_path(OBS_SOURCE_DIR "/libobs/data/");
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+	register_sources();
+	obs_video_info ovi = {};
+	ovi.graphics_module = module;
+	ovi.fps_num = 60;
+	ovi.fps_den = 1;
+	ovi.base_width = ovi.output_width = 1920;
+	ovi.base_height = ovi.output_height = 1080;
+	ovi.output_format = VIDEO_FORMAT_NV12;
+	ovi.gpu_conversion = true;
+	ovi.colorspace = VIDEO_CS_709;
+	ovi.range = VIDEO_RANGE_PARTIAL;
+	ovi.scale_type = OBS_SCALE_BICUBIC;
+	if (obs_reset_video(&ovi) != OBS_VIDEO_SUCCESS) {
+		fprintf(stderr, "obs_reset_video failed\n");
+		return 1;
+	}
+	if (!strcmp(kind, "d3d11-release")) {
+		d3d11_release_priority();
+	}
+
+	obs_scene_t *scene = obs_scene_create("load");
+	add(scene, color_source(0xFF302010, 1920, 1080), 0, 0, 1);
+	add(scene, texture_source(1, OBS_EFFECT_DEFAULT), 0, 0, 15, OBS_SCALE_BICUBIC);     // 960x960
+	add(scene, texture_source(0, OBS_EFFECT_DEFAULT), 960, 0, 60, OBS_SCALE_LANCZOS);   // 480x480
+	add(scene, texture_source(0, OBS_EFFECT_DEFAULT), 1440, 0, 60, OBS_SCALE_BILINEAR); // 480x480
+	add(scene, texture_source(1, OBS_EFFECT_DEFAULT), 960, 480, 9, OBS_SCALE_BICUBIC);  // 576x576
+	add(scene, color_source(0x80FF8000, 960, 540), 480, 270, 1);                        // 50% overlay
+	obs_set_output_source(0, obs_scene_get_source(scene));
+
+	load_stats stats;
+	obs_add_raw_video_callback(nullptr, on_load_frame, &stats);
+	printf("LOAD RUNNING\n");
+	fflush(stdout);
+	os_sleep_ms((uint32_t)seconds * 1000);
+	obs_remove_raw_video_callback(on_load_frame, &stats);
+
+	video_t *video = obs_get_video();
+	printf("load %s: %ld frames received in %d s, rendered %u, lagged %u, output skipped %u\n", kind,
+	       stats.frames, seconds, obs_get_total_frames(), obs_get_lagged_frames(),
+	       video_output_get_skipped_frames(video));
+#ifdef _WIN32
+	FILETIME c, e, k, u;
+	GetProcessTimes(GetCurrentProcess(), &c, &e, &k, &u);
+	printf("load cpu %.1f s\n", ((((ULONGLONG)k.dwHighDateTime << 32) | k.dwLowDateTime) +
+				    (((ULONGLONG)u.dwHighDateTime << 32) | u.dwLowDateTime)) /
+					   1e7);
+#endif
+	obs_set_output_source(0, nullptr);
+	obs_source_remove(obs_scene_get_source(scene));
+	obs_scene_release(scene);
+	obs_wait_for_destroy_queue();
+	obs_shutdown();
+	return 0;
+}
+
 /* ---- tests ---- */
 
 static void test_render(void **)
@@ -709,9 +839,12 @@ static void test_compare(void **)
 
 int main(int argc, char **argv)
 {
+	if (argc == 5 && !strcmp(argv[1], "load")) {
+		return run_load(argv[2], argv[3], atoi(argv[4]));
+	}
 	const bool render_mode = argc == 5 && !strcmp(argv[1], "render");
 	if (!render_mode && !(argc == 4 && !strcmp(argv[1], "compare"))) {
-		fprintf(stderr, "usage: %s render <module> vulkan|d3d11 <out> | compare <a> <b>\n", argv[0]);
+		fprintf(stderr, "usage: %s render <module> vulkan|d3d11 <out> | compare <a> <b> | load <module> <kind> <s>\n", argv[0]);
 		return 2;
 	}
 	arg_mode = argv[1], arg_a = argv[2];
