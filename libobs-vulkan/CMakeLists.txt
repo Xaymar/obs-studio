@@ -13,6 +13,7 @@ target_sources(
     vulkan-instance.cpp
     vulkan-subsystem.cpp
     vulkan-subsystem.hpp
+    vulkan-texture.cpp
     vulkan-tracker.cpp
     vulkan-tracker.hpp
 )

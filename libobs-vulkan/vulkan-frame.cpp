@@ -2,10 +2,14 @@
 
 #include <util/base.h>
 
+#include <stdlib.h>
+#include <string.h>
+
 static void run_deferred(vk_frame &f)
 {
-	for (auto &fn : f.deferred)
+	for (auto &fn : f.deferred) {
 		fn();
+	}
 	f.deferred.clear();
 }
 
@@ -17,37 +21,46 @@ bool vk_frame_ring::init(VkDevice device, uint32_t queue_family)
 		VkCommandPoolCreateInfo pi = {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
 		pi.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
 		pi.queueFamilyIndex = family;
-		if (vkCreateCommandPool(dev, &pi, nullptr, &f.pool) != VK_SUCCESS)
+		if (vkCreateCommandPool(dev, &pi, nullptr, &f.pool) != VK_SUCCESS) {
 			return false;
+		}
 
 		VkCommandBufferAllocateInfo ai = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
 		ai.commandPool = f.pool;
 		ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		ai.commandBufferCount = 1;
-		if (vkAllocateCommandBuffers(dev, &ai, &f.cmd) != VK_SUCCESS)
+		if (vkAllocateCommandBuffers(dev, &ai, &f.cmd) != VK_SUCCESS) {
 			return false;
+		}
 	}
 	return true;
 }
 
 void vk_frame_ring::destroy()
 {
-	if (!dev)
+	if (!dev) {
 		return;
+	}
 	vkDeviceWaitIdle(dev);
 	for (auto &f : frames) {
 		run_deferred(f);
-		if (f.pool)
+		if (f.pool) {
 			vkDestroyCommandPool(dev, f.pool, nullptr);
+		}
 		f = {};
 	}
 	dev = VK_NULL_HANDLE;
 	index = 0;
+	recording = false;
 }
 
 vk_frame &vk_frame_ring::begin()
 {
 	vk_frame &f = frames[index];
+	if (recording) {
+		blog(LOG_ERROR, "[libobs-vulkan] begin() while a frame is recording");
+		return f;
+	}
 
 	if (f.done_value) {
 		VkSemaphoreWaitInfo wi = {VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO};
@@ -63,15 +76,36 @@ vk_frame &vk_frame_ring::begin()
 	VkCommandBufferBeginInfo bi = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
 	bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	vkBeginCommandBuffer(f.cmd, &bi);
+	recording = true;
 	return f;
 }
 
-void vk_frame_ring::submit(vk_queue &q, VkSemaphore *wait, VkSemaphore *signal)
+void vk_frame_ring::defer_destroy(std::function<void()> fn)
+{
+	if (recording) {
+		frames[index].defer_destroy(std::move(fn));
+		return;
+	}
+	// The most recent submission is the previous slot's; its begin() waits for it before running fn.
+	vk_frame &last = frames[(index + count - 1) % count];
+	if (last.done_value) {
+		last.defer_destroy(std::move(fn));
+	} else {
+		fn(); // nothing in flight
+	}
+}
+
+bool vk_frame_ring::submit(vk_queue &q, VkSemaphore *wait, VkSemaphore *signal)
 {
 	vk_frame &f = frames[index];
+	if (!recording) {
+		blog(LOG_ERROR, "[libobs-vulkan] submit() without begin()");
+		return false;
+	}
+	recording = false;
 	vkEndCommandBuffer(f.cmd);
 
-	const uint64_t value = q.next_value++;
+	const uint64_t value = q.next_value;
 
 	VkSemaphoreSubmitInfo waits[1] = {{VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO}};
 	VkSemaphoreSubmitInfo signals[2] = {{VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO},
@@ -101,11 +135,27 @@ void vk_frame_ring::submit(vk_queue &q, VkSemaphore *wait, VkSemaphore *signal)
 	si.signalSemaphoreInfoCount = nsignal;
 	si.pSignalSemaphoreInfos = signals;
 
-	if (vkQueueSubmit2(q.q, 1, &si, VK_NULL_HANDLE) != VK_SUCCESS) {
-		blog(LOG_ERROR, "[libobs-vulkan] vkQueueSubmit2 failed");
-		return;
+	// OBS_VULKAN_TEST_FAIL_SUBMIT=1 makes submissions fail, for tests.
+	const char *fail = getenv("OBS_VULKAN_TEST_FAIL_SUBMIT");
+	VkResult res = fail && !strcmp(fail, "1") ? VK_ERROR_OUT_OF_HOST_MEMORY
+						  : vkQueueSubmit2(q.q, 1, &si, VK_NULL_HANDLE);
+	if (res != VK_SUCCESS) {
+		blog(LOG_ERROR, "[libobs-vulkan] vkQueueSubmit2 failed (%d)", (int)res);
+		// Resources deferred here may still be used by earlier submissions; the slot itself has none in flight.
+		vkQueueWaitIdle(q.q);
+		// Signal the value from the host so no waiter hangs, and record that its work never ran.
+		VkSemaphoreSignalInfo sig = {VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO};
+		sig.semaphore = q.timeline;
+		sig.value = value;
+		vkSignalSemaphore(dev, &sig);
+		q.next_value = value + 1;
+		q.failed_values.push_back(value);
+		run_deferred(f);
+		return false;
 	}
+	q.next_value = value + 1;
 	f.done_sem = q.timeline;
 	f.done_value = value;
 	index = (index + 1) % count;
+	return true;
 }

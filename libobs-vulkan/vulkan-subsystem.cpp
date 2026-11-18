@@ -1,7 +1,42 @@
-// Graphics exports. Device lifetime is real; the rest are still stubs until later tasks.
+// Graphics exports. Device lifetime, render target, clear, staging and flush are real; the rest are still stubs.
+// Textures and stage surfaces live in vulkan-texture.cpp.
 #include "vulkan-subsystem.hpp"
 
+#include <graphics/vec4.h>
+#include <util/base.h>
+
 #include <vector>
+
+VkCommandBuffer vk_cmd(gs_device *d)
+{
+	if (!d->frames.recording) {
+		d->frames.begin();
+	}
+	return d->frames.frames[d->frames.index].cmd;
+}
+
+bool vk_flush(gs_device *d)
+{
+	if (!d->frames.recording || d->frames.submit(d->graphics, nullptr, nullptr)) {
+		return true;
+	}
+	// The tracker recorded layouts the failed command buffer never reached; restart from UNDEFINED (contents lost).
+	d->tracker = vk_tracker{};
+	return false;
+}
+
+static void record_barriers(VkCommandBuffer cmd, const vk_barriers &b)
+{
+	if (b.images.empty() && b.buffers.empty()) {
+		return;
+	}
+	VkDependencyInfo di = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+	di.imageMemoryBarrierCount = (uint32_t)b.images.size();
+	di.pImageMemoryBarriers = b.images.data();
+	di.bufferMemoryBarrierCount = (uint32_t)b.buffers.size();
+	di.pBufferMemoryBarriers = b.buffers.data();
+	vkCmdPipelineBarrier2(cmd, &di);
+}
 
 extern "C" {
 
@@ -35,8 +70,9 @@ EXPORT int device_create(gs_device_t **device, uint32_t adapter)
 
 EXPORT void device_destroy(gs_device_t *device)
 {
-	if (!device)
+	if (!device) {
 		return;
+	}
 	vk_device_free(device);
 	delete device;
 }
@@ -65,8 +101,9 @@ EXPORT bool device_enum_adapters(gs_device_t *device, bool (*callback)(void *, c
 	for (uint32_t i = 0; i < n; ++i) {
 		VkPhysicalDeviceProperties props;
 		vkGetPhysicalDeviceProperties(phys[i], &props);
-		if (!callback(param, props.deviceName, i))
+		if (!callback(param, props.deviceName, i)) {
 			break;
+		}
 	}
 	return true;
 }
@@ -102,13 +139,6 @@ EXPORT uint32_t device_get_height(const gs_device_t *device)
 	return {};
 }
 
-EXPORT gs_texture_t *device_texture_create(gs_device_t *device, uint32_t width, uint32_t height,
-					   enum gs_color_format color_format, uint32_t levels, const uint8_t **data,
-					   uint32_t flags)
-{
-	return {};
-}
-
 EXPORT gs_texture_t *device_cubetexture_create(gs_device_t *device, uint32_t size, enum gs_color_format color_format,
 					       uint32_t levels, const uint8_t **data, uint32_t flags)
 {
@@ -124,12 +154,6 @@ EXPORT gs_texture_t *device_voltexture_create(gs_device_t *device, uint32_t widt
 
 EXPORT gs_zstencil_t *device_zstencil_create(gs_device_t *device, uint32_t width, uint32_t height,
 					     enum gs_zstencil_format format)
-{
-	return {};
-}
-
-EXPORT gs_stagesurf_t *device_stagesurface_create(gs_device_t *device, uint32_t width, uint32_t height,
-						  enum gs_color_format color_format)
 {
 	return {};
 }
@@ -172,11 +196,6 @@ EXPORT gs_timer_range_t *device_timer_range_create(gs_device_t *device)
 	return {};
 }
 
-EXPORT enum gs_texture_type device_get_texture_type(const gs_texture_t *texture)
-{
-	return {};
-}
-
 EXPORT void device_load_vertexbuffer(gs_device_t *device, gs_vertbuffer_t *vertbuffer) {}
 
 EXPORT void device_load_indexbuffer(gs_device_t *device, gs_indexbuffer_t *indexbuffer) {}
@@ -203,7 +222,7 @@ EXPORT gs_shader_t *device_get_pixel_shader(const gs_device_t *device)
 
 EXPORT gs_texture_t *device_get_render_target(const gs_device_t *device)
 {
-	return {};
+	return device->render_target;
 }
 
 EXPORT gs_zstencil_t *device_get_zstencil_target(const gs_device_t *device)
@@ -211,7 +230,11 @@ EXPORT gs_zstencil_t *device_get_zstencil_target(const gs_device_t *device)
 	return {};
 }
 
-EXPORT void device_set_render_target(gs_device_t *device, gs_texture_t *tex, gs_zstencil_t *zstencil) {}
+// shortcut: zstencil ignored until depth targets exist (Task 7).
+EXPORT void device_set_render_target(gs_device_t *device, gs_texture_t *tex, gs_zstencil_t *zstencil)
+{
+	device->render_target = tex;
+}
 
 EXPORT void device_set_render_target_with_color_space(gs_device_t *device, gs_texture_t *tex, gs_zstencil_t *zstencil,
 						      enum gs_color_space space)
@@ -237,7 +260,32 @@ EXPORT void device_copy_texture_region(gs_device_t *device, gs_texture_t *dst, u
 {
 }
 
-EXPORT void device_stage_texture(gs_device_t *device, gs_stagesurf_t *dst, gs_texture_t *src) {}
+EXPORT void device_stage_texture(gs_device_t *device, gs_stagesurf_t *dst, gs_texture_t *src)
+{
+	if (!dst || !src || dst->width != src->width || dst->height != src->height || dst->format != src->format) {
+		blog(LOG_ERROR, "[libobs-vulkan] device_stage_texture: size or format mismatch");
+		return;
+	}
+	VkCommandBuffer cmd = vk_cmd(device);
+	const uint32_t fam = device->graphics.family;
+	vk_barriers b;
+	device->tracker.use_image(
+		src->image, fam,
+		{VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL}, b);
+	device->tracker.use_buffer(dst->buffer, fam, {VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT}, b);
+	record_barriers(cmd, b);
+
+	VkBufferImageCopy region = {};
+	region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+	region.imageExtent = {src->width, src->height, 1};
+	vkCmdCopyImageToBuffer(cmd, src->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst->buffer, 1, &region);
+
+	// Makes the copy available to the host once the submission's timeline value signals.
+	vk_barriers host;
+	device->tracker.use_buffer(dst->buffer, fam, {VK_PIPELINE_STAGE_2_HOST_BIT, VK_ACCESS_2_HOST_READ_BIT}, host);
+	record_barriers(cmd, host);
+	dst->copy_value = device->graphics.next_value; // the value the frame being recorded will signal
+}
 
 EXPORT void device_begin_frame(gs_device_t *device) {}
 
@@ -249,9 +297,26 @@ EXPORT void device_end_scene(gs_device_t *device) {}
 
 EXPORT void device_load_swapchain(gs_device_t *device, gs_swapchain_t *swaphchain) {}
 
+// shortcut: colour only, as a transfer clear; becomes a render-pass load op once draws exist.
 EXPORT void device_clear(gs_device_t *device, uint32_t clear_flags, const struct vec4 *color, float depth,
 			 uint8_t stencil)
 {
+	gs_texture *rt = device->render_target;
+	if (!(clear_flags & GS_CLEAR_COLOR) || !rt || !color) {
+		return;
+	}
+	VkCommandBuffer cmd = vk_cmd(device);
+	vk_barriers b;
+	device->tracker.use_image(rt->image, device->graphics.family,
+				  {VK_PIPELINE_STAGE_2_CLEAR_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
+				   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL},
+				  b);
+	record_barriers(cmd, b);
+
+	VkClearColorValue value = {{color->x, color->y, color->z, color->w}};
+	VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0,
+					 VK_REMAINING_ARRAY_LAYERS};
+	vkCmdClearColorImage(cmd, rt->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &value, 1, &range);
 }
 
 EXPORT bool device_is_present_ready(gs_device_t *device)
@@ -261,7 +326,10 @@ EXPORT bool device_is_present_ready(gs_device_t *device)
 
 EXPORT void device_present(gs_device_t *device) {}
 
-EXPORT void device_flush(gs_device_t *device) {}
+EXPORT void device_flush(gs_device_t *device)
+{
+	vk_flush(device);
+}
 
 EXPORT void device_set_cull_mode(gs_device_t *device, enum gs_cull_mode mode) {}
 
@@ -319,23 +387,6 @@ EXPORT void device_projection_pop(gs_device_t *device) {}
 
 EXPORT void gs_swapchain_destroy(gs_swapchain_t *swapchain) {}
 
-EXPORT void gs_texture_destroy(gs_texture_t *tex) {}
-
-EXPORT uint32_t gs_texture_get_width(const gs_texture_t *tex)
-{
-	return {};
-}
-
-EXPORT uint32_t gs_texture_get_height(const gs_texture_t *tex)
-{
-	return {};
-}
-
-EXPORT enum gs_color_format gs_texture_get_color_format(const gs_texture_t *tex)
-{
-	return {};
-}
-
 EXPORT bool gs_texture_map(gs_texture_t *tex, uint8_t **ptr, uint32_t *linesize)
 {
 	return {};
@@ -381,30 +432,6 @@ EXPORT enum gs_color_format gs_voltexture_get_color_format(const gs_texture_t *v
 {
 	return {};
 }
-
-EXPORT void gs_stagesurface_destroy(gs_stagesurf_t *stagesurf) {}
-
-EXPORT uint32_t gs_stagesurface_get_width(const gs_stagesurf_t *stagesurf)
-{
-	return {};
-}
-
-EXPORT uint32_t gs_stagesurface_get_height(const gs_stagesurf_t *stagesurf)
-{
-	return {};
-}
-
-EXPORT enum gs_color_format gs_stagesurface_get_color_format(const gs_stagesurf_t *stagesurf)
-{
-	return {};
-}
-
-EXPORT bool gs_stagesurface_map(gs_stagesurf_t *stagesurf, uint8_t **data, uint32_t *linesize)
-{
-	return {};
-}
-
-EXPORT void gs_stagesurface_unmap(gs_stagesurf_t *stagesurf) {}
 
 EXPORT void gs_zstencil_destroy(gs_zstencil_t *zstencil) {}
 

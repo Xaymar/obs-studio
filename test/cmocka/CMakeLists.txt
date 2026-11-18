@@ -46,6 +46,17 @@ if(ENABLE_VULKAN)
   target_link_libraries(test_vulkan_device PRIVATE OBS::libobs OBS::vma Vulkan::Headers cmocka::cmocka)
   add_test(test_vulkan_device test_vulkan_device)
 
+  # Textures, clear and stage-surface readback; skips without a device.
+  add_executable(test_vulkan_readback test_vulkan_readback.cpp)
+  target_include_directories(test_vulkan_readback PRIVATE ${CMOCKA_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/libobs-vulkan)
+  target_compile_definitions(
+    test_vulkan_readback
+    PRIVATE OBS_VULKAN_MODULE="$<TARGET_FILE_DIR:libobs-vulkan>/libobs-vulkan"
+  )
+  add_dependencies(test_vulkan_readback libobs-vulkan)
+  target_link_libraries(test_vulkan_readback PRIVATE OBS::libobs OBS::vma Vulkan::Headers cmocka::cmocka)
+  add_test(test_vulkan_readback test_vulkan_readback)
+
   # Pure logic: compiles the tracker directly, needs no device or loader.
   add_executable(test_vulkan_tracker test_vulkan_tracker.cpp ${CMAKE_SOURCE_DIR}/libobs-vulkan/vulkan-tracker.cpp)
   target_include_directories(test_vulkan_tracker PRIVATE ${CMOCKA_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/libobs-vulkan)
