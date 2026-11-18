@@ -1,7 +1,10 @@
 # libobs-vulkan backend: design
 
 Status: implemented through Task 9 of the plan (see the plan and the task
-ledger). The queue priority measurement was inconclusive.
+ledger). The queue priority measurement was inconclusive. Everything is
+verified only through ctest: the OBS frontend cannot select this backend
+(`frontend/OBSApp.cpp:1209`, `GetRenderModule` maps only "Direct3D 11" and
+otherwise OpenGL), and the manual preview check in OBS was never done.
 
 ## Intent and why
 
@@ -31,7 +34,7 @@ where a caller truly needs a result.
   preemption hypothesis above; it is not yet shown that it is achieved.)
 - The CPU never waits for the GPU except in the functions that must return
   data or take ownership (see Sync points).
-- Windows and Linux in the first version.
+- Windows in the first version; Linux not started (see Risks).
 
 ## Non-goals
 
@@ -147,15 +150,29 @@ into a per-draw uniform buffer.
 
 The backend waits for the GPU only in:
 
-- `gs_stagesurface_map`, `gs_texture_map`: wait on the fence for the copy.
+- `gs_stagesurface_map`: submits the frame holding the copy if it is still
+  being recorded, then waits for that copy's timeline value.
+- `gs_texture_map` never waits (as D3D11's `WRITE_DISCARD`): it hands out
+  space in the recording frame's upload arena, and `gs_texture_unmap` records
+  the copy from it into the frame being recorded. A slot keeps its arena while
+  a mapping in it is outstanding; a mapping held across a submit is first
+  copied into the current frame's arena. Its only wait is the frame ring's
+  `begin()` below, when the map starts a frame.
 - `gs_texture_acquire_sync` / `release_sync`: only meaningful for imported
   textures (see Interop); until then unsupported.
 - `gs_flush` and `gs_timer_get_*`: submit; wait only when the caller asks for
   data.
-- Swapchain acquire, on out-of-date or lost devices, via the rebuild path
-  (equivalent of `d3d11-rebuild.cpp`).
+- Swapchain acquire on out-of-date, and a `SUBOPTIMAL` whose surface size
+  changed: the rebuild path below. There is no device-loss recovery (nothing
+  like `d3d11-rebuild.cpp`): on a lost device every wait returns
+  `VK_ERROR_DEVICE_LOST` (`vulkan-frame.cpp` submit, `vk_consume_semaphore`),
+  so nothing hangs, but errors are logged every frame and OBS must be
+  restarted.
 - Frame ring `begin()` (frames-in-flight throttle): waits only when the slot
-  being reused (3 frames back) is still in flight.
+  being reused (3 submissions back) is still in flight. Every `gs_present`
+  is its own submission (`vulkan-swapchain.cpp` `device_present`), so with N
+  displays `begin()` waits on work from the current or previous OBS frame,
+  not 3 OBS frames back.
 - Swapchain destroy and resize (rebuild path): a graphics queue idle wait
   before the images and present semaphores are released.
 - Error paths: after a failed submit, `vkQueueWaitIdle` before the timeline
@@ -174,12 +191,14 @@ software or readback encoding paths are used.
 
 ### Milestones
 
-1. Clear and present on a window.
-2. Textured quad through the translated shader path.
-3. Full effect set: scene compositing and the built-in effects and filters.
-4. Stage-surface readback, so recording and streaming work.
-5. Queue priority behaviour measured against a foreground game.
-6. Shared-texture interop and encoder zero-copy.
+| # | Milestone | Status |
+|---|-----------|--------|
+| 1 | Clear and present on a window. | ctest only (`test_vulkan_swapchain`, hidden window); not verified in OBS UI |
+| 2 | Textured quad through the translated shader path. | ctest only (`test_vulkan_draw`); not verified in OBS UI |
+| 3 | Full effect set: scene compositing and the built-in effects and filters. | ctest only (`test_vulkan_effects` compiles every in-tree effect; `test_vulkan_video` runs the OBS video pipeline end to end and compares it with D3D11); not verified in OBS UI |
+| 4 | Stage-surface readback, so recording and streaming work. | ctest only (`test_vulkan_readback`, `test_vulkan_video`); recording and streaming not verified in OBS |
+| 5 | Queue priority behaviour measured against a foreground game. | measured once, inconclusive (see Risks) |
+| 6 | Shared-texture interop and encoder zero-copy. | not started |
 
 ## Decisions made by the author (not yet confirmed)
 
@@ -187,7 +206,7 @@ software or readback encoding paths are used.
 - HLSL to GLSL to SPIR-V through glslang, instead of DXC.
 - VMA for allocation.
 - Default queue priority below the foreground app; realtime is opt-in.
-- Windows and Linux only.
+- Windows and Linux only (Linux not started).
 
 ## Left to the builder
 
@@ -233,6 +252,48 @@ software or readback encoding paths are used.
   the shader disk cache (design only); interop (milestone 6 not started);
   the transfer queue carries no work (see Device, queues and priority).
   Devices with a single queue family get no transfer queue at all.
+- Linux is not started and untested: there are no Linux surfaces
+  (`device_swapchain_create` in `vulkan-swapchain.cpp` fails), libvulkan is
+  hard-linked (on Windows `vulkan-1.dll` is delay-loaded), so a machine
+  without it cannot even load the module, and `plugins/linux-pipewire/pipewire.c:291`
+  dereferences `gs_texture_get_obj()`, which returns NULL here
+  (`vulkan-subsystem.cpp`).
+- The frame ring advances per submission, not per OBS frame (see Sync points):
+  with several displays, `begin()` can wait on the current or previous OBS
+  frame. Follow-up: advance the ring at `gs_flush` and append presents to the
+  same submission, or raise the ring count.
+- A failed submit resets the tracker to `UNDEFINED`, so every live texture's
+  contents are undefined afterwards. Textures rendered every frame recover;
+  static ones (image sources, LUTs, glyph atlases,
+  `obs->video.transparent_texture`) stay corrupt until reloaded. Follow-up:
+  snapshot the tracker state at each successful submit and restore it on
+  failure, or log "restart OBS".
+- Shaders are compiled under the graphics lock with no disk cache: 77-95 ms
+  for the first `default.effect`, a hitch whenever a source or filter is
+  added.
+- Dynamic vertex buffers re-upload the CPU data at draw time on a new frame,
+  including changes not yet flushed with `gs_vertexbuffer_flush`; D3D11
+  snapshots the data at flush.
+- A texture parameter left unset skips the draw (logged once); D3D11 samples
+  zero.
+- A mapping held across many submissions (no libobs caller does this) keeps
+  its slot's upload arena from being reused, which grows meanwhile. The arena
+  is per slot and grows by doubling chunks, so dynamic texture uploads occupy
+  host-visible memory once per ring slot (three), plus growth slack; the
+  previous per-texture staging buffer held them once.
+- The SPIRV-Tools optimizer and validator are linked only because the SDK's
+  glslang is built with `ENABLE_OPT`; the module disables both
+  (`vulkan-shaderprocessor.cpp:833-834`). A glslang built with
+  `ENABLE_OPT=OFF` would shrink the module.
+- Licensing: the module statically contains Apache-2.0 code (SPIRV-Tools,
+  parts of glslang) inside a GPL-2.0-or-later program. Needs a licensing
+  review; `THIRD_PARTY.md` notes that the licence texts were not collected.
+- A CI runner without a GPU makes `test_vulkan_video_compare` fail by design
+  (`test/cmocka/CMakeLists.txt`, the `test_vulkan_video` comment): the Vulkan
+  render skips and writes nothing, so the comparison never passes without
+  comparing.
+- Shipping `LOW` queue priority as the default is an unmeasured product
+  decision: OBS itself might lag under a GPU-bound game.
 - libobs defects found while building this, not fixed here:
   `libobs/util/cf-lexer.c` overflows the stack on a recursive `#define`;
   a one-byte over-read/over-write when a block comment or string ends with a
