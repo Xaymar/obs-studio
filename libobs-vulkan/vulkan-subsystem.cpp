@@ -1,5 +1,6 @@
 // Graphics exports. Device lifetime, render target, clear, staging and flush are real; the rest are still stubs.
-// Textures and stage surfaces live in vulkan-texture.cpp, swapchains and present in vulkan-swapchain.cpp.
+// Textures and stage surfaces live in vulkan-texture.cpp, swapchains and present in vulkan-swapchain.cpp, buffers and
+// samplers in vulkan-buffers.cpp, state, pipelines and draw in vulkan-pipeline.cpp.
 #include "vulkan-subsystem.hpp"
 
 #include <graphics/vec4.h>
@@ -8,7 +9,7 @@
 #include <algorithm>
 #include <vector>
 
-VkCommandBuffer vk_cmd(gs_device *d)
+VkCommandBuffer vk_frame_cmd(gs_device *d)
 {
 	if (!d->frames.recording) {
 		d->frames.begin();
@@ -16,11 +17,18 @@ VkCommandBuffer vk_cmd(gs_device *d)
 	return d->frames.frames[d->frames.index].cmd;
 }
 
+VkCommandBuffer vk_cmd(gs_device *d)
+{
+	vk_end_rendering(d);
+	return vk_frame_cmd(d);
+}
+
 bool vk_flush(gs_device *d, VkSemaphore *signal)
 {
 	if (!d->frames.recording) {
 		return true;
 	}
+	vk_end_rendering(d);
 	VkSemaphore wait = d->acquire_wait;
 	d->acquire_wait = VK_NULL_HANDLE;
 	if (d->frames.submit(d->graphics, wait ? &wait : nullptr, signal)) {
@@ -77,6 +85,7 @@ EXPORT int device_create(gs_device_t **device, uint32_t adapter)
 		delete d;
 		return ret;
 	}
+	d->pipelines.device = d;
 	vk_glslang_ref(); // keeps glslang's built-in symbol tables alive between compiles
 	*device = d;
 	return GS_SUCCESS;
@@ -147,52 +156,12 @@ EXPORT gs_zstencil_t *device_zstencil_create(gs_device_t *device, uint32_t width
 	return {};
 }
 
-EXPORT gs_samplerstate_t *device_samplerstate_create(gs_device_t *device, const struct gs_sampler_info *info)
-{
-	return {};
-}
-
-EXPORT gs_vertbuffer_t *device_vertexbuffer_create(gs_device_t *device, struct gs_vb_data *data, uint32_t flags)
-{
-	return {};
-}
-
-EXPORT gs_indexbuffer_t *device_indexbuffer_create(gs_device_t *device, enum gs_index_type type, void *indices,
-						   size_t num, uint32_t flags)
-{
-	return {};
-}
-
 EXPORT gs_timer_t *device_timer_create(gs_device_t *device)
 {
 	return {};
 }
 
 EXPORT gs_timer_range_t *device_timer_range_create(gs_device_t *device)
-{
-	return {};
-}
-
-EXPORT void device_load_vertexbuffer(gs_device_t *device, gs_vertbuffer_t *vertbuffer) {}
-
-EXPORT void device_load_indexbuffer(gs_device_t *device, gs_indexbuffer_t *indexbuffer) {}
-
-EXPORT void device_load_texture(gs_device_t *device, gs_texture_t *tex, int unit) {}
-
-EXPORT void device_load_samplerstate(gs_device_t *device, gs_samplerstate_t *samplerstate, int unit) {}
-
-EXPORT void device_load_vertexshader(gs_device_t *device, gs_shader_t *vertshader) {}
-
-EXPORT void device_load_pixelshader(gs_device_t *device, gs_shader_t *pixelshader) {}
-
-EXPORT void device_load_default_samplerstate(gs_device_t *device, bool b_3d, int unit) {}
-
-EXPORT gs_shader_t *device_get_vertex_shader(const gs_device_t *device)
-{
-	return {};
-}
-
-EXPORT gs_shader_t *device_get_pixel_shader(const gs_device_t *device)
 {
 	return {};
 }
@@ -223,13 +192,6 @@ EXPORT void device_set_render_target(gs_device_t *device, gs_texture_t *tex, gs_
 
 EXPORT void device_set_cube_render_target(gs_device_t *device, gs_texture_t *cubetex, int side, gs_zstencil_t *zstencil)
 {
-}
-
-EXPORT void device_enable_framebuffer_srgb(gs_device_t *device, bool enable) {}
-
-EXPORT bool device_framebuffer_srgb_enabled(gs_device_t *device)
-{
-	return {};
 }
 
 EXPORT void device_copy_texture(gs_device_t *device, gs_texture_t *dst, gs_texture_t *src) {}
@@ -275,13 +237,10 @@ EXPORT void device_stage_texture(gs_device_t *device, gs_stagesurf_t *dst, gs_te
 
 EXPORT void device_begin_frame(gs_device_t *device) {}
 
-EXPORT void device_begin_scene(gs_device_t *device) {}
-
-EXPORT void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode, uint32_t start_vert, uint32_t num_verts) {}
-
 EXPORT void device_end_scene(gs_device_t *device) {}
 
-// shortcut: colour only, as a transfer clear; becomes a render-pass load op once draws exist.
+// shortcut: colour only, as a transfer clear outside rendering (vk_cmd ends an open instance; the next draw's tracker
+// barrier orders it before the colour attachment writes). A load op would save the barrier.
 EXPORT void device_clear(gs_device_t *device, uint32_t clear_flags, const struct vec4 *color, float depth,
 			 uint8_t stencil)
 {
@@ -307,60 +266,6 @@ EXPORT void device_flush(gs_device_t *device)
 {
 	vk_flush(device);
 }
-
-EXPORT void device_set_cull_mode(gs_device_t *device, enum gs_cull_mode mode) {}
-
-EXPORT enum gs_cull_mode device_get_cull_mode(const gs_device_t *device)
-{
-	return {};
-}
-
-EXPORT void device_enable_blending(gs_device_t *device, bool enable) {}
-
-EXPORT void device_enable_depth_test(gs_device_t *device, bool enable) {}
-
-EXPORT void device_enable_stencil_test(gs_device_t *device, bool enable) {}
-
-EXPORT void device_enable_stencil_write(gs_device_t *device, bool enable) {}
-
-EXPORT void device_enable_color(gs_device_t *device, bool red, bool green, bool blue, bool alpha) {}
-
-EXPORT void device_blend_function(gs_device_t *device, enum gs_blend_type src, enum gs_blend_type dest) {}
-
-EXPORT void device_blend_function_separate(gs_device_t *device, enum gs_blend_type src_c, enum gs_blend_type dest_c,
-					   enum gs_blend_type src_a, enum gs_blend_type dest_a)
-{
-}
-
-EXPORT void device_blend_op(gs_device_t *device, enum gs_blend_op_type op) {}
-
-EXPORT void device_depth_function(gs_device_t *device, enum gs_depth_test test) {}
-
-EXPORT void device_stencil_function(gs_device_t *device, enum gs_stencil_side side, enum gs_depth_test test) {}
-
-EXPORT void device_stencil_op(gs_device_t *device, enum gs_stencil_side side, enum gs_stencil_op_type fail,
-			      enum gs_stencil_op_type zfail, enum gs_stencil_op_type zpass)
-{
-}
-
-EXPORT void device_set_viewport(gs_device_t *device, int x, int y, int width, int height) {}
-
-EXPORT void device_get_viewport(const gs_device_t *device, struct gs_rect *rect) {}
-
-EXPORT void device_set_scissor_rect(gs_device_t *device, const struct gs_rect *rect) {}
-
-EXPORT void device_ortho(gs_device_t *device, float left, float right, float top, float bottom, float znear, float zfar)
-{
-}
-
-EXPORT void device_frustum(gs_device_t *device, float left, float right, float top, float bottom, float znear,
-			   float zfar)
-{
-}
-
-EXPORT void device_projection_push(gs_device_t *device) {}
-
-EXPORT void device_projection_pop(gs_device_t *device) {}
 
 EXPORT void *gs_texture_get_obj(gs_texture_t *tex)
 {
@@ -402,40 +307,6 @@ EXPORT enum gs_color_format gs_voltexture_get_color_format(const gs_texture_t *v
 }
 
 EXPORT void gs_zstencil_destroy(gs_zstencil_t *zstencil) {}
-
-EXPORT void gs_samplerstate_destroy(gs_samplerstate_t *samplerstate) {}
-
-EXPORT void gs_vertexbuffer_destroy(gs_vertbuffer_t *vertbuffer) {}
-
-EXPORT void gs_vertexbuffer_flush(gs_vertbuffer_t *vertbuffer) {}
-
-EXPORT void gs_vertexbuffer_flush_direct(gs_vertbuffer_t *vertbuffer, const struct gs_vb_data *data) {}
-
-EXPORT struct gs_vb_data *gs_vertexbuffer_get_data(const gs_vertbuffer_t *vertbuffer)
-{
-	return {};
-}
-
-EXPORT void gs_indexbuffer_destroy(gs_indexbuffer_t *indexbuffer) {}
-
-EXPORT void gs_indexbuffer_flush(gs_indexbuffer_t *indexbuffer) {}
-
-EXPORT void gs_indexbuffer_flush_direct(gs_indexbuffer_t *indexbuffer, const void *data) {}
-
-EXPORT void *gs_indexbuffer_get_data(const gs_indexbuffer_t *indexbuffer)
-{
-	return {};
-}
-
-EXPORT size_t gs_indexbuffer_get_num_indices(const gs_indexbuffer_t *indexbuffer)
-{
-	return {};
-}
-
-EXPORT enum gs_index_type gs_indexbuffer_get_type(const gs_indexbuffer_t *indexbuffer)
-{
-	return {};
-}
 
 EXPORT void gs_timer_destroy(gs_timer_t *timer) {}
 

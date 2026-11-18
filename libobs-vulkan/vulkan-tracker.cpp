@@ -33,8 +33,9 @@ bool vk_tracker::step(state &s, const vk_access &needed, bool check_layout, sour
 	if (write) {
 		s.write_stage = needed.stage;
 		s.write_access = needed.access & write_bits;
-		s.visible_stage = needed.stage;
-		s.visible_access = needed.access;
+		// The write's own result is visible to nothing yet, not even a read in its own stage.
+		s.visible_stage = 0;
+		s.visible_access = 0;
 		s.read_stage = 0;
 	} else {
 		// The write stays pending for further readers in other stages.

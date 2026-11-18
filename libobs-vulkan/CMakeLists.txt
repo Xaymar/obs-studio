@@ -11,9 +11,11 @@ add_library(OBS::libobs-vulkan ALIAS libobs-vulkan)
 target_sources(
   libobs-vulkan
   PRIVATE
+    vulkan-buffers.cpp
     vulkan-frame.cpp
     vulkan-frame.hpp
     vulkan-instance.cpp
+    vulkan-pipeline.cpp
     vulkan-shader.cpp
     vulkan-shaderprocessor.cpp
     vulkan-subsystem.cpp

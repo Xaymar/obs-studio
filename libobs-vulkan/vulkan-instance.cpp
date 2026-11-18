@@ -201,6 +201,11 @@ static int create_device(gs_device *d, uint32_t adapter)
 	en13.synchronization2 = en13.dynamicRendering = VK_TRUE;
 	VkPhysicalDeviceVulkan12Features en12 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES, &en13};
 	en12.timelineSemaphore = VK_TRUE;
+	VkPhysicalDeviceFeatures core = {};
+	core.samplerAnisotropy = feats.features.samplerAnisotropy;
+	d->anisotropy = feats.features.samplerAnisotropy;
+	en12.samplerMirrorClampToEdge = d->mirror_clamp = f12.samplerMirrorClampToEdge;
+	d->limits = props.properties.limits;
 
 	// Queue families: first graphics family, plus a transfer-only family when one exists.
 	uint32_t nfam = 0;
@@ -271,6 +276,7 @@ static int create_device(gs_device *d, uint32_t adapter)
 			dev_exts[ndev_exts++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
 		VkDeviceCreateInfo di = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
 		di.pNext = &en12;
+		di.pEnabledFeatures = &core;
 		di.queueCreateInfoCount = nq;
 		di.pQueueCreateInfos = qi;
 		di.enabledExtensionCount = ndev_exts;
@@ -318,6 +324,7 @@ static int create_device(gs_device *d, uint32_t adapter)
 	if (vmaCreateAllocator(&ai, &d->vma) != VK_SUCCESS)
 		return GS_ERROR_FAIL;
 
+	d->frames.vma = d->vma;
 	if (!d->frames.init(d->dev, d->graphics.family))
 		return GS_ERROR_FAIL;
 	return GS_SUCCESS;
@@ -338,6 +345,7 @@ void vk_device_free(gs_device *d)
 	if (d->dev)
 		vkDeviceWaitIdle(d->dev);
 	d->frames.destroy(); // runs deferred work, which returns acquire semaphores to spare_sems
+	vk_pipelines_free(d);
 	if (d->acquire_wait)
 		d->spare_sems.push_back(d->acquire_wait);
 	for (VkSemaphore s : d->spare_sems)

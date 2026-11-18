@@ -188,6 +188,27 @@ static void buffer_write_then_read_other_stage_emits_second_barrier(void **)
 	assert_int_equal(b.buffers[0].dstStageMask, va.stage);
 }
 
+// A read whose access is a subset of the preceding write's read-write mask still needs the write made visible.
+static void read_after_read_write_emits_barrier(void **)
+{
+	vk_tracker t;
+	vk_barriers b;
+	vk_access rw = {VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+			VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+	vk_access r = {rw.stage, VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT, rw.layout};
+	t.use_image(IMG(1), 0, rw, b);
+	b = {};
+	t.use_image(IMG(1), 0, r, b);
+	assert_int_equal(b.images.size(), 1);
+	assert_int_equal(b.images[0].srcAccessMask, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
+	assert_int_equal(b.images[0].dstAccessMask, r.access);
+	// Now visible: a second identical read coalesces.
+	b = {};
+	t.use_image(IMG(1), 0, r, b);
+	assert_true(b.images.empty());
+}
+
 int main()
 {
 	const struct CMUnitTest tests[] = {
@@ -202,6 +223,7 @@ int main()
 		cmocka_unit_test(write_then_write_emits_barrier),
 		cmocka_unit_test(write_then_read_other_stage_emits_second_barrier),
 		cmocka_unit_test(buffer_write_then_read_other_stage_emits_second_barrier),
+		cmocka_unit_test(read_after_read_write_emits_barrier),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }

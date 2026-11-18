@@ -32,9 +32,8 @@ VkFormat vk_format(enum gs_color_format format)
 	}
 }
 
-// Host-visible, persistently mapped buffer.
-static bool create_host_buffer(gs_device *d, VkDeviceSize size, VkBufferUsageFlags usage,
-			       VmaAllocationCreateFlags access, VkBuffer &buffer, VmaAllocation &alloc, void *&mapped)
+bool vk_create_host_buffer(gs_device *d, VkDeviceSize size, VkBufferUsageFlags usage, VmaAllocationCreateFlags access,
+			   VkBuffer &buffer, VmaAllocation &alloc, void *&mapped)
 {
 	VkBufferCreateInfo bi = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
 	bi.size = size;
@@ -52,15 +51,16 @@ static bool create_host_buffer(gs_device *d, VkDeviceSize size, VkBufferUsageFla
 	return true;
 }
 
-static VkImageView create_view(gs_device *d, const gs_texture *tex, VkFormat fmt)
+// Sampled views cover all mips and force BGRX's alpha to one; render target views (rt) are mip 0, identity swizzle.
+static VkImageView create_view(gs_device *d, const gs_texture *tex, VkFormat fmt, bool rt = false)
 {
-	const bool no_alpha = tex->format == GS_BGRX || tex->format == GS_BGRX_UNORM;
+	const bool no_alpha = !rt && (tex->format == GS_BGRX || tex->format == GS_BGRX_UNORM);
 	VkImageViewCreateInfo vi = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
 	vi.image = tex->image;
 	vi.viewType = VK_IMAGE_VIEW_TYPE_2D;
 	vi.format = fmt;
 	vi.components.a = no_alpha ? VK_COMPONENT_SWIZZLE_ONE : VK_COMPONENT_SWIZZLE_IDENTITY;
-	vi.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, tex->levels, 0, 1};
+	vi.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, rt ? 1 : tex->levels, 0, 1};
 	VkImageView view = VK_NULL_HANDLE;
 	vkCreateImageView(d->dev, &vi, nullptr, &view);
 	return view;
@@ -95,8 +95,8 @@ static bool upload(gs_device *d, gs_texture *tex, const uint8_t **data, uint32_t
 	VkBuffer buffer;
 	VmaAllocation alloc;
 	void *mapped;
-	if (!create_host_buffer(d, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-				VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, buffer, alloc, mapped)) {
+	if (!vk_create_host_buffer(d, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+				   VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, buffer, alloc, mapped)) {
 		return false;
 	}
 	for (const VkBufferImageCopy &r : regions) {
@@ -152,6 +152,8 @@ static void destroy_texture_objects(gs_device *d, const gs_texture *tex)
 	d->frames.defer_destroy([dev = d->dev, vma = d->vma, t = *tex] {
 		vkDestroyImageView(dev, t.view, nullptr);
 		vkDestroyImageView(dev, t.srgb_view, nullptr);
+		vkDestroyImageView(dev, t.rt_view, nullptr);
+		vkDestroyImageView(dev, t.rt_srgb_view, nullptr);
 		vmaDestroyImage(vma, t.image, t.alloc);
 		if (t.staging) {
 			vmaDestroyBuffer(vma, t.staging, t.staging_alloc);
@@ -242,12 +244,21 @@ EXPORT gs_texture_t *device_texture_create(gs_device_t *device, uint32_t width, 
 	if (srgb) {
 		tex->srgb_view = create_view(device, tex, srgb_fmt);
 	}
-	bool ok = tex->view && (!srgb || tex->srgb_view);
+	if (flags & GS_RENDER_TARGET) {
+		tex->rt_format = fmt;
+		tex->rt_view = create_view(device, tex, fmt, true);
+		if (srgb) {
+			tex->rt_srgb_format = srgb_fmt;
+			tex->rt_srgb_view = create_view(device, tex, srgb_fmt, true);
+		}
+	}
+	bool ok = tex->view && (!srgb || tex->srgb_view) && (!(flags & GS_RENDER_TARGET) || tex->rt_view) &&
+		  (!(flags & GS_RENDER_TARGET) || !srgb || tex->rt_srgb_view);
 	if (ok && (flags & GS_DYNAMIC)) {
 		const VkDeviceSize size = (VkDeviceSize)width * height * (gs_get_format_bpp(color_format) / 8);
-		ok = create_host_buffer(device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-					VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, tex->staging,
-					tex->staging_alloc, tex->staging_mapped);
+		ok = vk_create_host_buffer(device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+					   VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, tex->staging,
+					   tex->staging_alloc, tex->staging_mapped);
 	}
 	if (ok && data) {
 		ok = upload(device, tex, data, build_mips ? 1 : levels);
@@ -272,6 +283,11 @@ EXPORT void gs_texture_destroy(gs_texture_t *tex)
 	gs_device *d = tex->device;
 	if (d->render_target == tex) {
 		d->render_target = nullptr;
+	}
+	for (gs_texture *&t : d->cur_textures) {
+		if (t == tex) {
+			t = nullptr;
+		}
 	}
 	destroy_texture_objects(d, tex);
 	delete tex;
@@ -363,8 +379,8 @@ EXPORT gs_stagesurf_t *device_stagesurface_create(gs_device_t *device, uint32_t 
 	s->format = color_format;
 	s->linesize = width * gs_get_format_bpp(color_format) / 8;
 
-	if (!create_host_buffer(device, (VkDeviceSize)s->linesize * height, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-				VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT, s->buffer, s->alloc, s->mapped)) {
+	if (!vk_create_host_buffer(device, (VkDeviceSize)s->linesize * height, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				   VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT, s->buffer, s->alloc, s->mapped)) {
 		blog(LOG_ERROR, "[libobs-vulkan] device_stagesurface_create: vmaCreateBuffer failed");
 		delete s;
 		return nullptr;

@@ -1,4 +1,4 @@
-// gs_shader_* exports. Values go into a CPU shadow of the shader's std140 block; uploading it is Task 7 (draw).
+// gs_shader_* exports. Values go into a CPU shadow of the shader's std140 block; device_draw uploads it when dirty.
 #include "vulkan-subsystem.hpp"
 
 #include <graphics/vec2.h>
@@ -46,9 +46,13 @@ static void write_uniform(gs_shader_param *p, const void *data, size_t elem)
 		return;
 	}
 	for (size_t i = 0; i < count; ++i) {
-		memcpy(u.data() + p->offset + i * stride, (const uint8_t *)data + i * elem, elem);
+		uint8_t *dst = u.data() + p->offset + i * stride;
+		const uint8_t *src = (const uint8_t *)data + i * elem;
+		if (memcmp(dst, src, elem)) { // an unchanged value keeps this frame's upload
+			memcpy(dst, src, elem);
+			p->shader->dirty = true;
+		}
 	}
-	p->shader->dirty = true;
 }
 
 static gs_shader_t *shader_create_unguarded(gs_device_t *device, enum gs_shader_type type, const char *text,
@@ -115,6 +119,9 @@ EXPORT gs_shader_t *device_pixelshader_create(gs_device_t *device, const char *s
 
 EXPORT void gs_shader_destroy(gs_shader_t *shader)
 {
+	if (shader && shader->device) {
+		shader->device->pipelines.forget(shader);
+	}
 	delete shader;
 }
 

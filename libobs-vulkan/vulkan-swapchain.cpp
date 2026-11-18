@@ -56,6 +56,7 @@ static void release_images(gs_swap_chain *s)
 		submit_pending(d); // recorded commands may use the acquired image; it is never presented
 		s->image = UINT32_MAX;
 		s->target.image = VK_NULL_HANDLE;
+		s->target.rt_view = VK_NULL_HANDLE;
 	}
 	if (s->images.empty()) {
 		return;
@@ -68,6 +69,10 @@ static void release_images(gs_swap_chain *s)
 	for (VkSemaphore p : s->present_sems) {
 		vkDestroySemaphore(d->dev, p, nullptr);
 	}
+	for (VkImageView v : s->views) {
+		vkDestroyImageView(d->dev, v, nullptr);
+	}
+	s->views.clear();
 	s->images.clear();
 	s->present_sems.clear();
 }
@@ -136,6 +141,17 @@ static bool build(gs_swap_chain *s)
 	for (VkSemaphore &p : s->present_sems) {
 		vkCreateSemaphore(d->dev, &si, nullptr, &p);
 	}
+	for (VkImage image : s->images) {
+		VkImageViewCreateInfo vi = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+		vi.image = image;
+		vi.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		vi.format = s->surface_format.format;
+		vi.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+		VkImageView v = VK_NULL_HANDLE;
+		vkCreateImageView(d->dev, &vi, nullptr, &v);
+		s->views.push_back(v);
+	}
+	s->target.rt_format = s->surface_format.format;
 	s->target.width = ext.width;
 	s->target.height = ext.height;
 	return true;
@@ -306,6 +322,7 @@ EXPORT bool device_is_present_ready(gs_device_t *device)
 			s->recreate = r == VK_SUBOPTIMAL_KHR; // still presentable; rebuilt on the next acquire
 			s->image = idx;
 			s->target.image = s->images[idx];
+			s->target.rt_view = s->views[idx];
 			device->acquire_wait = sem;
 			// Contents are discarded every frame: restart from UNDEFINED. Recording the acquire as an
 			// ALL_COMMANDS access makes the next barrier's source stage match the submit's semaphore wait.
@@ -342,6 +359,7 @@ EXPORT void device_present(gs_device_t *device)
 	const uint32_t idx = s->image;
 	s->image = UINT32_MAX;
 	s->target.image = VK_NULL_HANDLE;
+	s->target.rt_view = VK_NULL_HANDLE;
 
 	VkCommandBuffer cmd = vk_cmd(device);
 	vk_barriers b;

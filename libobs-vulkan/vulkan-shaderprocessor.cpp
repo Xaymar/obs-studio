@@ -1,8 +1,9 @@
 // HLSL as emitted by the effect parser -> Vulkan GLSL 450 -> SPIR-V (glslang, linked statically).
 // The translation is adapted from libobs-opengl/gl-shaderparser.c; differences are marked.
 //
-// Layout: non-texture uniforms live in one std140 block at set 0 binding 0 (offsets from glslang reflection);
-// each texture is a combined image sampler (sampler2D etc.) at set 0 binding 1..n in declaration order.
+// Layout: each stage has its own descriptor set, 0 for the vertex shader and 1 for the pixel shader. Non-texture
+// uniforms live in one std140 block at binding 0 of it (offsets from glslang reflection); each texture is a combined
+// image sampler (sampler2D etc., an array of them for a texture array) at binding 1..n in declaration order.
 // Vertex inputs take locations in declaration order; varyings take a location from their semantic so the vertex
 // and pixel shaders of a pass match even when their structs differ; pixel outputs start at location 0.
 #include "vulkan-subsystem.hpp"
@@ -123,6 +124,7 @@ struct translator {
 	std::string error;
 	int sincos_counter = 1;
 	uint32_t next_input = 0, next_output = 0;
+	int max_varying = -1;
 	std::vector<std::string> inputs;
 
 	explicit translator(enum gs_shader_type t) : type(t) { shader_parser_init(&parser); }
@@ -188,11 +190,13 @@ struct translator {
 	void write_params()
 	{
 		std::string block;
+		const std::string set = type == GS_SHADER_PIXEL ? "1" : "0";
 		uint32_t binding = 1;
 		for (size_t i = 0; i < parser.params.num; i++) {
 			shader_var *var = parser.params.array + i;
 			if (is_texture(var->type)) {
-				out += "layout(set = 0, binding = " + std::to_string(binding++) + ") uniform ";
+				out += "layout(set = " + set + ", binding = " + std::to_string(binding++) +
+				       ") uniform ";
 				write_var(var);
 				cat(";\n");
 			} else if (var->var_type == SHADER_VAR_UNIFORM) {
@@ -207,7 +211,8 @@ struct translator {
 			}
 		}
 		if (!block.empty()) {
-			out += "layout(std140, set = 0, binding = 0) uniform obs_uniforms {\n" + block + "};\n";
+			out += "layout(std140, set = " + set + ", binding = 0) uniform obs_uniforms {\n" + block +
+			       "};\n";
 		}
 		cat("\n");
 	}
@@ -247,6 +252,7 @@ struct translator {
 					"'";
 				return false;
 			}
+			max_varying = (std::max)(max_varying, location);
 		}
 
 		out += "layout(location = " + std::to_string(location) + ") ";
@@ -495,7 +501,8 @@ struct translator {
 		if (strcmp(mapping, "VERTEXID") == 0) {
 			out += "uint(gl_VertexIndex)";
 		} else if (type == GS_SHADER_PIXEL && strcmp(mapping, "POSITION") == 0) {
-			out += "gl_FragCoord";
+			// D3D's SV_Position.w is the clip-space w; gl_FragCoord.w is 1/w.
+			out += "vec4(gl_FragCoord.xyz, 1.0 / gl_FragCoord.w)";
 		} else {
 			out += global;
 		}
@@ -766,6 +773,8 @@ void fill_shader(translator &t, gs_shader *shader)
 		shader->samplers.push_back(info);
 	}
 	shader->inputs = std::move(t.inputs);
+	shader->max_varying = t.max_varying;
+	shader->set = t.type == GS_SHADER_PIXEL ? 1 : 0;
 }
 
 bool compile(const std::string &glsl, enum gs_shader_type type, std::vector<uint32_t> &spirv, gs_shader *shader,

@@ -98,12 +98,43 @@ if(ENABLE_VULKAN)
   target_link_libraries(test_vulkan_shader PRIVATE OBS::libobs OBS::vma Vulkan::Headers cmocka::cmocka)
   add_test(test_vulkan_shader test_vulkan_shader)
 
+  # Draw path; needs a device (skips without one). The effect parser is compiled in, as for test_vulkan_shader.
+  add_executable(
+    test_vulkan_draw
+    test_vulkan_draw.cpp
+    test_vulkan_shader_effect.c
+    test_vulkan_shader_effect.h
+    ${CMAKE_SOURCE_DIR}/libobs/graphics/effect-parser.c
+  )
+  target_include_directories(test_vulkan_draw PRIVATE ${CMOCKA_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/libobs-vulkan)
+  target_compile_definitions(
+    test_vulkan_draw
+    PRIVATE OBS_SOURCE_DIR="${CMAKE_SOURCE_DIR}" OBS_VULKAN_MODULE="$<TARGET_FILE_DIR:libobs-vulkan>/libobs-vulkan"
+  )
+  target_compile_features(test_vulkan_draw PRIVATE cxx_std_17)
+  add_dependencies(test_vulkan_draw libobs-vulkan)
+  target_link_libraries(test_vulkan_draw PRIVATE OBS::libobs OBS::vma Vulkan::Headers cmocka::cmocka)
+  add_test(test_vulkan_draw test_vulkan_draw)
+
   # Pure logic: compiles the tracker directly, needs no device or loader.
   add_executable(test_vulkan_tracker test_vulkan_tracker.cpp ${CMAKE_SOURCE_DIR}/libobs-vulkan/vulkan-tracker.cpp)
   target_include_directories(test_vulkan_tracker PRIVATE ${CMOCKA_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/libobs-vulkan)
   target_compile_features(test_vulkan_tracker PRIVATE cxx_std_17)
   target_link_libraries(test_vulkan_tracker PRIVATE Vulkan::Headers cmocka::cmocka)
   add_test(test_vulkan_tracker test_vulkan_tracker)
+
+  # Every test that creates a device runs under the validation layer with synchronization validation, so the hazard
+  # checks behind the tracker run in every ctest invocation. CI also sets OBS_VULKAN_REQUIRE_VALIDATION=1 so a
+  # missing layer fails these tests instead of skipping the message check.
+  set_tests_properties(
+    test_vulkan_device
+    test_vulkan_readback
+    test_vulkan_upload
+    test_vulkan_swapchain
+    test_vulkan_shader
+    test_vulkan_draw
+    PROPERTIES ENVIRONMENT "OBS_VULKAN_VALIDATION=1;VK_KHRONOS_VALIDATION_VALIDATE_SYNC=true"
+  )
 endif()
 
 # OS path test

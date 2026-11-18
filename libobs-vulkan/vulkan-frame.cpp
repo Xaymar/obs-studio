@@ -5,6 +5,18 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void reset_transient(VkDevice dev, vk_frame &f)
+{
+	for (vk_arena_chunk &c : f.arena) {
+		c.used = 0;
+	}
+	f.arena_chunk = 0;
+	for (VkDescriptorPool p : f.desc_pools) {
+		vkResetDescriptorPool(dev, p, 0);
+	}
+	f.desc_pool = 0;
+}
+
 static void run_deferred(vk_frame &f)
 {
 	for (auto &fn : f.deferred) {
@@ -47,6 +59,12 @@ void vk_frame_ring::destroy()
 		if (f.pool) {
 			vkDestroyCommandPool(dev, f.pool, nullptr);
 		}
+		for (vk_arena_chunk &c : f.arena) {
+			vmaDestroyBuffer(vma, c.buffer, c.alloc);
+		}
+		for (VkDescriptorPool p : f.desc_pools) {
+			vkDestroyDescriptorPool(dev, p, nullptr);
+		}
 		f = {};
 	}
 	dev = VK_NULL_HANDLE;
@@ -71,6 +89,7 @@ vk_frame &vk_frame_ring::begin()
 		f.done_value = 0;
 	}
 	run_deferred(f);
+	reset_transient(dev, f);
 	vkResetCommandPool(dev, f.pool, 0);
 
 	VkCommandBufferBeginInfo bi = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};

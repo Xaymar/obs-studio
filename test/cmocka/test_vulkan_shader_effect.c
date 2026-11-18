@@ -12,7 +12,7 @@ struct vkt_shader_fns vkt;
 
 gs_shader_t *gs_vertexshader_create(const char *shader, const char *file, char **error_string)
 {
-	gs_shader_t *s = vkt.vertexshader_create(NULL, shader, file, error_string);
+	gs_shader_t *s = vkt.vertexshader_create(vkt.device, shader, file, error_string);
 	if (vkt.on_shader)
 		vkt.on_shader(GS_SHADER_VERTEX, shader, s);
 	return s;
@@ -20,7 +20,7 @@ gs_shader_t *gs_vertexshader_create(const char *shader, const char *file, char *
 
 gs_shader_t *gs_pixelshader_create(const char *shader, const char *file, char **error_string)
 {
-	gs_shader_t *s = vkt.pixelshader_create(NULL, shader, file, error_string);
+	gs_shader_t *s = vkt.pixelshader_create(vkt.device, shader, file, error_string);
 	if (vkt.on_shader)
 		vkt.on_shader(GS_SHADER_PIXEL, shader, s);
 	return s;

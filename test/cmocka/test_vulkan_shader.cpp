@@ -27,6 +27,15 @@ extern "C" {
 #include <cmocka.h>
 }
 
+// CI sets OBS_VULKAN_REQUIRE_VALIDATION=1: a missing validation layer then fails instead of skipping the check.
+static void require_validation()
+{
+	const char *rq = getenv("OBS_VULKAN_REQUIRE_VALIDATION");
+	if (rq && !strcmp(rq, "1")) {
+		fail_msg("validation layer required (OBS_VULKAN_REQUIRE_VALIDATION=1) but missing");
+	}
+}
+
 static void *module;
 static int (*create)(gs_device_t **, uint32_t);
 static void (*destroy)(gs_device_t *);
@@ -450,6 +459,7 @@ static void test_core_effects_translate(void **)
 	os_dlclose(loader);
 	int n = messages();
 	if (n < 0) {
+		require_validation();
 		print_message("validation layer missing, not checked\n");
 	} else {
 		assert_int_equal(n, 0);
@@ -651,6 +661,7 @@ static void test_glslang_refcount_survives_device_cycles(void **)
 		assert_int_equal(glslang_refs(), 0);
 		int n = messages();
 		if (n < 0) {
+			require_validation();
 			print_message("validation layer missing, not checked\n");
 		} else {
 			assert_int_equal(n, 0);

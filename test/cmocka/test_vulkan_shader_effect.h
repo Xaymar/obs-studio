@@ -13,6 +13,7 @@ struct vkt_shader_fns {
 	gs_sparam_t *(*get_param_by_name)(gs_shader_t *, const char *);
 	void (*shader_destroy)(gs_shader_t *);
 	void (*on_shader)(enum gs_shader_type type, const char *text, gs_shader_t *shader);
+	gs_device_t *device; // passed to the create calls; NULL compiles without a device
 };
 extern struct vkt_shader_fns vkt;
 
