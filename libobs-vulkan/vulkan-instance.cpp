@@ -311,21 +311,23 @@ static int create_device(gs_device *d, uint32_t adapter)
 	std::string offered;
 	for (int i = 3; i >= 0; --i) {
 		const bool hook = levels[i] == VK_QUEUE_GLOBAL_PRIORITY_REALTIME_KHR && refuse_realtime();
-		if (supports(gfx, levels[i]))
-			offered += std::string(offered.empty() ? "" : ", ") + priority_name(levels[i]);
 		if (levels[i] <= requested[0] && (supports(gfx, levels[i]) || hook))
 			tries.push_back(levels[i]);
 	}
 	tries.push_back((VkQueueGlobalPriorityKHR)0);
+	// Straight from the driver's list (not through supports()), so tests can check the grant against it.
+	if (have_prio_ext)
+		for (uint32_t i = 0; i < prio[gfx].priorityCount; ++i)
+			offered += std::string(offered.empty() ? "" : ", ") + priority_name(prio[gfx].priorities[i]);
 	blog(LOG_INFO, "[libobs-vulkan] global priorities offered by the graphics family: %s",
-	     offered.empty() ? "none (VK_KHR_global_priority missing)" : offered.c_str());
+	     have_prio_ext ? offered.c_str() : "none (VK_KHR_global_priority missing)");
 
 	const float one = 0.5f;
 	uint32_t families[2] = {gfx, xfer};
 	const uint32_t nq = xfer == UINT32_MAX ? 1 : 2;
 
 	VkResult res = VK_ERROR_INITIALIZATION_FAILED;
-	VkQueueGlobalPriorityKHR granted[2] = {};
+	VkQueueGlobalPriorityKHR granted[2] = {}, chained[2] = {};
 	for (VkQueueGlobalPriorityKHR level : tries) {
 		// Transfer never asks for more than LOW (background copies), so it is never above graphics.
 		granted[0] = level;
@@ -359,6 +361,13 @@ static int create_device(gs_device *d, uint32_t adapter)
 		di.pQueueCreateInfos = qi;
 		di.enabledExtensionCount = ndev_exts;
 		di.ppEnabledExtensionNames = dev_exts;
+		// What vkCreateDevice really receives, read back from the chains (0: no global priority struct).
+		for (uint32_t i = 0; i < nq; ++i) {
+			chained[i] = (VkQueueGlobalPriorityKHR)0;
+			for (auto *s = (const VkBaseInStructure *)qi[i].pNext; s; s = s->pNext)
+				if (s->sType == VK_STRUCTURE_TYPE_DEVICE_QUEUE_GLOBAL_PRIORITY_CREATE_INFO_KHR)
+					chained[i] = ((const VkDeviceQueueGlobalPriorityCreateInfoKHR *)s)->globalPriority;
+		}
 		VkDevice dev = VK_NULL_HANDLE;
 		if (level == VK_QUEUE_GLOBAL_PRIORITY_REALTIME_KHR && refuse_realtime())
 			res = VK_ERROR_NOT_PERMITTED_KHR;
@@ -370,8 +379,13 @@ static int create_device(gs_device *d, uint32_t adapter)
 		}
 		if (!any)
 			break; // nothing lower to try
-		blog(LOG_WARNING, "[libobs-vulkan] global priority %s (%d) refused by vkCreateDevice (%d), trying lower",
-		     priority_name(level), (int)level, (int)res);
+		if (res == VK_ERROR_NOT_PERMITTED_KHR)
+			blog(LOG_WARNING, "[libobs-vulkan] global priority %s (%d) refused by vkCreateDevice, trying lower",
+			     priority_name(level), (int)level);
+		else
+			blog(LOG_WARNING,
+			     "[libobs-vulkan] vkCreateDevice with global priority %s (%d) failed (%d), trying lower",
+			     priority_name(level), (int)level, (int)res);
 	}
 	if (res != VK_SUCCESS)
 		return GS_ERROR_NOT_SUPPORTED;
@@ -383,14 +397,17 @@ static int create_device(gs_device *d, uint32_t adapter)
 		queues[i]->family = families[i];
 		queues[i]->requested = requested[i];
 		queues[i]->global_priority = granted[i];
+		queues[i]->create_info_priority = chained[i];
 		queues[i]->priority = priority_value(granted[i]);
 		vkGetDeviceQueue(d->dev, families[i], 0, &queues[i]->q);
 		queues[i]->timeline = create_timeline(d->dev);
 		if (!queues[i]->timeline)
 			return GS_ERROR_NOT_SUPPORTED;
-		blog(LOG_INFO, "[libobs-vulkan] %s queue: family %u, global priority requested %s (%d), granted %s (%d)",
+		blog(LOG_INFO,
+		     "[libobs-vulkan] %s queue: family %u, global priority requested %s (%d), granted %s (%d), "
+		     "create-info priority %d",
 		     labels[i], families[i], priority_name(requested[i]), (int)requested[i], priority_name(granted[i]),
-		     (int)granted[i]);
+		     (int)granted[i], (int)chained[i]);
 	}
 
 	adapter_name = props.properties.deviceName;

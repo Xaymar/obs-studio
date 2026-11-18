@@ -1,7 +1,10 @@
 // Synthetic GPU-bound foreground load for the queue priority measurement
 // (docs/superpowers/specs/2026-11-17-libobs-vulkan-priority-measurement.md). Not OBS, not a test, never installed.
 //
-//   vulkan_priority_fg_load <seconds> <warm-up seconds> <shader iterations> <csv out>
+//   vulkan_priority_fg_load <seconds> <warm-up seconds> <shader iterations> <csv out> [--focus]
+//
+// The window is shown without activation unless --focus is given; --focus also calls SetForegroundWindow (which
+// Windows may still refuse), for measurements that need the scheduler's foreground boost.
 //
 // Draws one fullscreen triangle with a long pixel shader loop into a 1920x1080 window through D3D11 (the typical game
 // API), presents without vsync, then waits for the GPU (event query) so each frame time is the full CPU+GPU time
@@ -16,6 +19,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <vector>
 
 static const char *shader = R"(
@@ -66,8 +70,10 @@ static double pct(const std::vector<double> &sorted, double q)
 
 int main(int argc, char **argv)
 {
-	if (argc != 5) {
-		fprintf(stderr, "usage: %s <seconds> <warm-up seconds> <shader iterations> <csv out>\n", argv[0]);
+	const bool focus = argc == 6 && !strcmp(argv[5], "--focus");
+	if (argc != 5 && !focus) {
+		fprintf(stderr, "usage: %s <seconds> <warm-up seconds> <shader iterations> <csv out> [--focus]\n",
+			argv[0]);
 		return 2;
 	}
 	const double seconds = atof(argv[1]), warmup = atof(argv[2]);
@@ -82,9 +88,13 @@ int main(int argc, char **argv)
 	RegisterClassW(&wc);
 	RECT r = {0, 0, (LONG)W, (LONG)H};
 	AdjustWindowRect(&r, WS_OVERLAPPEDWINDOW, FALSE);
-	HWND hwnd = CreateWindowW(wc.lpszClassName, L"fg load", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0, 0,
-				  r.right - r.left, r.bottom - r.top, nullptr, nullptr, wc.hInstance, nullptr);
-	SetForegroundWindow(hwnd);
+	// By default the window never takes focus (it must not steal keystrokes); --focus asks for the foreground.
+	HWND hwnd = CreateWindowExW(focus ? 0 : WS_EX_NOACTIVATE, wc.lpszClassName, L"fg load", WS_OVERLAPPEDWINDOW, 0,
+				    0, r.right - r.left, r.bottom - r.top, nullptr, nullptr, wc.hInstance, nullptr);
+	ShowWindow(hwnd, focus ? SW_SHOW : SW_SHOWNOACTIVATE);
+	if (focus) {
+		SetForegroundWindow(hwnd);
+	}
 
 	DXGI_SWAP_CHAIN_DESC sd = {};
 	sd.BufferCount = 2;

@@ -116,9 +116,10 @@ static void test_optional_not_exported(void **)
 	os_dlclose(module);
 }
 
-// Exports beyond the graphics imports, allowed on purpose: the host API (documented in vulkan-subsystem.hpp) and the
-// test hooks. None may be a graphics import name, so they cannot change what libobs probes.
-static void test_extra_exports_allowlist(void **)
+// Exports beyond the graphics imports, on purpose: the host API (documented in vulkan-subsystem.hpp) and the
+// test hooks. Checks each listed one exists and is no graphics import name (so libobs probes are unchanged); it does
+// not reject unlisted exports.
+static void test_listed_extra_exports_exist_and_are_not_imports(void **)
 {
 	void *module = open_module();
 	assert_non_null(module);
@@ -157,7 +158,7 @@ int main()
 		cmocka_unit_test(test_module_loads),
 		cmocka_unit_test(test_required_exports),
 		cmocka_unit_test(test_optional_not_exported),
-		cmocka_unit_test(test_extra_exports_allowlist),
+		cmocka_unit_test(test_listed_extra_exports_exist_and_are_not_imports),
 		cmocka_unit_test(test_identity),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);

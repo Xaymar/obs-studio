@@ -156,14 +156,22 @@ static void test_realtime_is_not_requested_by_default(void **)
 {
 	gs_device *device = create_or_skip();
 	assert_int_equal(device->graphics.requested, VK_QUEUE_GLOBAL_PRIORITY_LOW_KHR);
-	// LOW where the family offers it, else no request at all (driver default); never anything higher.
-	if (device->graphics.global_priority) {
-		assert_int_equal(device->graphics.global_priority, VK_QUEUE_GLOBAL_PRIORITY_LOW_KHR);
+	// A family that offers LOW must be granted LOW (128); otherwise no request at all (driver default, 0.5).
+	const char *offered_key = "offered by the graphics family: ";
+	const size_t at = log_text.find(offered_key);
+	assert_true(at != std::string::npos);
+	const std::string offered = log_text.substr(at, log_text.find('\n', at) - at);
+	if (offered.find("low") != std::string::npos) {
+		assert_int_equal(device->graphics.global_priority, 128);
+		assert_int_equal(device->graphics.create_info_priority, 128); // really chained to vkCreateDevice
 		assert_true(device->graphics.priority == 0.25f);
+		assert_true(logged("create-info priority 128"));
 	} else {
+		assert_int_equal(device->graphics.global_priority, 0);
+		assert_int_equal(device->graphics.create_info_priority, 0);
 		assert_true(device->graphics.priority == 0.5f);
 	}
-	assert_false(logged("realtime"));
+	assert_false(logged("requested realtime"));
 	destroy_checked(device);
 }
 

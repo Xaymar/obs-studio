@@ -9,7 +9,9 @@ param(
 	[int]$Seconds = 30,
 	[int]$Warmup = 5,
 	[int]$Reps = 3,
-	[int]$Iters = 1536
+	[int]$Iters = 1536,
+	# Let the load window take the foreground (and keyboard focus); off by default so it does not steal typing.
+	[switch]$Focus
 )
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path "$PSScriptRoot\..\..").Path # PowerShell 5.1 has no $PSScriptRoot in param defaults
@@ -62,8 +64,10 @@ for ($rep = 1; $rep -le $Reps; $rep++) {
 			}
 			Start-Sleep 1
 		}
+		$fgargs = @($Seconds, $Warmup, $Iters, "$Out\$tag.csv")
+		if ($Focus) { $fgargs += '--focus' }
 		$fg = Start-Process "$bin\vulkan_priority_fg_load.exe" -PassThru -NoNewWindow `
-			-ArgumentList $Seconds, $Warmup, $Iters, "$Out\$tag.csv" -RedirectStandardOutput "$Out\$tag.fg.txt"
+			-ArgumentList $fgargs -RedirectStandardOutput "$Out\$tag.fg.txt"
 		$job = Start-Job $sampler -ArgumentList ($Warmup + 1), ($Seconds - 2)
 		$fg.WaitForExit()
 		$util = Receive-Job $job -Wait -AutoRemoveJob

@@ -1,6 +1,7 @@
 # libobs-vulkan backend: design
 
-Status: draft for approval. Nothing is built yet.
+Status: implemented through Task 9 of the plan (see the plan and the task
+ledger). The queue priority measurement was inconclusive.
 
 ## Intent and why
 
@@ -10,6 +11,10 @@ at once on a single queue, and OBS raises its GPU process priority
 rights, or `HIGH` with HAGS). The result is that OBS's commands preempt
 whatever the GPU is running (usually the game being captured), so even a tiny
 OBS render can cause a visible stutter in the game.
+This premise is an unverified hypothesis. The first measurement
+(`2026-11-17-libobs-vulkan-priority-measurement.md`) neither reproduced it
+(D3D11 at `HIGH` added +0.29 ms to the foreground p99, within the noise) nor
+refuted it.
 
 A Vulkan backend records work into command buffers and submits it on queues
 OBS chooses. It can run at a lower priority than the foreground app without
@@ -22,7 +27,8 @@ where a caller truly needs a result.
   interface (`graphics-internal.h` vtable). The libobs graphics API does not
   change.
 - OBS GPU work does not preempt the foreground application, and this does not
-  depend on running as Administrator.
+  depend on running as Administrator. (This goal rests on the unverified
+  preemption hypothesis above; it is not yet shown that it is achieved.)
 - The CPU never waits for the GPU except in the functions that must return
   data or take ownership (see Sync points).
 - Windows and Linux in the first version.
@@ -91,6 +97,25 @@ loaded by module name.
 - Queue priority is requested through `VK_KHR_global_priority` when available:
   default below the foreground app's priority, `REALTIME` only as an opt-in
   that may need elevation. Whether a driver honours it varies by vendor.
+  As built (Task 9): the graphics queue asks for `LOW`. Opt-in to more:
+  environment variable `OBS_VULKAN_REALTIME=1` (asks for `REALTIME`), or the
+  optional module export `int obs_vulkan_set_global_priority(int level)`
+  (a `VkQueueGlobalPriorityKHR` value: 128, 256, 512, 1024; affects devices
+  created afterwards; the environment variable wins). Only levels the queue
+  family reports are asked for; a refused level falls to the next lower one,
+  then to no request, without failing device creation. The transfer queue
+  never asks for more than `LOW`. The offered, requested and granted levels
+  are logged ("granted" means accepted by `vkCreateDevice`; Vulkan cannot
+  query the scheduling priority actually used). NVIDIA 621.24 (RTX 4080
+  SUPER, Windows 11) offers only `LOW` and `MEDIUM`, so `REALTIME` there
+  yields `MEDIUM` with or without elevation.
+- Nothing is submitted to the transfer queue yet: uploads, texture copies
+  and stage-surface readback are all recorded into the graphics queue's
+  frame command buffer. The queue is created and its priority set, but the
+  async-copy path the bullet above intends is a follow-up: submit readback
+  and uploads on the transfer queue; emit queue-family ownership transfers
+  from the tracker (it accepts a family but never emits a transfer); and wait
+  on the transfer queue's timeline from the graphics queue (and back).
 - Memory through the Vulkan Memory Allocator (VMA).
 
 ### Recording and submission
@@ -129,6 +154,16 @@ The backend waits for the GPU only in:
   data.
 - Swapchain acquire, on out-of-date or lost devices, via the rebuild path
   (equivalent of `d3d11-rebuild.cpp`).
+- Frame ring `begin()` (frames-in-flight throttle): waits only when the slot
+  being reused (3 frames back) is still in flight.
+- Swapchain destroy and resize (rebuild path): a graphics queue idle wait
+  before the images and present semaphores are released.
+- Error paths: after a failed submit, `vkQueueWaitIdle` before the timeline
+  value is signalled from the host (`vulkan-frame.cpp`); `vk_consume_semaphore`
+  waits for the graphics queue (or the device, if that fails) to recover an
+  acquire semaphore whose submission failed (`vulkan-swapchain.cpp`).
+- Device teardown: `vkDeviceWaitIdle` in the frame ring's `destroy()` and in
+  `vk_device_free`.
 
 ### Interop (deferred)
 
@@ -180,6 +215,25 @@ software or readback encoding paths are used.
   Out-of-tree plugin effects may still need these.
 - Barrier tracking is the likeliest source of bugs.
 - Queue priority may behave differently across vendors, and could fail to stop
-  the preemption it was meant to prevent. Milestone 5 measures it.
+  the preemption it was meant to prevent. Milestone 5 measures it. Result
+  (`2026-11-17-libobs-vulkan-priority-measurement.md`, one NVIDIA GPU): no
+  benefit shown. Vulkan `LOW` and D3D11 `HIGH` differ in p99 by less than the
+  noise; Vulkan `LOW`'s p50 was slightly higher in every repetition, which a
+  fixed run order confounds. OBS lagged frames showed no pattern by priority
+  level and were noisy (D3D11 without priority calls also lagged). The setup
+  could not have shown a benefit; the measurement doc lists a better design.
+- Only `VK_KHR_global_priority` is probed. A driver that exposes only
+  `VK_EXT_global_priority` gets no priority request (driver default).
 - Without interop, game capture and some encoders will not work on this
   backend initially.
+- Deferred, recorded by reviewers, not implemented: cube textures, `GS_DXT1/3/5`
+  formats, `float3x3` uniforms, `GS_A8` as a render target, volume textures as
+  render targets, dynamic or mipmapped; timers (null-safe stubs); HDR and
+  colour spaces (SDR only); Linux surfaces and loader linking (untested);
+  the shader disk cache (design only); interop (milestone 6 not started);
+  the transfer queue carries no work (see Device, queues and priority).
+  Devices with a single queue family get no transfer queue at all.
+- libobs defects found while building this, not fixed here:
+  `libobs/util/cf-lexer.c` overflows the stack on a recursive `#define`;
+  a one-byte over-read/over-write when a block comment or string ends with a
+  line splice right before the NUL; macro lookup is quadratic.

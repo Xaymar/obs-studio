@@ -16,6 +16,8 @@ struct vk_queue {
 	// VK_KHR_global_priority level asked for, and the one vkCreateDevice accepted (0: none, the driver default).
 	VkQueueGlobalPriorityKHR requested = (VkQueueGlobalPriorityKHR)0;
 	VkQueueGlobalPriorityKHR global_priority = (VkQueueGlobalPriorityKHR)0;
+	// The globalPriority actually chained to this queue's VkDeviceQueueCreateInfo (0: none was chained).
+	VkQueueGlobalPriorityKHR create_info_priority = (VkQueueGlobalPriorityKHR)0;
 };
 
 // One host-visible, persistently mapped block of a frame's upload arena.
