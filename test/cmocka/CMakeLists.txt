@@ -128,6 +128,72 @@ if(ENABLE_VULKAN)
   target_link_libraries(test_vulkan_depth PRIVATE OBS::libobs OBS::vma Vulkan::Headers cmocka::cmocka)
   add_test(test_vulkan_depth test_vulkan_depth)
 
+  # Every .effect in the tree and texrender through the generic gs_* API (gs_create); skips without a device.
+  # The test walks the same directories at run time and must find exactly this many.
+  file(
+    GLOB_RECURSE _effects
+    CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/libobs/data/*.effect"
+    "${CMAKE_SOURCE_DIR}/frontend/data/*.effect"
+    "${CMAKE_SOURCE_DIR}/test/test-input/data/*.effect"
+  )
+  file(GLOB _plugin_dirs LIST_DIRECTORIES true "${CMAKE_SOURCE_DIR}/plugins/*")
+  foreach(_dir IN LISTS _plugin_dirs)
+    file(GLOB_RECURSE _plugin_effects CONFIGURE_DEPENDS "${_dir}/data/*.effect")
+    list(APPEND _effects ${_plugin_effects})
+  endforeach()
+  list(LENGTH _effects _effect_count)
+  add_executable(test_vulkan_effects test_vulkan_effects.cpp)
+  target_include_directories(test_vulkan_effects PRIVATE ${CMOCKA_INCLUDE_DIR})
+  target_compile_definitions(
+    test_vulkan_effects
+    PRIVATE
+      OBS_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+      OBS_VULKAN_MODULE="$<TARGET_FILE_DIR:libobs-vulkan>/libobs-vulkan"
+      OBS_EFFECT_COUNT=${_effect_count}
+  )
+  target_compile_features(test_vulkan_effects PRIVATE cxx_std_17)
+  add_dependencies(test_vulkan_effects libobs-vulkan)
+  target_link_libraries(test_vulkan_effects PRIVATE OBS::libobs cmocka::cmocka)
+  add_test(test_vulkan_effects test_vulkan_effects)
+
+  # End-to-end OBS video pipeline on a module given as argument; rendered for Vulkan and (Windows) D3D11 in separate
+  # processes, then compared. Only a Vulkan render without a device may skip (reported Skipped); it writes nothing,
+  # and compare then fails on the missing file (or is not run), so the comparison never passes without comparing.
+  add_executable(test_vulkan_video test_vulkan_video.cpp)
+  target_include_directories(test_vulkan_video PRIVATE ${CMOCKA_INCLUDE_DIR})
+  target_compile_definitions(test_vulkan_video PRIVATE OBS_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  target_compile_features(test_vulkan_video PRIVATE cxx_std_17)
+  add_dependencies(test_vulkan_video libobs-vulkan)
+  target_link_libraries(test_vulkan_video PRIVATE OBS::libobs cmocka::cmocka)
+  set(_video_vulkan "${CMAKE_CURRENT_BINARY_DIR}/video_vulkan.bin")
+  set(_video_d3d11 "${CMAKE_CURRENT_BINARY_DIR}/video_d3d11.bin")
+  add_test(
+    NAME test_vulkan_video_vulkan
+    COMMAND test_vulkan_video render "$<TARGET_FILE_DIR:libobs-vulkan>/libobs-vulkan" vulkan "${_video_vulkan}"
+  )
+  # cmocka's skip() exits 0: SKIPPED in the output makes ctest report Skipped, never Passed.
+  set_tests_properties(
+    test_vulkan_video_vulkan
+    PROPERTIES FIXTURES_SETUP video_vulkan SKIP_REGULAR_EXPRESSION "SKIPPED"
+  )
+  if(TARGET libobs-d3d11)
+    add_dependencies(test_vulkan_video libobs-d3d11)
+    add_test(
+      NAME test_vulkan_video_d3d11
+      COMMAND test_vulkan_video render "$<TARGET_FILE_DIR:libobs-d3d11>/libobs-d3d11" d3d11 "${_video_d3d11}"
+    )
+    set_tests_properties(
+      test_vulkan_video_d3d11
+      PROPERTIES FIXTURES_SETUP video_d3d11 SKIP_REGULAR_EXPRESSION "SKIPPED"
+    )
+    add_test(NAME test_vulkan_video_compare COMMAND test_vulkan_video compare "${_video_vulkan}" "${_video_d3d11}")
+    set_tests_properties(
+      test_vulkan_video_compare
+      PROPERTIES FIXTURES_REQUIRED "video_vulkan;video_d3d11" SKIP_REGULAR_EXPRESSION "SKIPPED"
+    )
+  endif()
+
   # Pure logic: compiles the tracker directly, needs no device or loader.
   add_executable(test_vulkan_tracker test_vulkan_tracker.cpp ${CMAKE_SOURCE_DIR}/libobs-vulkan/vulkan-tracker.cpp)
   target_include_directories(test_vulkan_tracker PRIVATE ${CMOCKA_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/libobs-vulkan)
@@ -146,6 +212,8 @@ if(ENABLE_VULKAN)
     test_vulkan_shader
     test_vulkan_draw
     test_vulkan_depth
+    test_vulkan_effects
+    test_vulkan_video_vulkan
     PROPERTIES ENVIRONMENT "OBS_VULKAN_VALIDATION=1;VK_KHRONOS_VALIDATION_VALIDATE_SYNC=true"
   )
 endif()

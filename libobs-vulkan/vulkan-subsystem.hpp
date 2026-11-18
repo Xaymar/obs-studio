@@ -144,6 +144,8 @@ struct gs_texture {
 	VkImageView rt_view = VK_NULL_HANDLE, rt_srgb_view = VK_NULL_HANDLE;
 	VkFormat rt_format = VK_FORMAT_UNDEFINED, rt_srgb_format = VK_FORMAT_UNDEFINED;
 	uint32_t width, height, levels;
+	uint32_t depth = 1;                        // GS_TEXTURE_3D only
+	enum gs_texture_type type = GS_TEXTURE_2D; // 2D or 3D (volume)
 	gs_color_format format;
 	// GS_DYNAMIC only: persistently mapped staging buffer for gs_texture_map.
 	VkBuffer staging = VK_NULL_HANDLE;

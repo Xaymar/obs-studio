@@ -143,13 +143,6 @@ EXPORT gs_texture_t *device_cubetexture_create(gs_device_t *device, uint32_t siz
 	return {};
 }
 
-EXPORT gs_texture_t *device_voltexture_create(gs_device_t *device, uint32_t width, uint32_t height, uint32_t depth,
-					      enum gs_color_format color_format, uint32_t levels,
-					      const uint8_t *const *data, uint32_t flags)
-{
-	return {};
-}
-
 EXPORT gs_timer_t *device_timer_create(gs_device_t *device)
 {
 	return {};
@@ -190,12 +183,58 @@ EXPORT void device_set_cube_render_target(gs_device_t *device, gs_texture_t *cub
 {
 }
 
-EXPORT void device_copy_texture(gs_device_t *device, gs_texture_t *dst, gs_texture_t *src) {}
+// As D3D11's get_copy_compare_format: a format and its _UNORM variant may be copied into each other.
+static enum gs_color_format copy_format(enum gs_color_format f)
+{
+	return f == GS_RGBA_UNORM ? GS_RGBA : f == GS_BGRX_UNORM ? GS_BGRX : f == GS_BGRA_UNORM ? GS_BGRA : f;
+}
 
+// As D3D11: 2D textures of the same copy format (see copy_format); src_w/src_h 0 mean
+// "to the source's edge". shortcut: mip 0 only (D3D11's whole-texture copy copies every level; OBS copies
+// single-level textures).
 EXPORT void device_copy_texture_region(gs_device_t *device, gs_texture_t *dst, uint32_t dst_x, uint32_t dst_y,
 				       gs_texture_t *src, uint32_t src_x, uint32_t src_y, uint32_t src_w,
 				       uint32_t src_h)
 {
+	const char *error = !src || !dst                                               ? "texture is NULL"
+			    : src->type != GS_TEXTURE_2D || dst->type != GS_TEXTURE_2D ? "not a 2D texture"
+			    : !src->image || !dst->image || src->image == dst->image   ? "same or no image"
+			    : copy_format(src->format) != copy_format(dst->format)     ? "formats do not match"
+			    : src_x >= src->width || src_y >= src->height              ? "source offset out of range"
+										       : nullptr;
+	const uint32_t w = src_w ? src_w : src && src_x < src->width ? src->width - src_x : 0;
+	const uint32_t h = src_h ? src_h : src && src_y < src->height ? src->height - src_y : 0;
+	if (!error &&
+	    (src_x + w > src->width || src_y + h > src->height || dst_x + w > dst->width || dst_y + h > dst->height)) {
+		error = "region does not fit";
+	}
+	if (error) {
+		blog(LOG_ERROR, "[libobs-vulkan] device_copy_texture: %s", error);
+		return;
+	}
+	VkCommandBuffer cmd = vk_cmd(device);
+	const uint32_t fam = device->graphics.family;
+	vk_barriers b;
+	device->tracker.use_image(
+		src->image, fam,
+		{VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL}, b);
+	device->tracker.use_image(dst->image, fam,
+				  {VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
+				   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL},
+				  b);
+	vk_record_barriers(cmd, b);
+	VkImageCopy region = {};
+	region.srcSubresource = region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+	region.srcOffset = {(int32_t)src_x, (int32_t)src_y, 0};
+	region.dstOffset = {(int32_t)dst_x, (int32_t)dst_y, 0};
+	region.extent = {w, h, 1};
+	vkCmdCopyImage(cmd, src->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst->image,
+		       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+}
+
+EXPORT void device_copy_texture(gs_device_t *device, gs_texture_t *dst, gs_texture_t *src)
+{
+	device_copy_texture_region(device, dst, 0, 0, src, 0, 0, 0, 0);
 }
 
 EXPORT void obs_vulkan_test_stage_mip(gs_device_t *device, gs_stagesurf_t *dst, gs_texture_t *src, uint32_t level)
@@ -293,28 +332,6 @@ EXPORT uint32_t gs_cubetexture_get_size(const gs_texture_t *cubetex)
 }
 
 EXPORT enum gs_color_format gs_cubetexture_get_color_format(const gs_texture_t *cubetex)
-{
-	return {};
-}
-
-EXPORT void gs_voltexture_destroy(gs_texture_t *voltex) {}
-
-EXPORT uint32_t gs_voltexture_get_width(const gs_texture_t *voltex)
-{
-	return {};
-}
-
-EXPORT uint32_t gs_voltexture_get_height(const gs_texture_t *voltex)
-{
-	return {};
-}
-
-EXPORT uint32_t gs_voltexture_get_depth(const gs_texture_t *voltex)
-{
-	return {};
-}
-
-EXPORT enum gs_color_format gs_voltexture_get_color_format(const gs_texture_t *voltex)
 {
 	return {};
 }

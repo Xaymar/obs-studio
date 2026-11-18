@@ -165,6 +165,19 @@ software or readback encoding paths are used.
 ## Risks
 
 - The HLSL to GLSL translator may not cover every effect used by plugins.
+  Status (Task 8, `test_vulkan_effects` `all_effects_compile`): all 52
+  `.effect` files in the tree (libobs/data, frontend/data, test/test-input/data,
+  plugins/obs-filters, obs-transitions, nv-filters, text-freetype2) translate,
+  create shader modules and create a pipeline for every pass under validation.
+  Found and fixed: `sdr_on_hdr_filter.effect` (`pow(float3, float)`: HLSL
+  broadcasts the scalar; the GLSL prelude adds the overloads) and
+  `color_grade_filter.effect` (`texture3d clut_3d`: volume textures were
+  missing). Features no effect in the tree uses, still unsupported: `float3x3`
+  uniforms (values ignored with a warning), texture arrays (every element gets
+  the same texture), cube textures and `texture_cube`, volume textures as render
+  targets, dynamic or with `GS_BUILD_MIPMAPS`, `GS_DXT1/3/5` textures, and
+  `GS_A8` as a render target (the R8 attachment receives red, not alpha).
+  Out-of-tree plugin effects may still need these.
 - Barrier tracking is the likeliest source of bugs.
 - Queue priority may behave differently across vendors, and could fail to stop
   the preemption it was meant to prevent. Milestone 5 measures it.

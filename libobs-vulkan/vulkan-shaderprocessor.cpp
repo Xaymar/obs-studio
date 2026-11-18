@@ -540,7 +540,12 @@ struct translator {
 		out = "#version 450\n\n"
 		      "const bool obs_glsl_compile = false;\n\n"
 		      "vec4 obs_load_2d(sampler2D s, ivec3 p_lod)\n{\n\treturn texelFetch(s, p_lod.xy, p_lod.z);\n}\n\n"
-		      "vec4 obs_load_3d(sampler3D s, ivec4 p_lod)\n{\n\treturn texelFetch(s, p_lod.xyz, p_lod.w);\n}\n\n";
+		      "vec4 obs_load_3d(sampler3D s, ivec4 p_lod)\n{\n\treturn texelFetch(s, p_lod.xyz, p_lod.w);\n}\n\n"
+		      // HLSL broadcasts a scalar exponent (sdr_on_hdr_filter: pow(rgba.rgb, power)); GLSL has no
+		      // such overload, desktop GLSL lets us add one.
+		      "vec2 pow(vec2 b, float e)\n{\n\treturn pow(b, vec2(e));\n}\n\n"
+		      "vec3 pow(vec3 b, float e)\n{\n\treturn pow(b, vec3(e));\n}\n\n"
+		      "vec4 pow(vec4 b, float e)\n{\n\treturn pow(b, vec4(e));\n}\n\n";
 		write_params();
 
 		for (size_t i = 0; i < main_func->params.num; i++) {

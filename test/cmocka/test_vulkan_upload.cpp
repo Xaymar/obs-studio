@@ -1,9 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <math.h>
+
+#include <algorithm>
 #include <chrono>
 #include <future>
 #include <thread>
+#include <vector>
 
 #include <graphics/graphics.h>
 #include <util/base.h>
@@ -246,6 +250,77 @@ static void test_mip_chain_generated_by_blit(void **)
 	destroy_and_check(device);
 }
 
+// GS_BUILD_MIPMAPS on non-power-of-two sizes at device level (libobs's gs_texture_create strips NPOT mips, the
+// backend must still handle device_texture_create callers). Each level must be max(1, size >> level) and equal
+// the linear blit of the level above: a bilinear sample at the destination texel centre mapped into the source,
+// edge-clamped, computed on the CPU from the read-back previous level (within 2/255).
+static void test_npot_mip_chain_is_bilinear_per_level(void **)
+{
+	void (*stage_mip)(gs_device_t *, gs_stagesurf_t *, gs_texture_t *, uint32_t);
+	if (!load(stage_mip, "obs_vulkan_test_stage_mip")) {
+		fail();
+	}
+	gs_device *device = create_or_skip();
+	const uint32_t sizes[][2] = {{6, 3}, {5, 5}, {7, 2}};
+	for (const auto &sz : sizes) {
+		const uint32_t w0 = sz[0], h0 = sz[1];
+		std::vector<uint8_t> prev(w0 * h0 * 4);
+		for (uint32_t i = 0; i < w0 * h0; ++i) { // non-uniform: every texel and channel differs
+			prev[i * 4 + 0] = (uint8_t)(i * 37);
+			prev[i * 4 + 1] = (uint8_t)(255 - i * 23);
+			prev[i * 4 + 2] = (uint8_t)(i * 11 + 40);
+			prev[i * 4 + 3] = 255;
+		}
+		const uint8_t *data[] = {prev.data()};
+		gs_texture_t *tex = texture_create(device, w0, h0, GS_RGBA, 1, data, GS_BUILD_MIPMAPS);
+		assert_non_null(tex);
+		assert_int_equal(tex->levels, gs_get_total_levels(w0, h0, 1));
+		uint32_t pw = w0, ph = h0;
+		for (uint32_t level = 1; level < tex->levels; ++level) {
+			const uint32_t w = std::max(w0 >> level, 1u), h = std::max(h0 >> level, 1u);
+			gs_stagesurf_t *stage = stagesurface_create(device, w, h, GS_RGBA);
+			assert_non_null(stage);
+			stage_mip(device, stage, tex, level); // rejects (logs, no copy) a size mismatch
+			uint8_t *out = nullptr;
+			uint32_t linesize = 0;
+			bool mapped = false;
+			within_5s([&] { mapped = stagesurface_map(stage, &out, &linesize); });
+			assert_true(mapped);
+			std::vector<uint8_t> cur(w * h * 4);
+			for (uint32_t y = 0; y < h; ++y) {
+				for (uint32_t x = 0; x < w; ++x) {
+					const float sx = (x + 0.5f) * pw / w - 0.5f, sy = (y + 0.5f) * ph / h - 0.5f;
+					const int x0 = (int)floorf(sx), y0 = (int)floorf(sy);
+					const float fx = sx - x0, fy = sy - y0;
+					auto at = [&](int xx, int yy, int c) {
+						xx = std::clamp(xx, 0, (int)pw - 1),
+						yy = std::clamp(yy, 0, (int)ph - 1);
+						return (float)prev[(yy * pw + xx) * 4 + c];
+					};
+					for (int c = 0; c < 4; ++c) {
+						const float v =
+							(at(x0, y0, c) * (1 - fx) + at(x0 + 1, y0, c) * fx) * (1 - fy) +
+							(at(x0, y0 + 1, c) * (1 - fx) + at(x0 + 1, y0 + 1, c) * fx) *
+								fy;
+						const int got = out[y * linesize + x * 4 + c];
+						if (abs(got - (int)lroundf(v)) > 2) {
+							fail_msg("%ux%u level %u (%u,%u) channel %d: %d, want %.1f", w0,
+								 h0, level, x, y, c, got, v);
+						}
+						cur[(y * w + x) * 4 + c] = (uint8_t)got;
+					}
+				}
+			}
+			stagesurface_unmap(stage);
+			stagesurface_destroy(stage);
+			prev.swap(cur);
+			pw = w, ph = h;
+		}
+		texture_destroy(tex);
+	}
+	destroy_and_check(device);
+}
+
 static void write_pattern(uint8_t *ptr, uint32_t linesize, uint32_t w, uint32_t h, uint8_t seed, uint8_t *want)
 {
 	for (uint32_t y = 0; y < h; ++y) {
@@ -365,6 +440,7 @@ int main()
 		cmocka_unit_test(test_texture_with_initial_data_reads_back_exactly),
 		cmocka_unit_test(test_texture_create_without_data_still_works),
 		cmocka_unit_test(test_mip_chain_generated_by_blit),
+		cmocka_unit_test(test_npot_mip_chain_is_bilinear_per_level),
 		cmocka_unit_test(test_dynamic_texture_map_write_unmap_roundtrip),
 		cmocka_unit_test(test_map_non_dynamic_texture_returns_false),
 		cmocka_unit_test(test_srgb_capable_format_creates_with_both_views_without_validation_errors),

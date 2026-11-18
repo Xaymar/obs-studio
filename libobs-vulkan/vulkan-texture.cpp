@@ -1,4 +1,4 @@
-// 2D textures and stage surfaces.
+// 2D and volume textures and stage surfaces.
 #include "vulkan-subsystem.hpp"
 
 #include <util/base.h>
@@ -27,7 +27,26 @@ VkFormat vk_format(enum gs_color_format format)
 		return VK_FORMAT_R16G16B16A16_SFLOAT;
 	case GS_RGBA32F:
 		return VK_FORMAT_R32G32B32A32_SFLOAT;
+	case GS_A8:
+		return VK_FORMAT_R8_UNORM; // sampled views swizzle it to alpha
+	case GS_R8G8:
+		return VK_FORMAT_R8G8_UNORM; // NV12 chroma plane
+	case GS_R16:
+		return VK_FORMAT_R16_UNORM; // P010 luma plane
+	case GS_RG16:
+		return VK_FORMAT_R16G16_UNORM; // P010 chroma plane
+	case GS_RGBA16:
+		return VK_FORMAT_R16G16B16A16_UNORM;
+	case GS_R16F:
+		return VK_FORMAT_R16_SFLOAT;
+	case GS_RG16F:
+		return VK_FORMAT_R16G16_SFLOAT;
+	case GS_R32F:
+		return VK_FORMAT_R32_SFLOAT;
+	case GS_RG32F:
+		return VK_FORMAT_R32G32_SFLOAT;
 	default:
+		// shortcut: GS_DXT1/3/5 (BC1-3) need block-sized uploads; only DDS images use them.
 		return VK_FORMAT_UNDEFINED;
 	}
 }
@@ -57,9 +76,13 @@ static VkImageView create_view(gs_device *d, const gs_texture *tex, VkFormat fmt
 	const bool no_alpha = !rt && (tex->format == GS_BGRX || tex->format == GS_BGRX_UNORM);
 	VkImageViewCreateInfo vi = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
 	vi.image = tex->image;
-	vi.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	vi.viewType = tex->type == GS_TEXTURE_3D ? VK_IMAGE_VIEW_TYPE_3D : VK_IMAGE_VIEW_TYPE_2D;
 	vi.format = fmt;
 	vi.components.a = no_alpha ? VK_COMPONENT_SWIZZLE_ONE : VK_COMPONENT_SWIZZLE_IDENTITY;
+	if (tex->format == GS_A8 && !rt) { // as DXGI A8_UNORM: (0, 0, 0, a)
+		vi.components = {VK_COMPONENT_SWIZZLE_ZERO, VK_COMPONENT_SWIZZLE_ZERO, VK_COMPONENT_SWIZZLE_ZERO,
+				 VK_COMPONENT_SWIZZLE_R};
+	}
 	vi.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, rt ? 1 : tex->levels, 0, 1};
 	VkImageView view = VK_NULL_HANDLE;
 	vkCreateImageView(d->dev, &vi, nullptr, &view);
@@ -72,7 +95,7 @@ static uint32_t mip_size(uint32_t size, uint32_t level)
 }
 
 // Records the copy of data[0..n) into levels 0..n) through a staging buffer freed when the frame finishes.
-static bool upload(gs_device *d, gs_texture *tex, const uint8_t **data, uint32_t n)
+static bool upload(gs_device *d, gs_texture *tex, const uint8_t *const *data, uint32_t n)
 {
 	const uint32_t bpp = gs_get_format_bpp(tex->format) / 8;
 	std::vector<VkBufferImageCopy> regions;
@@ -84,9 +107,9 @@ static bool upload(gs_device *d, gs_texture *tex, const uint8_t **data, uint32_t
 		VkBufferImageCopy r = {};
 		r.bufferOffset = size;
 		r.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, i, 0, 1};
-		r.imageExtent = {mip_size(tex->width, i), mip_size(tex->height, i), 1};
+		r.imageExtent = {mip_size(tex->width, i), mip_size(tex->height, i), mip_size(tex->depth, i)};
 		regions.push_back(r);
-		size += (VkDeviceSize)r.imageExtent.width * r.imageExtent.height * bpp;
+		size += (VkDeviceSize)r.imageExtent.width * r.imageExtent.height * r.imageExtent.depth * bpp;
 	}
 	if (regions.empty()) {
 		return true;
@@ -101,7 +124,7 @@ static bool upload(gs_device *d, gs_texture *tex, const uint8_t **data, uint32_t
 	}
 	for (const VkBufferImageCopy &r : regions) {
 		memcpy((uint8_t *)mapped + r.bufferOffset, data[r.imageSubresource.mipLevel],
-		       (size_t)r.imageExtent.width * r.imageExtent.height * bpp);
+		       (size_t)r.imageExtent.width * r.imageExtent.height * r.imageExtent.depth * bpp);
 	}
 	vmaFlushAllocation(d->vma, alloc, 0, VK_WHOLE_SIZE);
 
@@ -161,20 +184,32 @@ static void destroy_texture_objects(gs_device *d, const gs_texture *tex)
 	});
 }
 
-extern "C" {
-
-EXPORT gs_texture_t *device_texture_create(gs_device_t *device, uint32_t width, uint32_t height,
-					   enum gs_color_format color_format, uint32_t levels, const uint8_t **data,
-					   uint32_t flags)
+// 2D textures, or volume textures (type GS_TEXTURE_3D) with data per level holding all its slices.
+static gs_texture *create_texture(gs_device *device, enum gs_texture_type type, uint32_t width, uint32_t height,
+				  uint32_t depth, enum gs_color_format color_format, uint32_t levels,
+				  const uint8_t *const *data, uint32_t flags)
 {
 	VkFormat fmt = vk_format(color_format);
 	if (fmt == VK_FORMAT_UNDEFINED) {
 		blog(LOG_ERROR, "[libobs-vulkan] device_texture_create: unsupported format %d", (int)color_format);
 		return nullptr;
 	}
+	const bool vol = type == GS_TEXTURE_3D;
+	if (vol && (flags & (GS_RENDER_TARGET | GS_DYNAMIC))) {
+		// shortcut: no core effect or plugin renders into or maps a volume texture; D3D11 allows both.
+		blog(LOG_ERROR,
+		     "[libobs-vulkan] device_voltexture_create: render target and dynamic flags unsupported");
+		return nullptr;
+	}
+	if (vol && (flags & GS_BUILD_MIPMAPS)) {
+		// shortcut: generate_mips blits 2D levels only; volume LUTs (color_grade_filter) use one level.
+		blog(LOG_WARNING, "[libobs-vulkan] device_voltexture_create: GS_BUILD_MIPMAPS ignored");
+		flags &= ~GS_BUILD_MIPMAPS;
+		levels = 1;
+	}
 
 	// As D3D11: GS_BUILD_MIPMAPS means the full chain whatever `levels` says.
-	const uint32_t full = gs_get_total_levels(width, height, 1);
+	const uint32_t full = gs_get_total_levels(width, height, depth);
 	bool build_mips = (flags & GS_BUILD_MIPMAPS) != 0;
 	if (build_mips) {
 		VkFormatProperties fp;
@@ -209,17 +244,17 @@ EXPORT gs_texture_t *device_texture_create(gs_device_t *device, uint32_t width, 
 	}
 
 	VkImageFormatProperties props;
-	if (vkGetPhysicalDeviceImageFormatProperties(device->phys, fmt, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL,
-						     usage, ii.flags, &props) != VK_SUCCESS ||
-	    width > props.maxExtent.width || height > props.maxExtent.height) {
+	ii.imageType = vol ? VK_IMAGE_TYPE_3D : VK_IMAGE_TYPE_2D;
+	if (vkGetPhysicalDeviceImageFormatProperties(device->phys, fmt, ii.imageType, VK_IMAGE_TILING_OPTIMAL, usage,
+						     ii.flags, &props) != VK_SUCCESS ||
+	    width > props.maxExtent.width || height > props.maxExtent.height || depth > props.maxExtent.depth) {
 		blog(LOG_ERROR, "[libobs-vulkan] device_texture_create: format %d unsupported for %ux%u",
 		     (int)color_format, width, height);
 		return nullptr;
 	}
 
-	ii.imageType = VK_IMAGE_TYPE_2D;
 	ii.format = fmt;
-	ii.extent = {width, height, 1};
+	ii.extent = {width, height, depth};
 	ii.mipLevels = levels;
 	ii.arrayLayers = 1;
 	ii.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -233,6 +268,8 @@ EXPORT gs_texture_t *device_texture_create(gs_device_t *device, uint32_t width, 
 	auto tex = new gs_texture{device};
 	tex->width = width;
 	tex->height = height;
+	tex->depth = depth;
+	tex->type = type;
 	tex->levels = levels;
 	tex->format = color_format;
 	if (vmaCreateImage(device->vma, &ii, &ai, &tex->image, &tex->alloc, nullptr) != VK_SUCCESS) {
@@ -273,6 +310,47 @@ EXPORT gs_texture_t *device_texture_create(gs_device_t *device, uint32_t width, 
 		return nullptr;
 	}
 	return tex;
+}
+
+extern "C" {
+
+EXPORT gs_texture_t *device_texture_create(gs_device_t *device, uint32_t width, uint32_t height,
+					   enum gs_color_format color_format, uint32_t levels, const uint8_t **data,
+					   uint32_t flags)
+{
+	return create_texture(device, GS_TEXTURE_2D, width, height, 1, color_format, levels, data, flags);
+}
+
+EXPORT gs_texture_t *device_voltexture_create(gs_device_t *device, uint32_t width, uint32_t height, uint32_t depth,
+					      enum gs_color_format color_format, uint32_t levels,
+					      const uint8_t *const *data, uint32_t flags)
+{
+	return create_texture(device, GS_TEXTURE_3D, width, height, depth, color_format, levels, data, flags);
+}
+
+EXPORT void gs_voltexture_destroy(gs_texture_t *voltex)
+{
+	gs_texture_destroy(voltex);
+}
+
+EXPORT uint32_t gs_voltexture_get_width(const gs_texture_t *voltex)
+{
+	return voltex->width;
+}
+
+EXPORT uint32_t gs_voltexture_get_height(const gs_texture_t *voltex)
+{
+	return voltex->height;
+}
+
+EXPORT uint32_t gs_voltexture_get_depth(const gs_texture_t *voltex)
+{
+	return voltex->depth;
+}
+
+EXPORT enum gs_color_format gs_voltexture_get_color_format(const gs_texture_t *voltex)
+{
+	return voltex->format;
 }
 
 EXPORT void gs_texture_destroy(gs_texture_t *tex)
@@ -347,7 +425,7 @@ EXPORT void gs_texture_unmap(gs_texture_t *tex)
 
 EXPORT enum gs_texture_type device_get_texture_type(const gs_texture_t *texture)
 {
-	return GS_TEXTURE_2D;
+	return texture->type;
 }
 
 EXPORT uint32_t gs_texture_get_width(const gs_texture_t *tex)
