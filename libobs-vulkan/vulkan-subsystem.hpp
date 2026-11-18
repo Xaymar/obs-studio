@@ -19,6 +19,11 @@ struct gs_device {
 	vk_frame_ring frames;
 	vk_tracker tracker;
 	gs_texture *render_target = nullptr;
+	enum gs_color_space space = GS_CS_SRGB;
+	bool can_present = false; // VK_KHR_surface, the platform surface and VK_KHR_swapchain are enabled
+	gs_swap_chain *swap = nullptr;
+	VkSemaphore acquire_wait = VK_NULL_HANDLE; // signalled by the last acquire; the next submit waits on it
+	std::vector<VkSemaphore> spare_sems;       // unsignalled binary semaphores for acquires
 };
 
 struct gs_texture {
@@ -46,13 +51,31 @@ struct gs_stage_surface {
 	uint64_t copy_value = 0; // graphics timeline value of the submission holding the last copy; 0: never staged
 };
 
+struct gs_swap_chain {
+	gs_device *device;
+	VkSurfaceKHR surface = VK_NULL_HANDLE;
+	VkSwapchainKHR swapchain = VK_NULL_HANDLE; // null while the window is 0x0 or minimized
+	VkSurfaceFormatKHR surface_format = {};
+	uint32_t cx = 0, cy = 0; // requested size
+	std::vector<VkImage> images;
+	std::vector<VkSemaphore> present_sems; // per image: reusable once that image is acquired again
+	gs_texture target;                     // `image` is the acquired image, null when none is
+	uint32_t image = UINT32_MAX;           // acquired index
+	bool recreate = false;                 // out of date, suboptimal or after a failed submit
+	enum gs_color_space space = GS_CS_SRGB;
+	bool test_not_ready = false; // test hook: acquire behaves as VK_NOT_READY
+};
+
 // VK_FORMAT_UNDEFINED for formats the backend does not support.
 VkFormat vk_format(enum gs_color_format format);
 
 // Command buffer of the frame being recorded; begins one if none is.
 VkCommandBuffer vk_cmd(gs_device *d);
-// Submits the frame being recorded, if any. False when the submission failed.
-bool vk_flush(gs_device *d);
+// Submits the frame being recorded, if any, waiting on a pending acquire and signalling `signal` (binary).
+// False when the submission failed; `signal` is then not signalled.
+bool vk_flush(gs_device *d, VkSemaphore *signal = nullptr);
+// Error path: waits on `sem`, an acquire's semaphore whose submission failed, so it can go back to spare_sems.
+void vk_consume_semaphore(gs_device *d, VkSemaphore sem);
 // Records b as one vkCmdPipelineBarrier2; nothing when empty.
 void vk_record_barriers(VkCommandBuffer cmd, const vk_barriers &b);
 

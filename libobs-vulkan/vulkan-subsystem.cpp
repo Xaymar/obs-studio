@@ -1,5 +1,5 @@
 // Graphics exports. Device lifetime, render target, clear, staging and flush are real; the rest are still stubs.
-// Textures and stage surfaces live in vulkan-texture.cpp.
+// Textures and stage surfaces live in vulkan-texture.cpp, swapchains and present in vulkan-swapchain.cpp.
 #include "vulkan-subsystem.hpp"
 
 #include <graphics/vec4.h>
@@ -16,13 +16,25 @@ VkCommandBuffer vk_cmd(gs_device *d)
 	return d->frames.frames[d->frames.index].cmd;
 }
 
-bool vk_flush(gs_device *d)
+bool vk_flush(gs_device *d, VkSemaphore *signal)
 {
-	if (!d->frames.recording || d->frames.submit(d->graphics, nullptr, nullptr)) {
+	if (!d->frames.recording) {
+		return true;
+	}
+	VkSemaphore wait = d->acquire_wait;
+	d->acquire_wait = VK_NULL_HANDLE;
+	if (d->frames.submit(d->graphics, wait ? &wait : nullptr, signal)) {
+		if (wait) {
+			// Unsignalled again once this submission (just made the ring's latest) has run.
+			d->frames.defer_destroy([d, wait] { d->spare_sems.push_back(wait); });
+		}
 		return true;
 	}
 	// The tracker recorded layouts the failed command buffer never reached; restart from UNDEFINED (contents lost).
 	d->tracker = vk_tracker{};
+	if (wait) {
+		vk_consume_semaphore(d, wait);
+	}
 	return false;
 }
 
@@ -110,32 +122,6 @@ EXPORT bool device_enum_adapters(gs_device_t *device, bool (*callback)(void *, c
 }
 
 EXPORT void *device_get_device_obj(gs_device_t *device)
-{
-	return {};
-}
-
-EXPORT gs_swapchain_t *device_swapchain_create(gs_device_t *device, const struct gs_init_data *data)
-{
-	return {};
-}
-
-EXPORT void device_resize(gs_device_t *device, uint32_t x, uint32_t y) {}
-
-EXPORT enum gs_color_space device_get_color_space(gs_device_t *device)
-{
-	return {};
-}
-
-EXPORT void device_update_color_space(gs_device_t *device) {}
-
-EXPORT void device_get_size(const gs_device_t *device, uint32_t *x, uint32_t *y) {}
-
-EXPORT uint32_t device_get_width(const gs_device_t *device)
-{
-	return {};
-}
-
-EXPORT uint32_t device_get_height(const gs_device_t *device)
 {
 	return {};
 }
@@ -232,14 +218,17 @@ EXPORT gs_zstencil_t *device_get_zstencil_target(const gs_device_t *device)
 }
 
 // shortcut: zstencil ignored until depth targets exist (Task 7).
-EXPORT void device_set_render_target(gs_device_t *device, gs_texture_t *tex, gs_zstencil_t *zstencil)
-{
-	device->render_target = tex;
-}
-
 EXPORT void device_set_render_target_with_color_space(gs_device_t *device, gs_texture_t *tex, gs_zstencil_t *zstencil,
 						      enum gs_color_space space)
 {
+	// As D3D11: no texture means the loaded swapchain's.
+	device->render_target = tex ? tex : device->swap ? &device->swap->target : nullptr;
+	device->space = space;
+}
+
+EXPORT void device_set_render_target(gs_device_t *device, gs_texture_t *tex, gs_zstencil_t *zstencil)
+{
+	device_set_render_target_with_color_space(device, tex, zstencil, GS_CS_SRGB);
 }
 
 EXPORT void device_set_cube_render_target(gs_device_t *device, gs_texture_t *cubetex, int side, gs_zstencil_t *zstencil)
@@ -302,14 +291,12 @@ EXPORT void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode, uint32
 
 EXPORT void device_end_scene(gs_device_t *device) {}
 
-EXPORT void device_load_swapchain(gs_device_t *device, gs_swapchain_t *swaphchain) {}
-
 // shortcut: colour only, as a transfer clear; becomes a render-pass load op once draws exist.
 EXPORT void device_clear(gs_device_t *device, uint32_t clear_flags, const struct vec4 *color, float depth,
 			 uint8_t stencil)
 {
 	gs_texture *rt = device->render_target;
-	if (!(clear_flags & GS_CLEAR_COLOR) || !rt || !color) {
+	if (!(clear_flags & GS_CLEAR_COLOR) || !rt || !rt->image || !color) { // no image: swapchain not acquired
 		return;
 	}
 	VkCommandBuffer cmd = vk_cmd(device);
@@ -325,13 +312,6 @@ EXPORT void device_clear(gs_device_t *device, uint32_t clear_flags, const struct
 					 VK_REMAINING_ARRAY_LAYERS};
 	vkCmdClearColorImage(cmd, rt->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &value, 1, &range);
 }
-
-EXPORT bool device_is_present_ready(gs_device_t *device)
-{
-	return {};
-}
-
-EXPORT void device_present(gs_device_t *device) {}
 
 EXPORT void device_flush(gs_device_t *device)
 {
@@ -391,8 +371,6 @@ EXPORT void device_frustum(gs_device_t *device, float left, float right, float t
 EXPORT void device_projection_push(gs_device_t *device) {}
 
 EXPORT void device_projection_pop(gs_device_t *device) {}
-
-EXPORT void gs_swapchain_destroy(gs_swapchain_t *swapchain) {}
 
 EXPORT void *gs_texture_get_obj(gs_texture_t *tex)
 {

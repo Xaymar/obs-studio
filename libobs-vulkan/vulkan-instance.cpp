@@ -86,22 +86,35 @@ static int create_instance(gs_device *d)
 		return GS_ERROR_NOT_SUPPORTED;
 
 	const char *layers[1] = {};
-	const char *exts[1] = {};
+	const char *exts[3] = {};
 	uint32_t nlayers = 0, nexts = 0;
+
+	uint32_t n = 0;
+	vkEnumerateInstanceExtensionProperties(nullptr, &n, nullptr);
+	std::vector<VkExtensionProperties> eprops(n);
+	vkEnumerateInstanceExtensionProperties(nullptr, &n, eprops.data());
+
+	// Presenting needs both; without them the device still works headless and swapchain creation fails.
+	// TODO(linux): VK_KHR_xlib/xcb/wayland_surface, see vulkan-swapchain.cpp.
+#ifdef _WIN32
+	const char *surface_ext = "VK_KHR_win32_surface";
+#else
+	const char *surface_ext = nullptr;
+#endif
+	const bool surfaces = surface_ext && has_ext(eprops, VK_KHR_SURFACE_EXTENSION_NAME) && has_ext(eprops, surface_ext);
+	if (surfaces) {
+		exts[nexts++] = VK_KHR_SURFACE_EXTENSION_NAME;
+		exts[nexts++] = surface_ext;
+	}
 
 	const char *env = getenv("OBS_VULKAN_VALIDATION");
 	if (env && !strcmp(env, "1")) {
-		uint32_t n = 0;
 		vkEnumerateInstanceLayerProperties(&n, nullptr);
 		std::vector<VkLayerProperties> props(n);
 		vkEnumerateInstanceLayerProperties(&n, props.data());
 		bool layer = false;
 		for (auto &p : props)
 			layer |= !strcmp(p.layerName, "VK_LAYER_KHRONOS_validation");
-
-		vkEnumerateInstanceExtensionProperties(nullptr, &n, nullptr);
-		std::vector<VkExtensionProperties> eprops(n);
-		vkEnumerateInstanceExtensionProperties(nullptr, &n, eprops.data());
 
 		if (layer && has_ext(eprops, VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
 			layers[nlayers++] = "VK_LAYER_KHRONOS_validation";
@@ -129,6 +142,7 @@ static int create_instance(gs_device *d)
 	if (vkCreateInstance(&ci, nullptr, &instance) != VK_SUCCESS)
 		return GS_ERROR_NOT_SUPPORTED;
 	d->instance = instance;
+	d->can_present = surfaces; // and VK_KHR_swapchain, checked in create_device
 
 	if (nlayers) {
 		validation_messages = 0;
@@ -200,6 +214,7 @@ static int create_device(gs_device *d, uint32_t adapter)
 	std::vector<VkExtensionProperties> dexts(next);
 	vkEnumerateDeviceExtensionProperties(d->phys, nullptr, &next, dexts.data());
 	const bool have_prio_ext = has_ext(dexts, VK_KHR_GLOBAL_PRIORITY_EXTENSION_NAME);
+	d->can_present = d->can_present && has_ext(dexts, VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 	if (have_prio_ext)
 		for (uint32_t i = 0; i < nfam; ++i)
 			fams[i].pNext = &prio[i];
@@ -248,12 +263,17 @@ static int create_device(gs_device *d, uint32_t adapter)
 			qi[i].queueCount = 1;
 			qi[i].pQueuePriorities = &one;
 		}
-		const char *dev_exts[1] = {VK_KHR_GLOBAL_PRIORITY_EXTENSION_NAME};
+		const char *dev_exts[2];
+		uint32_t ndev_exts = 0;
+		if (any)
+			dev_exts[ndev_exts++] = VK_KHR_GLOBAL_PRIORITY_EXTENSION_NAME;
+		if (d->can_present)
+			dev_exts[ndev_exts++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
 		VkDeviceCreateInfo di = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
 		di.pNext = &en12;
 		di.queueCreateInfoCount = nq;
 		di.pQueueCreateInfos = qi;
-		di.enabledExtensionCount = any ? 1 : 0;
+		di.enabledExtensionCount = ndev_exts;
 		di.ppEnabledExtensionNames = dev_exts;
 		VkDevice dev = VK_NULL_HANDLE;
 		res = vkCreateDevice(d->phys, &di, nullptr, &dev);
@@ -317,7 +337,11 @@ void vk_device_free(gs_device *d)
 {
 	if (d->dev)
 		vkDeviceWaitIdle(d->dev);
-	d->frames.destroy();
+	d->frames.destroy(); // runs deferred work, which returns acquire semaphores to spare_sems
+	if (d->acquire_wait)
+		d->spare_sems.push_back(d->acquire_wait);
+	for (VkSemaphore s : d->spare_sems)
+		vkDestroySemaphore(d->dev, s, nullptr);
 	if (d->vma)
 		vmaDestroyAllocator(d->vma);
 	for (vk_queue *q : {&d->graphics, &d->transfer})
