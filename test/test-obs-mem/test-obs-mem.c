@@ -429,6 +429,77 @@ static void test_properties_group_outlives_parent(void)
 	obs_properties_destroy(g);
 }
 
+static const char *audio_src_name(void *type_data)
+{
+	(void)type_data;
+	return "test audio";
+}
+
+static void *audio_src_create(obs_data_t *settings, obs_source_t *source)
+{
+	(void)settings;
+	return source;
+}
+
+static void audio_src_destroy(void *data)
+{
+	(void)data;
+}
+
+static obs_volmeter_t *cb_volmeter;
+static volatile long volmeter_cb_ran;
+
+static void volmeter_release_cb(void *param, const float magnitude[MAX_AUDIO_CHANNELS],
+				const float peak[MAX_AUDIO_CHANNELS], const float input_peak[MAX_AUDIO_CHANNELS])
+{
+	/* the last reference: the destroy detaches from the source while its audio callback lock is held */
+	if (os_atomic_inc_long(&volmeter_cb_ran) == 1)
+		obs_mem_release(cb_volmeter);
+	(void)param;
+	(void)magnitude;
+	(void)peak;
+	(void)input_peak;
+}
+
+static void test_volmeter_release_in_callback(void)
+{
+	struct obs_audio_info ai = {.samples_per_sec = 48000, .speakers = SPEAKERS_STEREO};
+	assert(obs_reset_audio(&ai));
+
+	struct obs_source_info info = {
+		.id = "test_obs_mem_audio",
+		.type = OBS_SOURCE_TYPE_INPUT,
+		.output_flags = OBS_SOURCE_AUDIO,
+		.get_name = audio_src_name,
+		.create = audio_src_create,
+		.destroy = audio_src_destroy,
+	};
+	obs_register_source(&info);
+
+	obs_source_t *src = obs_source_create_private("test_obs_mem_audio", "audio", NULL);
+	assert(src);
+
+	cb_volmeter = obs_volmeter_create(OBS_FADER_LOG);
+	assert(obs_volmeter_attach_source(cb_volmeter, src));
+	obs_mem_acquire(cb_volmeter);
+	obs_volmeter_add_callback(cb_volmeter, volmeter_release_cb, NULL);
+	obs_volmeter_destroy(cb_volmeter); /* the creator's ref; the callback holds the last one */
+
+	static float samples[2][480];
+	struct obs_source_audio audio = {
+		.data = {(uint8_t *)samples[0], (uint8_t *)samples[1]},
+		.frames = 480,
+		.speakers = SPEAKERS_STEREO,
+		.format = AUDIO_FORMAT_FLOAT_PLANAR,
+		.samples_per_sec = 48000,
+		.timestamp = os_gettime_ns(),
+	};
+	obs_source_output_audio(src, &audio);
+	assert(os_atomic_load_long(&volmeter_cb_ran) == 1);
+
+	obs_source_release(src);
+}
+
 /* Without video, libobs logs graphics noise at warning level; show everything else from warnings up. */
 static void warnings_log(int lvl, const char *msg, va_list args, void *param)
 {
@@ -448,6 +519,7 @@ static void test_context_objects(void)
 	test_sceneitem_survives_remove();
 	test_fader_release_in_callback();
 	test_properties_group_outlives_parent();
+	test_volmeter_release_in_callback();
 	obs_wait_for_destroy_queue(); /* no-op without video; the tests poll where they must */
 	obs_shutdown();
 	printf("test-obs-mem: %ld allocations left after shutdown\n", bnum_allocs());

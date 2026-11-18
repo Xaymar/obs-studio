@@ -232,7 +232,8 @@ static bool obs_source_init(struct obs_source *source)
 		return false;
 	if (pthread_mutex_init(&source->audio_actions_mutex, NULL) != 0)
 		return false;
-	if (pthread_mutex_init(&source->audio_cb_mutex, NULL) != 0)
+	/* recursive: a capture callback may remove itself, e.g. by releasing a volmeter's last ref */
+	if (pthread_mutex_init_recursive(&source->audio_cb_mutex) != 0)
 		return false;
 	if (pthread_mutex_init(&source->audio_mutex, NULL) != 0)
 		return false;
@@ -1513,6 +1514,9 @@ static void source_signal_audio_data(obs_source_t *source, const struct audio_da
 	pthread_mutex_lock(&source->audio_cb_mutex);
 
 	for (size_t i = source->audio_cb_list.num; i > 0; i--) {
+		/* a callback may have shrunk the list */
+		if (i > source->audio_cb_list.num)
+			continue;
 		struct audio_cb_info info = source->audio_cb_list.array[i - 1];
 		info.callback(info.param, source, in, muted);
 	}
