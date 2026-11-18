@@ -34,10 +34,18 @@ bool obs_view_init(struct obs_view *view, enum view_type type)
 	return true;
 }
 
+static void obs_view_free_cb(void *obj)
+{
+	obs_view_free(obj);
+	obs_mem_finalize(obj);
+	bfree(obj);
+}
+
 obs_view_t *obs_view_create(void)
 {
 	struct obs_view *view = bzalloc(sizeof(struct obs_view));
 
+	obs_mem_init(view, obs_view_free_cb);
 	if (!obs_view_init(view, AUX_VIEW)) {
 		bfree(view);
 		view = NULL;
@@ -65,10 +73,8 @@ void obs_view_free(struct obs_view *view)
 
 void obs_view_destroy(obs_view_t *view)
 {
-	if (view) {
-		obs_view_free(view);
-		bfree(view);
-	}
+	if (view)
+		obs_mem_release(view);
 }
 
 obs_source_t *obs_view_get_source(obs_view_t *view, uint32_t channel)

@@ -60,9 +60,29 @@ bool obs_display_init(struct obs_display *display, const struct gs_init_data *gr
 	return true;
 }
 
+static void obs_display_free_cb(void *obj)
+{
+	obs_display_t *display = obj;
+
+	pthread_mutex_lock(&obs->data.displays_mutex);
+	if (display->prev_next)
+		*display->prev_next = display->next;
+	if (display->next)
+		display->next->prev_next = display->prev_next;
+	pthread_mutex_unlock(&obs->data.displays_mutex);
+
+	obs_enter_graphics();
+	obs_display_free(display);
+	obs_leave_graphics();
+
+	obs_mem_finalize(display);
+	bfree(display);
+}
+
 obs_display_t *obs_display_create(const struct gs_init_data *graphics_data, uint32_t background_color)
 {
 	struct obs_display *display = bzalloc(sizeof(struct obs_display));
+	obs_mem_init(display, obs_display_free_cb);
 
 	gs_enter_context(obs->video.graphics);
 
@@ -100,20 +120,8 @@ void obs_display_free(obs_display_t *display)
 
 void obs_display_destroy(obs_display_t *display)
 {
-	if (display) {
-		pthread_mutex_lock(&obs->data.displays_mutex);
-		if (display->prev_next)
-			*display->prev_next = display->next;
-		if (display->next)
-			display->next->prev_next = display->prev_next;
-		pthread_mutex_unlock(&obs->data.displays_mutex);
-
-		obs_enter_graphics();
-		obs_display_free(display);
-		obs_leave_graphics();
-
-		bfree(display);
-	}
+	if (display)
+		obs_mem_release(display);
 }
 
 void obs_display_resize(obs_display_t *display, uint32_t cx, uint32_t cy)

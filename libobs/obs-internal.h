@@ -280,6 +280,7 @@ enum view_type {
 };
 
 struct obs_view {
+	struct obs_mem_header hdr;
 	pthread_mutex_t channels_mutex;
 	obs_source_t *channels[MAX_CHANNELS];
 	enum view_type type;
@@ -292,6 +293,7 @@ extern void obs_view_free(struct obs_view *view);
 /* displays */
 
 struct obs_display {
+	struct obs_mem_header hdr;
 	bool update_color_space;
 	bool enabled;
 	uint32_t cx, cy;
@@ -1276,6 +1278,7 @@ struct encoder_callback {
 };
 
 struct obs_encoder_group {
+	struct obs_mem_header hdr;
 	pthread_mutex_t mutex;
 	/* allows group to be destroyed even if some encoders are active */
 	bool destroy_on_stop;

@@ -9,6 +9,8 @@
 #include <obs-data.h>
 #include <obs-mem.h>
 #include <obs-missing-files.h>
+#include <obs-properties.h>
+#include <obs-audio-controls.h>
 #include <util/bmem.h>
 #include <util/platform.h>
 #include <util/threading.h>
@@ -337,7 +339,7 @@ static void test_source_weak_in_destroy_signal(void)
 			       NULL);
 
 	obs_scene_release(s);
-	obs_wait_for_destroy_queue();
+	obs_wait_for_destroy_queue(); /* no-op without video, hence wait_for */
 	wait_for(&destroy_signal_ran);
 	assert(os_atomic_load_long(&destroy_signal_ran) == 1);
 }
@@ -355,7 +357,7 @@ static void test_source_weak_basic(void)
 	obs_source_release(strong);
 
 	obs_scene_release(s);
-	obs_wait_for_destroy_queue();
+	obs_wait_for_destroy_queue(); /* no-op without video; expiry happens on the last release */
 	assert(obs_weak_source_expired(w));
 	assert(obs_weak_source_get_source(w) == NULL);
 	assert(obs_weak_source_references_source(w, src));
@@ -379,13 +381,58 @@ static void test_sceneitem_survives_remove(void)
 
 	obs_scene_release(b);
 	obs_scene_release(a);
-	obs_wait_for_destroy_queue();
+	obs_wait_for_destroy_queue(); /* no-op without video; nothing here needs the deferred free */
 }
 
-/* Without video, libobs logs graphics and canvas noise; only errors matter here. */
-static void errors_only_log(int lvl, const char *msg, va_list args, void *param)
+static obs_fader_t *cb_fader;
+static volatile long fader_cb_ran;
+
+static void fader_release_cb(void *param, float db)
 {
-	if (lvl <= LOG_ERROR) {
+	if (os_atomic_inc_long(&fader_cb_ran) == 1)
+		obs_mem_release(cb_fader); /* the last reference, dropped mid-dispatch */
+	(void)param;
+	(void)db;
+}
+
+static void test_fader_release_in_callback(void)
+{
+	/* obs_fader_set_db ignores its own volume signal, so trigger through the attached source. */
+	obs_scene_t *s = obs_scene_create_private("fader");
+	obs_source_t *src = obs_scene_get_source(s);
+
+	cb_fader = obs_fader_create(OBS_FADER_LOG);
+	assert(obs_fader_attach_source(cb_fader, src));
+	obs_mem_acquire(cb_fader);
+	obs_fader_add_callback(cb_fader, fader_release_cb, NULL);
+	obs_fader_destroy(cb_fader); /* the creator's ref; the callback holds the last one */
+
+	obs_source_set_volume(src, 0.5f);
+	assert(os_atomic_load_long(&fader_cb_ran) == 1);
+
+	obs_scene_release(s);
+}
+
+static void test_properties_group_outlives_parent(void)
+{
+	obs_properties_t *p = obs_properties_create();
+	obs_properties_t *g = obs_properties_create();
+	obs_properties_add_bool(g, "b", "B");
+	assert(obs_properties_add_group(p, "g", "G", OBS_GROUP_NORMAL, g));
+
+	obs_mem_acquire(g);
+	obs_properties_destroy(p);
+
+	assert(obs_properties_get_parent(g) == NULL);
+	obs_property_t *first = obs_properties_first(g);
+	assert(first && strcmp(obs_property_name(first), "b") == 0);
+	obs_properties_destroy(g);
+}
+
+/* Without video, libobs logs graphics noise at warning level; show everything else from warnings up. */
+static void warnings_log(int lvl, const char *msg, va_list args, void *param)
+{
+	if (lvl <= LOG_WARNING && strncmp(msg, "gs_", 3) != 0) {
 		vfprintf(stderr, msg, args);
 		fputc('\n', stderr);
 	}
@@ -394,13 +441,16 @@ static void errors_only_log(int lvl, const char *msg, va_list args, void *param)
 
 static void test_context_objects(void)
 {
-	base_set_log_handler(errors_only_log, NULL);
+	base_set_log_handler(warnings_log, NULL);
 	assert(obs_startup("en-US", NULL, NULL));
 	test_source_weak_in_destroy_signal();
 	test_source_weak_basic();
 	test_sceneitem_survives_remove();
-	obs_wait_for_destroy_queue();
+	test_fader_release_in_callback();
+	test_properties_group_outlives_parent();
+	obs_wait_for_destroy_queue(); /* no-op without video; the tests poll where they must */
 	obs_shutdown();
+	printf("test-obs-mem: %ld allocations left after shutdown\n", bnum_allocs());
 }
 
 int main(void)

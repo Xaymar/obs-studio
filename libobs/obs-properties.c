@@ -152,11 +152,6 @@ static inline void frame_rate_data_free(struct frame_rate_data *data)
 	da_free(data->ranges);
 }
 
-static inline void group_data_free(struct group_data *data)
-{
-	obs_properties_destroy(data->content);
-}
-
 static inline void int_data_free(struct int_data *data)
 {
 	if (data->suffix)
@@ -195,6 +190,7 @@ struct obs_property {
 };
 
 struct obs_properties {
+	struct obs_mem_header hdr;
 	void *param;
 	void (*destroy)(void *param);
 	uint32_t flags;
@@ -204,10 +200,22 @@ struct obs_properties {
 	struct obs_property *parent;
 };
 
+static void obs_properties_free_cb(void *obj);
+
+static inline void group_data_free(struct group_data *data)
+{
+	/* a plugin may still hold the group's content; detach it so get_parent never dangles */
+	data->content->parent = NULL;
+	obs_properties_destroy(data->content);
+}
+
+static inline obs_properties_t *get_topmost_parent(obs_properties_t *props);
+
 obs_properties_t *obs_properties_create(void)
 {
 	struct obs_properties *props;
 	props = bzalloc(sizeof(struct obs_properties));
+	obs_mem_init(props, obs_properties_free_cb);
 	return props;
 }
 
@@ -271,21 +279,27 @@ static void obs_property_destroy(struct obs_property *property)
 	bfree(property);
 }
 
+static void obs_properties_free_cb(void *obj)
+{
+	obs_properties_t *props = obj;
+	struct obs_property *p, *tmp;
+
+	if (props->destroy && props->param)
+		props->destroy(props->param);
+
+	HASH_ITER (hh, props->properties, p, tmp) {
+		HASH_DEL(props->properties, p);
+		obs_property_destroy(p);
+	}
+
+	obs_mem_finalize(props);
+	bfree(props);
+}
+
 void obs_properties_destroy(obs_properties_t *props)
 {
-	if (props) {
-		struct obs_property *p, *tmp;
-
-		if (props->destroy && props->param)
-			props->destroy(props->param);
-
-		HASH_ITER (hh, props->properties, p, tmp) {
-			HASH_DEL(props->properties, p);
-			obs_property_destroy(p);
-		}
-
-		bfree(props);
-	}
+	if (props)
+		obs_mem_release(props);
 }
 
 obs_property_t *obs_properties_first(obs_properties_t *props)
@@ -383,6 +397,7 @@ void obs_properties_apply_settings(obs_properties_t *props, obs_data_t *settings
 
 	obs_properties_apply_settings_internal(props, &properties_with_callback);
 
+	obs_properties_t *top = obs_mem_acquire(get_topmost_parent(props));
 	while (properties_with_callback.num > 0) {
 		struct obs_property *p = *(struct obs_property **)da_end(properties_with_callback);
 		if (p->modified)
@@ -391,6 +406,7 @@ void obs_properties_apply_settings(obs_properties_t *props, obs_data_t *settings
 			p->modified2(p->priv, props, p, settings);
 		da_pop_back(properties_with_callback);
 	}
+	obs_mem_release(top);
 
 	da_free(properties_with_callback);
 }
@@ -805,16 +821,16 @@ void obs_property_set_modified_callback2(obs_property_t *p, obs_property_modifie
 
 bool obs_property_modified(obs_property_t *p, obs_data_t *settings)
 {
-	if (p) {
-		if (p->modified) {
-			obs_properties_t *top = get_topmost_parent(p->parent);
-			return p->modified(top, p, settings);
-		} else if (p->modified2) {
-			obs_properties_t *top = get_topmost_parent(p->parent);
-			return p->modified2(p->priv, top, p, settings);
-		}
+	bool ret = false;
+	if (p && (p->modified || p->modified2)) {
+		obs_properties_t *top = obs_mem_acquire(get_topmost_parent(p->parent));
+		if (p->modified)
+			ret = p->modified(top, p, settings);
+		else
+			ret = p->modified2(p->priv, top, p, settings);
+		obs_mem_release(top);
 	}
-	return false;
+	return ret;
 }
 
 bool obs_property_button_clicked(obs_property_t *p, void *obj)
@@ -823,10 +839,10 @@ bool obs_property_button_clicked(obs_property_t *p, void *obj)
 	if (p) {
 		struct button_data *data = get_type_data(p, OBS_PROPERTY_BUTTON);
 		if (data && data->callback) {
-			obs_properties_t *top = get_topmost_parent(p->parent);
-			if (p->priv)
-				return data->callback(top, p, p->priv);
-			return data->callback(top, p, (context ? context->data : NULL));
+			obs_properties_t *top = obs_mem_acquire(get_topmost_parent(p->parent));
+			bool ret = data->callback(top, p, p->priv ? p->priv : (context ? context->data : NULL));
+			obs_mem_release(top);
+			return ret;
 		}
 	}
 

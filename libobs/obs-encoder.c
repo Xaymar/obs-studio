@@ -2206,6 +2206,8 @@ bool obs_encoder_set_group(obs_encoder_t *encoder, obs_encoder_group_t *group)
 	return true;
 }
 
+static void obs_encoder_group_free_cb(void *obj);
+
 obs_encoder_group_t *obs_encoder_group_create()
 {
 	struct obs_encoder_group *group = bzalloc(sizeof(struct obs_encoder_group));
@@ -2216,6 +2218,7 @@ obs_encoder_group_t *obs_encoder_group_create()
 		return NULL;
 	}
 
+	obs_mem_init(group, obs_encoder_group_free_cb);
 	return group;
 }
 
@@ -2231,13 +2234,14 @@ void obs_encoder_group_actually_destroy(obs_encoder_group_t *group)
 	pthread_mutex_unlock(&group->mutex);
 	pthread_mutex_destroy(&group->mutex);
 
+	obs_mem_finalize(group);
 	bfree(group);
 }
 
-void obs_encoder_group_destroy(obs_encoder_group_t *group)
+/* With encoders still running, the free is deferred to the last encoder's stop. */
+static void obs_encoder_group_free_cb(void *obj)
 {
-	if (!group)
-		return;
+	obs_encoder_group_t *group = obj;
 
 	pthread_mutex_lock(&group->mutex);
 
@@ -2248,6 +2252,14 @@ void obs_encoder_group_destroy(obs_encoder_group_t *group)
 	}
 
 	obs_encoder_group_actually_destroy(group);
+}
+
+void obs_encoder_group_destroy(obs_encoder_group_t *group)
+{
+	if (!group)
+		return;
+
+	obs_mem_release(group);
 }
 
 bool obs_encoder_video_tex_active(const obs_encoder_t *encoder, enum video_format format)

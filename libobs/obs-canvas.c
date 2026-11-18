@@ -146,6 +146,7 @@ static obs_canvas_t *obs_canvas_create_internal(const char *name, const char *uu
 		return NULL;
 	}
 
+	obs_mem_init(&canvas->view, NULL); /* embedded: never released, freed with the canvas */
 	obs_view_init(&canvas->view, flags & ACTIVATE ? MAIN_VIEW : AUX_VIEW);
 	obs_context_init_control(&canvas->context, canvas, (obs_destroy_cb)obs_canvas_destroy);
 

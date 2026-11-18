@@ -32,24 +32,34 @@ struct obs_missing_file {
 };
 
 struct obs_missing_files {
+	struct obs_mem_header hdr;
 	DARRAY(struct obs_missing_file *) files;
 };
+
+static void obs_missing_files_free_cb(void *obj)
+{
+	obs_missing_files_t *files = obj;
+
+	for (size_t i = 0; i < files->files.num; i++) {
+		obs_missing_file_release(files->files.array[i]);
+	}
+
+	da_free(files->files);
+	obs_mem_finalize(files);
+	bfree(files);
+}
 
 obs_missing_files_t *obs_missing_files_create()
 {
 	struct obs_missing_files *files = bzalloc(sizeof(struct obs_missing_files));
+	obs_mem_init(files, obs_missing_files_free_cb);
 
 	return files;
 }
 
 void obs_missing_files_destroy(obs_missing_files_t *files)
 {
-	for (size_t i = 0; i < files->files.num; i++) {
-		obs_missing_file_release(files->files.array[i]);
-	}
-
-	da_free(files->files);
-	bfree(files);
+	obs_mem_release(files);
 }
 
 void obs_missing_files_add_file(obs_missing_files_t *files, obs_missing_file_t *file)
