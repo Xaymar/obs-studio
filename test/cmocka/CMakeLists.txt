@@ -22,6 +22,19 @@ target_link_libraries(test_bitstream PRIVATE OBS::libobs cmocka::cmocka)
 
 add_test(test_bitstream test_bitstream)
 
+# Vulkan backend export test
+if(ENABLE_VULKAN)
+  add_executable(test_vulkan_exports test_vulkan_exports.cpp)
+  target_include_directories(test_vulkan_exports PRIVATE ${CMOCKA_INCLUDE_DIR})
+  target_compile_definitions(
+    test_vulkan_exports
+    PRIVATE OBS_SOURCE_DIR="${CMAKE_SOURCE_DIR}" OBS_VULKAN_MODULE="$<TARGET_FILE_DIR:libobs-vulkan>/libobs-vulkan"
+  )
+  add_dependencies(test_vulkan_exports libobs-vulkan)
+  target_link_libraries(test_vulkan_exports PRIVATE OBS::libobs cmocka::cmocka)
+  add_test(test_vulkan_exports test_vulkan_exports)
+endif()
+
 # OS path test
 add_executable(test_os_path test_os_path.c)
 target_include_directories(test_os_path PRIVATE ${CMOCKA_INCLUDE_DIR})
