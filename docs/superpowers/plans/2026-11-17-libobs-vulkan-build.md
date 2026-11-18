@@ -37,3 +37,14 @@ Result: 4/4 passed (test_serializer, test_darray, test_bitstream, test_os_path),
 
 - Root `CMakeLists.txt`: `ENABLE_UNIT_TESTS` was never wired in; added `enable_testing()` + `add_subdirectory(test/cmocka)` under that option.
 - `test/cmocka/CMakeLists.txt`: link `cmocka::cmocka` (`CMOCKA_LIBRARIES` is empty with the config package) and `add_test(<name> <target>)` so ctest finds the multi-config exe.
+
+## glslang (Task 6)
+
+libobs-vulkan compiles shaders at runtime, so glslang is linked **statically** into `libobs-vulkan.dll`; end users need no SDK, glslang DLL or compiler. That makes the glslang static libraries a **build-time** requirement:
+
+- Windows: the Vulkan SDK (`VULKAN_SDK` set, e.g. `C:\VulkanSDK\1.4.363.1`). `find_package(Vulkan COMPONENTS glslang SPIRV-Tools)` finds `glslang.lib` and `SPIRV-Tools.lib`; `glslang-default-resource-limits.lib` and `SPIRV-Tools-opt.lib` are linked by path from the same `Lib/` directory (the SDK's own glslang/SPIRV-Tools CMake packages point at wrong paths and cannot be used). Release libs (/MD) for RelWithDebInfo/Release, the `*d.lib` variants for Debug (Debug is untested).
+- Linux (untested): the distro's static glslang and SPIRV-Tools-opt (`glslang-default-resource-limits`, `SPIRV-Tools-opt` are linked by name).
+- An OBS deps entry with these static libs would remove the SDK requirement for builders; not done.
+
+Versions used: Vulkan SDK 1.4.363.1, glslang 16.6.0, SPIRV-Tools v2026.4. Licences: see `libobs-vulkan/THIRD_PARTY.md`.
+Effect on the module: `libobs-vulkan.dll` grows from 662,528 to 9,105,920 bytes (RelWithDebInfo); `dumpbin /dependents` still lists only obs.dll, the CRT and system DLLs, with vulkan-1.dll delay-loaded.

@@ -79,6 +79,25 @@ if(ENABLE_VULKAN)
   target_link_libraries(test_vulkan_swapchain PRIVATE OBS::libobs OBS::vma Vulkan::Headers cmocka::cmocka)
   add_test(test_vulkan_swapchain test_vulkan_swapchain)
 
+  # Shader translation and params; the effect parser is compiled in (ep_parse is not exported). No device needed
+  # except for the glslang refcount test, which skips without one.
+  add_executable(
+    test_vulkan_shader
+    test_vulkan_shader.cpp
+    test_vulkan_shader_effect.c
+    test_vulkan_shader_effect.h
+    ${CMAKE_SOURCE_DIR}/libobs/graphics/effect-parser.c
+  )
+  target_include_directories(test_vulkan_shader PRIVATE ${CMOCKA_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/libobs-vulkan)
+  target_compile_definitions(
+    test_vulkan_shader
+    PRIVATE OBS_SOURCE_DIR="${CMAKE_SOURCE_DIR}" OBS_VULKAN_MODULE="$<TARGET_FILE_DIR:libobs-vulkan>/libobs-vulkan"
+  )
+  target_compile_features(test_vulkan_shader PRIVATE cxx_std_17)
+  add_dependencies(test_vulkan_shader libobs-vulkan)
+  target_link_libraries(test_vulkan_shader PRIVATE OBS::libobs OBS::vma Vulkan::Headers cmocka::cmocka)
+  add_test(test_vulkan_shader test_vulkan_shader)
+
   # Pure logic: compiles the tracker directly, needs no device or loader.
   add_executable(test_vulkan_tracker test_vulkan_tracker.cpp ${CMAKE_SOURCE_DIR}/libobs-vulkan/vulkan-tracker.cpp)
   target_include_directories(test_vulkan_tracker PRIVATE ${CMOCKA_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/libobs-vulkan)

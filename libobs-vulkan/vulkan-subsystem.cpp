@@ -77,6 +77,7 @@ EXPORT int device_create(gs_device_t **device, uint32_t adapter)
 		delete d;
 		return ret;
 	}
+	vk_glslang_ref(); // keeps glslang's built-in symbol tables alive between compiles
 	*device = d;
 	return GS_SUCCESS;
 }
@@ -88,6 +89,7 @@ EXPORT void device_destroy(gs_device_t *device)
 	}
 	vk_device_free(device);
 	delete device;
+	vk_glslang_unref();
 }
 
 // Vulkan has no current-context state; commands are recorded per frame and submitted explicitly.
@@ -146,18 +148,6 @@ EXPORT gs_zstencil_t *device_zstencil_create(gs_device_t *device, uint32_t width
 }
 
 EXPORT gs_samplerstate_t *device_samplerstate_create(gs_device_t *device, const struct gs_sampler_info *info)
-{
-	return {};
-}
-
-EXPORT gs_shader_t *device_vertexshader_create(gs_device_t *device, const char *shader, const char *file,
-					       char **error_string)
-{
-	return {};
-}
-
-EXPORT gs_shader_t *device_pixelshader_create(gs_device_t *device, const char *shader, const char *file,
-					      char **error_string)
 {
 	return {};
 }
@@ -468,59 +458,6 @@ EXPORT bool gs_timer_range_get_data(gs_timer_range_t *range, bool *disjoint, uin
 {
 	return {};
 }
-
-EXPORT void gs_shader_destroy(gs_shader_t *shader) {}
-
-EXPORT int gs_shader_get_num_params(const gs_shader_t *shader)
-{
-	return {};
-}
-
-EXPORT gs_sparam_t *gs_shader_get_param_by_idx(gs_shader_t *shader, uint32_t param)
-{
-	return {};
-}
-
-EXPORT gs_sparam_t *gs_shader_get_param_by_name(gs_shader_t *shader, const char *name)
-{
-	return {};
-}
-
-EXPORT gs_sparam_t *gs_shader_get_viewproj_matrix(const gs_shader_t *shader)
-{
-	return {};
-}
-
-EXPORT gs_sparam_t *gs_shader_get_world_matrix(const gs_shader_t *shader)
-{
-	return {};
-}
-
-EXPORT void gs_shader_get_param_info(const gs_sparam_t *param, struct gs_shader_param_info *info) {}
-
-EXPORT void gs_shader_set_bool(gs_sparam_t *param, bool val) {}
-
-EXPORT void gs_shader_set_float(gs_sparam_t *param, float val) {}
-
-EXPORT void gs_shader_set_int(gs_sparam_t *param, int val) {}
-
-EXPORT void gs_shader_set_matrix3(gs_sparam_t *param, const struct matrix3 *val) {}
-
-EXPORT void gs_shader_set_matrix4(gs_sparam_t *param, const struct matrix4 *val) {}
-
-EXPORT void gs_shader_set_vec2(gs_sparam_t *param, const struct vec2 *val) {}
-
-EXPORT void gs_shader_set_vec3(gs_sparam_t *param, const struct vec3 *val) {}
-
-EXPORT void gs_shader_set_vec4(gs_sparam_t *param, const struct vec4 *val) {}
-
-EXPORT void gs_shader_set_texture(gs_sparam_t *param, gs_texture_t *val) {}
-
-EXPORT void gs_shader_set_val(gs_sparam_t *param, const void *val, size_t size) {}
-
-EXPORT void gs_shader_set_default(gs_sparam_t *param) {}
-
-EXPORT void gs_shader_set_next_sampler(gs_sparam_t *param, gs_samplerstate_t *sampler) {}
 
 EXPORT bool device_is_monitor_hdr(gs_device_t *device, void *monitor)
 {

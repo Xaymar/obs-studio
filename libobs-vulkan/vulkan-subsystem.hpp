@@ -2,6 +2,9 @@
 
 #include <graphics/graphics.h>
 
+#include <string>
+#include <vector>
+
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
 
@@ -66,6 +69,44 @@ struct gs_swap_chain {
 	bool test_not_ready = false; // test hook: acquire behaves as VK_NOT_READY
 };
 
+struct gs_shader_param {
+	gs_shader *shader;
+	std::string name;
+	enum gs_shader_param_type type;
+	int array_count;               // 0: not an array
+	std::vector<uint8_t> def;      // default value as the effect parser stored it
+	uint32_t offset = UINT32_MAX;  // std140 offset in the uniform block; UINT32_MAX for textures
+	uint32_t stride = 0;           // array element stride in the block
+	uint32_t binding = 0;          // textures: set 0 binding (combined image sampler)
+	size_t sampler = SIZE_MAX;     // textures: index into gs_shader::samplers it is sampled with, if any
+	gs_texture *texture = nullptr; // textures: bound by gs_shader_set_texture / set_val
+	bool srgb = false;
+	gs_samplerstate_t *next_sampler = nullptr;
+	bool warned = false; // unsupported type already logged once
+};
+
+struct gs_shader {
+	gs_device *device;
+	enum gs_shader_type type;
+	std::vector<uint32_t> spirv;
+	std::vector<gs_shader_param> params;   // never resized after creation; gs_sparam_t points into it
+	std::vector<uint8_t> uniforms;         // CPU shadow of the set 0 binding 0 std140 block; empty when none
+	bool dirty = true;                     // uniforms changed since the last upload (Task 7 clears it)
+	std::vector<std::string> inputs;       // vertex shaders: semantic per input location
+	std::vector<gs_sampler_info> samplers; // the shader's sampler_state blocks
+	gs_shader_param *viewproj = nullptr, *world = nullptr;
+};
+
+// HLSL (as emitted by the effect parser) -> Vulkan GLSL -> SPIR-V. Empty on failure, with `error` set.
+// When `shader` is given, its params, uniform block size, inputs and samplers are filled from the same parse.
+// C++ exceptions become errors. Inputs known to crash the shared parser (recursive or very deep #defines, bracket
+// nesting over 256) are rejected before it runs; any other crash inside it or glslang is fatal (logged on Windows).
+std::vector<uint32_t> hlsl_to_spirv(const char *hlsl, enum gs_shader_type type, std::string &error,
+				    gs_shader *shader = nullptr, const char *file = nullptr);
+// glslang process lifetime: device_create takes a reference, device_destroy drops it; compiles hold their own.
+void vk_glslang_ref();
+void vk_glslang_unref();
+
 // VK_FORMAT_UNDEFINED for formats the backend does not support.
 VkFormat vk_format(enum gs_color_format format);
 
@@ -93,4 +134,6 @@ extern "C" {
 EXPORT int obs_vulkan_validation_messages(void);
 // Test hook: device_stage_texture for mip `level`; dst must have that level's size.
 EXPORT void obs_vulkan_test_stage_mip(gs_device_t *device, gs_stagesurf_t *dst, gs_texture_t *src, uint32_t level);
+// Test hook: glslang process references currently held (devices plus running compiles).
+EXPORT int obs_vulkan_glslang_refs(void);
 }
