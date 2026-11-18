@@ -32,6 +32,11 @@ add_subdirectory(plugins)
 
 add_subdirectory(test/test-input)
 
+if(ENABLE_UNIT_TESTS)
+  enable_testing()
+  add_subdirectory(test/cmocka)
+endif()
+
 add_subdirectory(frontend)
 
 message_configuration()
