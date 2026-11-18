@@ -45,6 +45,13 @@ if(ENABLE_VULKAN)
   add_dependencies(test_vulkan_device libobs-vulkan)
   target_link_libraries(test_vulkan_device PRIVATE OBS::libobs OBS::vma Vulkan::Headers cmocka::cmocka)
   add_test(test_vulkan_device test_vulkan_device)
+
+  # Pure logic: compiles the tracker directly, needs no device or loader.
+  add_executable(test_vulkan_tracker test_vulkan_tracker.cpp ${CMAKE_SOURCE_DIR}/libobs-vulkan/vulkan-tracker.cpp)
+  target_include_directories(test_vulkan_tracker PRIVATE ${CMOCKA_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/libobs-vulkan)
+  target_compile_features(test_vulkan_tracker PRIVATE cxx_std_17)
+  target_link_libraries(test_vulkan_tracker PRIVATE Vulkan::Headers cmocka::cmocka)
+  add_test(test_vulkan_tracker test_vulkan_tracker)
 endif()
 
 # OS path test

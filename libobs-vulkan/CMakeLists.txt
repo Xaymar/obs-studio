@@ -7,7 +7,14 @@ add_library(OBS::libobs-vulkan ALIAS libobs-vulkan)
 
 target_sources(
   libobs-vulkan
-  PRIVATE vulkan-frame.cpp vulkan-frame.hpp vulkan-instance.cpp vulkan-subsystem.cpp vulkan-subsystem.hpp
+  PRIVATE
+    vulkan-frame.cpp
+    vulkan-frame.hpp
+    vulkan-instance.cpp
+    vulkan-subsystem.cpp
+    vulkan-subsystem.hpp
+    vulkan-tracker.cpp
+    vulkan-tracker.hpp
 )
 
 target_compile_features(libobs-vulkan PRIVATE cxx_std_17)
