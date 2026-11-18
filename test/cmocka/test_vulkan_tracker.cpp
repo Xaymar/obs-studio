@@ -209,6 +209,50 @@ static void read_after_read_write_emits_barrier(void **)
 	assert_true(b.images.empty());
 }
 
+static const vk_access depth_rw = {
+	VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+	VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+	VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT};
+
+static void depth_image_barrier_uses_depth_aspect(void **)
+{
+	vk_tracker t;
+	vk_barriers b;
+	t.use_image(IMG(1), 0, depth_rw, b);
+	assert_int_equal(b.images.size(), 1);
+	assert_int_equal(b.images[0].subresourceRange.aspectMask, VK_IMAGE_ASPECT_DEPTH_BIT);
+	// A later transfer clear of the same image keeps the depth aspect.
+	vk_access clear = {VK_PIPELINE_STAGE_2_CLEAR_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
+			   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT};
+	b = {};
+	t.use_image(IMG(1), 0, clear, b);
+	assert_int_equal(b.images.size(), 1);
+	assert_int_equal(b.images[0].subresourceRange.aspectMask, VK_IMAGE_ASPECT_DEPTH_BIT);
+	assert_int_equal(b.images[0].oldLayout, depth_rw.layout);
+}
+
+static void depth_stencil_image_barrier_uses_both_aspects(void **)
+{
+	vk_tracker t;
+	vk_barriers b;
+	vk_access ds = depth_rw;
+	ds.aspect = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+	t.use_image(IMG(1), 0, ds, b);
+	assert_int_equal(b.images.size(), 1);
+	assert_int_equal(b.images[0].subresourceRange.aspectMask,
+			 VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT);
+	assert_int_equal(b.images[0].subresourceRange.levelCount, VK_REMAINING_MIP_LEVELS);
+}
+
+static void colour_image_default_aspect_unchanged(void **)
+{
+	vk_tracker t;
+	vk_barriers b;
+	t.use_image(IMG(1), 0, render, b); // three initialisers: aspect defaults to colour
+	assert_int_equal(b.images.size(), 1);
+	assert_int_equal(b.images[0].subresourceRange.aspectMask, VK_IMAGE_ASPECT_COLOR_BIT);
+}
+
 int main()
 {
 	const struct CMUnitTest tests[] = {
@@ -224,6 +268,9 @@ int main()
 		cmocka_unit_test(write_then_read_other_stage_emits_second_barrier),
 		cmocka_unit_test(buffer_write_then_read_other_stage_emits_second_barrier),
 		cmocka_unit_test(read_after_read_write_emits_barrier),
+		cmocka_unit_test(depth_image_barrier_uses_depth_aspect),
+		cmocka_unit_test(depth_stencil_image_barrier_uses_both_aspects),
+		cmocka_unit_test(colour_image_default_aspect_unchanged),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }

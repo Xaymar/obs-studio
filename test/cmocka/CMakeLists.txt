@@ -116,6 +116,18 @@ if(ENABLE_VULKAN)
   target_link_libraries(test_vulkan_draw PRIVATE OBS::libobs OBS::vma Vulkan::Headers cmocka::cmocka)
   add_test(test_vulkan_draw test_vulkan_draw)
 
+  # Depth/stencil buffers and depth-tested drawing; needs a device (skips without one).
+  add_executable(test_vulkan_depth test_vulkan_depth.cpp)
+  target_include_directories(test_vulkan_depth PRIVATE ${CMOCKA_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/libobs-vulkan)
+  target_compile_definitions(
+    test_vulkan_depth
+    PRIVATE OBS_VULKAN_MODULE="$<TARGET_FILE_DIR:libobs-vulkan>/libobs-vulkan"
+  )
+  target_compile_features(test_vulkan_depth PRIVATE cxx_std_17)
+  add_dependencies(test_vulkan_depth libobs-vulkan)
+  target_link_libraries(test_vulkan_depth PRIVATE OBS::libobs OBS::vma Vulkan::Headers cmocka::cmocka)
+  add_test(test_vulkan_depth test_vulkan_depth)
+
   # Pure logic: compiles the tracker directly, needs no device or loader.
   add_executable(test_vulkan_tracker test_vulkan_tracker.cpp ${CMAKE_SOURCE_DIR}/libobs-vulkan/vulkan-tracker.cpp)
   target_include_directories(test_vulkan_tracker PRIVATE ${CMOCKA_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/libobs-vulkan)
@@ -133,6 +145,7 @@ if(ENABLE_VULKAN)
     test_vulkan_swapchain
     test_vulkan_shader
     test_vulkan_draw
+    test_vulkan_depth
     PROPERTIES ENVIRONMENT "OBS_VULKAN_VALIDATION=1;VK_KHRONOS_VALIDATION_VALIDATE_SYNC=true"
   )
 endif()

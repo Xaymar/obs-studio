@@ -11,7 +11,8 @@
 struct vk_access {
 	VkPipelineStageFlags2 stage;
 	VkAccessFlags2 access;
-	VkImageLayout layout; // ignored for buffers
+	VkImageLayout layout;                                  // ignored for buffers
+	VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT; // images: the barrier's aspectMask (all of the image's)
 };
 
 struct vk_barriers {
@@ -27,7 +28,8 @@ public:
 	void forget(VkBuffer buffer);
 
 private:
-	// shortcut: images are assumed color aspect, all mips/layers; no queue family ownership transfers.
+	// shortcut: images are tracked whole (every aspect the access names, all mips/layers); no queue family
+	// ownership transfers.
 	struct state {
 		VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
 		VkPipelineStageFlags2 write_stage = 0; // source of the last write not yet superseded

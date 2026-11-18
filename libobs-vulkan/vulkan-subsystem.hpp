@@ -22,7 +22,7 @@ struct vk_state {
 	uint8_t src_a = GS_BLEND_ONE, dst_a = GS_BLEND_INVSRCALPHA;
 	uint8_t op = GS_BLEND_OP_ADD;
 	uint8_t write_mask = 0xF; // VkColorComponentFlags
-	// Depth/stencil is part of the key and settable, but has no effect until depth targets exist (Task 7b).
+	// Depth/stencil; the draw resets it to these defaults in the key when there is no depth (or stencil) attachment.
 	uint8_t depth = 1, depth_write = 1, depth_func = GS_LESS;
 	uint8_t stencil = 0, stencil_write = 1;
 	uint8_t front[4] = {GS_ALWAYS, GS_KEEP, GS_KEEP, GS_KEEP}; // test, fail, zfail, zpass
@@ -102,6 +102,7 @@ struct gs_device {
 	vk_frame_ring frames;
 	vk_tracker tracker;
 	gs_texture *render_target = nullptr;
+	gs_zstencil_buffer *zstencil = nullptr; // depth attachment of the render target; none when null
 	enum gs_color_space space = GS_CS_SRGB;
 	bool can_present = false; // VK_KHR_surface, the platform surface and VK_KHR_swapchain are enabled
 	gs_swap_chain *swap = nullptr;
@@ -128,6 +129,7 @@ struct gs_device {
 	VkSampler default_sampler = VK_NULL_HANDLE; // for textures whose shader names no sampler_state
 	// Colour view of the open dynamic rendering instance (VK_NULL_HANDLE: none). See vk_end_rendering.
 	VkImageView rendering_view = VK_NULL_HANDLE;
+	VkImageView rendering_depth = VK_NULL_HANDLE; // its depth view (VK_NULL_HANDLE: none)
 
 	gs_device() { matrix4_identity(&proj); }
 };
@@ -148,6 +150,17 @@ struct gs_texture {
 	VmaAllocation staging_alloc = VK_NULL_HANDLE;
 	void *staging_mapped = nullptr;
 	uint64_t upload_value = 0; // graphics timeline value of the submission holding the last unmap copy; 0: none
+};
+
+// Depth/stencil buffer: one image and one attachment view, never sampled (as D3D11's DSV-only texture).
+struct gs_zstencil_buffer {
+	gs_device *device;
+	VkImage image = VK_NULL_HANDLE;
+	VmaAllocation alloc = VK_NULL_HANDLE;
+	VkImageView view = VK_NULL_HANDLE;
+	VkFormat format = VK_FORMAT_UNDEFINED;
+	VkImageAspectFlags aspect = 0; // DEPTH, plus STENCIL for formats that have it
+	uint32_t width, height;
 };
 
 struct gs_stage_surface {

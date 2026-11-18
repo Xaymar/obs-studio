@@ -150,12 +150,6 @@ EXPORT gs_texture_t *device_voltexture_create(gs_device_t *device, uint32_t widt
 	return {};
 }
 
-EXPORT gs_zstencil_t *device_zstencil_create(gs_device_t *device, uint32_t width, uint32_t height,
-					     enum gs_zstencil_format format)
-{
-	return {};
-}
-
 EXPORT gs_timer_t *device_timer_create(gs_device_t *device)
 {
 	return {};
@@ -173,15 +167,17 @@ EXPORT gs_texture_t *device_get_render_target(const gs_device_t *device)
 
 EXPORT gs_zstencil_t *device_get_zstencil_target(const gs_device_t *device)
 {
-	return {};
+	return device->zstencil;
 }
 
-// shortcut: zstencil ignored until depth targets exist (Task 7).
+// shortcut: swapchains have no depth buffer (D3D11 substitutes the swapchain's for a null zstencil); OBS creates its
+// display swapchains with GS_ZS_NONE.
 EXPORT void device_set_render_target_with_color_space(gs_device_t *device, gs_texture_t *tex, gs_zstencil_t *zstencil,
 						      enum gs_color_space space)
 {
 	// As D3D11: no texture means the loaded swapchain's.
 	device->render_target = tex ? tex : device->swap ? &device->swap->target : nullptr;
+	device->zstencil = zstencil;
 	device->space = space;
 }
 
@@ -239,27 +235,44 @@ EXPORT void device_begin_frame(gs_device_t *device) {}
 
 EXPORT void device_end_scene(gs_device_t *device) {}
 
-// shortcut: colour only, as a transfer clear outside rendering (vk_cmd ends an open instance; the next draw's tracker
-// barrier orders it before the colour attachment writes). A load op would save the barrier.
+// Transfer clears outside rendering (vk_cmd ends an open instance; the next draw's tracker barrier orders them before
+// the attachment accesses). A load op would save the barrier. As D3D11, depth and stencil clear the current depth
+// buffer; a flag for an aspect its format lacks is ignored.
 EXPORT void device_clear(gs_device_t *device, uint32_t clear_flags, const struct vec4 *color, float depth,
 			 uint8_t stencil)
 {
+	const vk_access clear = {VK_PIPELINE_STAGE_2_CLEAR_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
+				 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL};
 	gs_texture *rt = device->render_target;
-	if (!(clear_flags & GS_CLEAR_COLOR) || !rt || !rt->image || !color) { // no image: swapchain not acquired
-		return;
-	}
-	VkCommandBuffer cmd = vk_cmd(device);
-	vk_barriers b;
-	device->tracker.use_image(rt->image, device->graphics.family,
-				  {VK_PIPELINE_STAGE_2_CLEAR_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
-				   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL},
-				  b);
-	vk_record_barriers(cmd, b);
+	if ((clear_flags & GS_CLEAR_COLOR) && rt && rt->image && color) { // no image: swapchain not acquired
+		VkCommandBuffer cmd = vk_cmd(device);
+		vk_barriers b;
+		device->tracker.use_image(rt->image, device->graphics.family, clear, b);
+		vk_record_barriers(cmd, b);
 
-	VkClearColorValue value = {{color->x, color->y, color->z, color->w}};
-	VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0,
-					 VK_REMAINING_ARRAY_LAYERS};
-	vkCmdClearColorImage(cmd, rt->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &value, 1, &range);
+		VkClearColorValue value = {{color->x, color->y, color->z, color->w}};
+		VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0,
+						 VK_REMAINING_ARRAY_LAYERS};
+		vkCmdClearColorImage(cmd, rt->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &value, 1, &range);
+	}
+
+	gs_zstencil_buffer *zs = device->zstencil;
+	const VkImageAspectFlags wanted = ((clear_flags & GS_CLEAR_DEPTH) ? VK_IMAGE_ASPECT_DEPTH_BIT : 0) |
+					  ((clear_flags & GS_CLEAR_STENCIL) ? VK_IMAGE_ASPECT_STENCIL_BIT : 0);
+	const VkImageAspectFlags aspects = zs ? zs->aspect & wanted : 0;
+	if (aspects) {
+		VkCommandBuffer cmd = vk_cmd(device);
+		vk_barriers b;
+		vk_access a = clear;
+		a.aspect = zs->aspect; // the layout transition covers the whole image
+		device->tracker.use_image(zs->image, device->graphics.family, a, b);
+		vk_record_barriers(cmd, b);
+
+		// Vulkan rejects depth outside [0, 1]; D3D11 clamps it.
+		VkClearDepthStencilValue value = {std::clamp(depth, 0.0f, 1.0f), stencil};
+		VkImageSubresourceRange range = {aspects, 0, 1, 0, 1};
+		vkCmdClearDepthStencilImage(cmd, zs->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &value, 1, &range);
+	}
 }
 
 EXPORT void device_flush(gs_device_t *device)
@@ -305,8 +318,6 @@ EXPORT enum gs_color_format gs_voltexture_get_color_format(const gs_texture_t *v
 {
 	return {};
 }
-
-EXPORT void gs_zstencil_destroy(gs_zstencil_t *zstencil) {}
 
 EXPORT void gs_timer_destroy(gs_timer_t *timer) {}
 

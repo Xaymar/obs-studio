@@ -365,6 +365,113 @@ EXPORT enum gs_color_format gs_texture_get_color_format(const gs_texture_t *tex)
 	return tex->format;
 }
 
+// As D3D11's DXGI formats where the device has them; D24S8 and D32S8 stand in for each other (Vulkan guarantees one).
+static VkFormat zstencil_format(gs_device *d, enum gs_zstencil_format format)
+{
+	VkFormat want[2] = {};
+	switch (format) {
+	case GS_Z16:
+		want[0] = VK_FORMAT_D16_UNORM;
+		break;
+	case GS_Z24_S8:
+		want[0] = VK_FORMAT_D24_UNORM_S8_UINT;
+		want[1] = VK_FORMAT_D32_SFLOAT_S8_UINT;
+		break;
+	case GS_Z32F:
+		want[0] = VK_FORMAT_D32_SFLOAT;
+		break;
+	case GS_Z32F_S8X24:
+		want[0] = VK_FORMAT_D32_SFLOAT_S8_UINT;
+		want[1] = VK_FORMAT_D24_UNORM_S8_UINT;
+		break;
+	default:
+		return VK_FORMAT_UNDEFINED;
+	}
+	const VkFormatFeatureFlags need = VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT |
+					  VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
+	for (VkFormat f : want) {
+		VkFormatProperties fp;
+		if (f) {
+			vkGetPhysicalDeviceFormatProperties(d->phys, f, &fp);
+			if ((fp.optimalTilingFeatures & need) == need) {
+				return f;
+			}
+		}
+	}
+	return VK_FORMAT_UNDEFINED;
+}
+
+EXPORT gs_zstencil_t *device_zstencil_create(gs_device_t *device, uint32_t width, uint32_t height,
+					     enum gs_zstencil_format format)
+{
+	const VkFormat fmt = zstencil_format(device, format);
+	const VkImageUsageFlags usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	VkImageFormatProperties props;
+	if (!fmt ||
+	    vkGetPhysicalDeviceImageFormatProperties(device->phys, fmt, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL,
+						     usage, 0, &props) != VK_SUCCESS ||
+	    !width || !height || width > props.maxExtent.width || height > props.maxExtent.height) {
+		blog(LOG_ERROR, "[libobs-vulkan] device_zstencil_create: format %d unsupported for %ux%u", (int)format,
+		     width, height);
+		return nullptr;
+	}
+
+	VkImageCreateInfo ii = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+	ii.imageType = VK_IMAGE_TYPE_2D;
+	ii.format = fmt;
+	ii.extent = {width, height, 1};
+	ii.mipLevels = 1;
+	ii.arrayLayers = 1;
+	ii.samples = VK_SAMPLE_COUNT_1_BIT;
+	ii.tiling = VK_IMAGE_TILING_OPTIMAL;
+	ii.usage = usage;
+	ii.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	VmaAllocationCreateInfo ai = {};
+	ai.usage = VMA_MEMORY_USAGE_AUTO;
+
+	auto zs = new gs_zstencil_buffer{device};
+	zs->format = fmt;
+	zs->aspect = VK_IMAGE_ASPECT_DEPTH_BIT |
+		     (fmt == VK_FORMAT_D16_UNORM || fmt == VK_FORMAT_D32_SFLOAT ? 0 : VK_IMAGE_ASPECT_STENCIL_BIT);
+	zs->width = width;
+	zs->height = height;
+	if (vmaCreateImage(device->vma, &ii, &ai, &zs->image, &zs->alloc, nullptr) != VK_SUCCESS) {
+		blog(LOG_ERROR, "[libobs-vulkan] device_zstencil_create: vmaCreateImage failed");
+		delete zs;
+		return nullptr;
+	}
+	VkImageViewCreateInfo vi = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+	vi.image = zs->image;
+	vi.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	vi.format = fmt;
+	vi.subresourceRange = {zs->aspect, 0, 1, 0, 1};
+	if (vkCreateImageView(device->dev, &vi, nullptr, &zs->view) != VK_SUCCESS) {
+		blog(LOG_ERROR, "[libobs-vulkan] device_zstencil_create: vkCreateImageView failed");
+		vmaDestroyImage(device->vma, zs->image, zs->alloc); // never used by a command
+		delete zs;
+		return nullptr;
+	}
+	return zs;
+}
+
+EXPORT void gs_zstencil_destroy(gs_zstencil_t *zstencil)
+{
+	if (!zstencil) {
+		return;
+	}
+	gs_device *d = zstencil->device;
+	if (d->zstencil == zstencil) {
+		d->zstencil = nullptr;
+	}
+	d->tracker.forget(zstencil->image);
+	d->frames.defer_destroy(
+		[dev = d->dev, vma = d->vma, view = zstencil->view, image = zstencil->image, alloc = zstencil->alloc] {
+			vkDestroyImageView(dev, view, nullptr);
+			vmaDestroyImage(vma, image, alloc);
+		});
+	delete zstencil;
+}
+
 EXPORT gs_stagesurf_t *device_stagesurface_create(gs_device_t *device, uint32_t width, uint32_t height,
 						  enum gs_color_format color_format)
 {

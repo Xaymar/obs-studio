@@ -68,7 +68,7 @@ void vk_tracker::use_image(VkImage image, uint32_t, const vk_access &needed, vk_
 	b.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	b.image = image;
-	b.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS};
+	b.subresourceRange = {needed.aspect, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS};
 	out.images.push_back(b);
 }
 

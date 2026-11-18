@@ -11,16 +11,17 @@
 
 /* ---- dynamic rendering ---------------------------------------------------------------------------------------- */
 
-// Batching rule: consecutive draws into the same colour view share one vkCmdBeginRendering/vkCmdEndRendering. The
-// instance ends when a draw targets another view or needs a barrier (barriers are recorded outside rendering), when
-// anything else records commands (vk_cmd: clear, copy, stage, upload, unmap, present) and when the frame is submitted
-// (vk_flush). The render target is registered with the tracker when an instance begins, not per draw: draws within
-// one instance are ordered by rasterization order.
+// Batching rule: consecutive draws into the same colour and depth views share one vkCmdBeginRendering/
+// vkCmdEndRendering. The instance ends when a draw targets another colour or depth view (or none) or needs a barrier
+// (barriers are recorded outside rendering), when anything else records commands (vk_cmd: clear, copy, stage, upload,
+// unmap, present) and when the frame is submitted (vk_flush). The render target and depth buffer are registered with
+// the tracker when an instance begins, not per draw: draws within one instance are ordered by rasterization order.
 void vk_end_rendering(gs_device *d)
 {
 	if (d->rendering_view) {
 		vkCmdEndRendering(d->frames.frames[d->frames.index].cmd);
 		d->rendering_view = VK_NULL_HANDLE;
+		d->rendering_depth = VK_NULL_HANDLE;
 	}
 }
 
@@ -224,6 +225,11 @@ static const VkStencilOp stencil_ops[] = {VK_STENCIL_OP_KEEP,
 					  VK_STENCIL_OP_DECREMENT_AND_WRAP,
 					  VK_STENCIL_OP_INVERT};
 
+static bool has_stencil(VkFormat f)
+{
+	return f == VK_FORMAT_D24_UNORM_S8_UINT || f == VK_FORMAT_D32_SFLOAT_S8_UINT;
+}
+
 static VkStencilOpState stencil_side(const uint8_t s[4], bool write)
 {
 	VkStencilOpState o = {};
@@ -307,7 +313,7 @@ static VkPipeline create_pipeline(gs_device *d, const vk_pipeline_key &k, VkPipe
 	VkPipelineMultisampleStateCreateInfo ms = {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
 	ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-	// Ignored while depth is VK_FORMAT_UNDEFINED (no depth targets until Task 7b).
+	// Ignored while depth is VK_FORMAT_UNDEFINED; stencil is ignored for depth-only formats.
 	VkPipelineDepthStencilStateCreateInfo ds = {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
 	ds.depthTestEnable = k.state.depth;
 	ds.depthWriteEnable = k.state.depth_write;
@@ -330,15 +336,17 @@ static VkPipeline create_pipeline(gs_device *d, const vk_pipeline_key &k, VkPipe
 	cb.attachmentCount = 1;
 	cb.pAttachments = &att;
 
-	const VkDynamicState dyn[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+	const VkDynamicState dyn[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR,
+				      VK_DYNAMIC_STATE_STENCIL_REFERENCE};
 	VkPipelineDynamicStateCreateInfo dy = {VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
-	dy.dynamicStateCount = 2;
+	dy.dynamicStateCount = 3;
 	dy.pDynamicStates = dyn;
 
 	VkPipelineRenderingCreateInfo ri = {VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
 	ri.colorAttachmentCount = 1;
 	ri.pColorAttachmentFormats = &k.color;
 	ri.depthAttachmentFormat = k.depth;
+	ri.stencilAttachmentFormat = has_stencil(k.depth) ? k.depth : VK_FORMAT_UNDEFINED;
 
 	VkGraphicsPipelineCreateInfo pi = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
 	pi.pNext = &ri;
@@ -605,6 +613,7 @@ static void draw(gs_device *d, enum gs_draw_mode mode, uint32_t start, uint32_t 
 {
 	gs_shader *vs = d->cur_vs, *ps = d->cur_ps;
 	gs_texture *rt = d->render_target;
+	gs_zstencil_buffer *zs = d->zstencil;
 	gs_vertex_buffer *vb = d->cur_vb;
 	gs_index_buffer *ib = d->cur_ib;
 	const char *error = !vs                          ? "no vertex shader"
@@ -622,6 +631,11 @@ static void draw(gs_device *d, enum gs_draw_mode mode, uint32_t start, uint32_t 
 	}
 	if (!rt->rt_view) {
 		blog(LOG_ERROR, "[libobs-vulkan] device_draw: texture is not a render target");
+		return;
+	}
+	if (zs && (zs->width < rt->width || zs->height < rt->height)) {
+		blog(LOG_ERROR, "[libobs-vulkan] device_draw: depth buffer %ux%u is smaller than the %ux%u target",
+		     zs->width, zs->height, rt->width, rt->height);
 		return;
 	}
 	if (d->viewport.cx <= 0 || d->viewport.cy <= 0) {
@@ -648,7 +662,28 @@ static void draw(gs_device *d, enum gs_draw_mode mode, uint32_t start, uint32_t 
 	key.vs = vs;
 	key.ps = ps;
 	key.color = srgb ? rt->rt_srgb_format : rt->rt_format;
+	key.depth = zs ? zs->format : VK_FORMAT_UNDEFINED;
 	key.state = d->state;
+	// State that has no effect stays at its defaults, so it never makes another pipeline.
+	const vk_state def;
+	if (!zs) {
+		key.state.depth = def.depth;
+		key.state.depth_write = def.depth_write;
+		key.state.depth_func = def.depth_func;
+	}
+	if (!has_stencil(key.depth)) {
+		key.state.stencil = def.stencil;
+		key.state.stencil_write = def.stencil_write;
+		memcpy(key.state.front, def.front, sizeof(def.front));
+		memcpy(key.state.back, def.back, sizeof(def.back));
+	}
+	if (!key.state.blend) {
+		key.state.src_c = def.src_c;
+		key.state.dst_c = def.dst_c;
+		key.state.src_a = def.src_a;
+		key.state.dst_a = def.dst_a;
+		key.state.op = def.op;
+	}
 	key.topology = (uint8_t)topology(mode);
 	std::vector<const vk_buffer *> inputs;
 	for (size_t i = 0; i < vs->inputs.size() && i < vk_max_inputs; ++i) {
@@ -687,13 +722,23 @@ static void draw(gs_device *d, enum gs_draw_mode mode, uint32_t start, uint32_t 
 	}
 
 	VkCommandBuffer cmd = vk_frame_cmd(d);
-	if (!b.images.empty() || d->rendering_view != view) {
+	const VkImageView zview = zs ? zs->view : VK_NULL_HANDLE;
+	if (!b.images.empty() || d->rendering_view != view || d->rendering_depth != zview) {
 		vk_end_rendering(d);
 		d->tracker.use_image(rt->image, d->graphics.family,
 				     {VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
 				      VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
 				      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
 				     b);
+		if (zs) {
+			d->tracker.use_image(zs->image, d->graphics.family,
+					     {VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
+						      VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+					      VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+						      VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+					      VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, zs->aspect},
+					     b);
+		}
 		vk_record_barriers(cmd, b);
 
 		VkRenderingAttachmentInfo ca = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
@@ -706,8 +751,18 @@ static void draw(gs_device *d, enum gs_draw_mode mode, uint32_t start, uint32_t 
 		ri.layerCount = 1;
 		ri.colorAttachmentCount = 1;
 		ri.pColorAttachments = &ca;
+		VkRenderingAttachmentInfo da = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+		if (zs) {
+			da.imageView = zview;
+			da.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			da.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+			da.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			ri.pDepthAttachment = &da;
+			ri.pStencilAttachment = has_stencil(zs->format) ? &da : nullptr;
+		}
 		vkCmdBeginRendering(cmd, &ri);
 		d->rendering_view = view;
+		d->rendering_depth = zview;
 	}
 
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
@@ -724,6 +779,7 @@ static void draw(gs_device *d, enum gs_draw_mode mode, uint32_t start, uint32_t 
 		sc = {{x0, y0}, {(uint32_t)(x1 - x0), (uint32_t)(y1 - y0)}};
 	}
 	vkCmdSetScissor(cmd, 0, 1, &sc);
+	vkCmdSetStencilReference(cmd, VK_STENCIL_FACE_FRONT_AND_BACK, 0); // as D3D11's OMSetDepthStencilState(state, 0)
 	for (uint32_t i = 0; i < (uint32_t)inputs.size(); ++i) {
 		vkCmdBindVertexBuffers(cmd, i, 1, &inputs[i]->buffer, &inputs[i]->offset);
 	}
