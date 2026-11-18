@@ -25,8 +25,15 @@ struct gs_texture {
 	gs_device *device;
 	VkImage image = VK_NULL_HANDLE;
 	VmaAllocation alloc = VK_NULL_HANDLE;
-	uint32_t width, height;
+	VkImageView view = VK_NULL_HANDLE;      // UNORM (or the format itself)
+	VkImageView srgb_view = VK_NULL_HANDLE; // only for gs_is_srgb_format formats
+	uint32_t width, height, levels;
 	gs_color_format format;
+	// GS_DYNAMIC only: persistently mapped staging buffer for gs_texture_map.
+	VkBuffer staging = VK_NULL_HANDLE;
+	VmaAllocation staging_alloc = VK_NULL_HANDLE;
+	void *staging_mapped = nullptr;
+	uint64_t upload_value = 0; // graphics timeline value of the submission holding the last unmap copy; 0: none
 };
 
 struct gs_stage_surface {
@@ -46,6 +53,8 @@ VkFormat vk_format(enum gs_color_format format);
 VkCommandBuffer vk_cmd(gs_device *d);
 // Submits the frame being recorded, if any. False when the submission failed.
 bool vk_flush(gs_device *d);
+// Records b as one vkCmdPipelineBarrier2; nothing when empty.
+void vk_record_barriers(VkCommandBuffer cmd, const vk_barriers &b);
 
 // Creates the instance, picks adapter `adapter`, creates device, queues and allocator.
 // Returns GS_SUCCESS, GS_ERROR_FAIL (bad adapter) or GS_ERROR_NOT_SUPPORTED; leaks nothing on failure.
@@ -59,4 +68,6 @@ const char *vk_driver_version();
 extern "C" {
 // Test hook: validation messages since the last vk_device_init, or -1 when no validation layer is active.
 EXPORT int obs_vulkan_validation_messages(void);
+// Test hook: device_stage_texture for mip `level`; dst must have that level's size.
+EXPORT void obs_vulkan_test_stage_mip(gs_device_t *device, gs_stagesurf_t *dst, gs_texture_t *src, uint32_t level);
 }

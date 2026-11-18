@@ -5,6 +5,7 @@
 #include <graphics/vec4.h>
 #include <util/base.h>
 
+#include <algorithm>
 #include <vector>
 
 VkCommandBuffer vk_cmd(gs_device *d)
@@ -25,7 +26,7 @@ bool vk_flush(gs_device *d)
 	return false;
 }
 
-static void record_barriers(VkCommandBuffer cmd, const vk_barriers &b)
+void vk_record_barriers(VkCommandBuffer cmd, const vk_barriers &b)
 {
 	if (b.images.empty() && b.buffers.empty()) {
 		return;
@@ -260,9 +261,10 @@ EXPORT void device_copy_texture_region(gs_device_t *device, gs_texture_t *dst, u
 {
 }
 
-EXPORT void device_stage_texture(gs_device_t *device, gs_stagesurf_t *dst, gs_texture_t *src)
+EXPORT void obs_vulkan_test_stage_mip(gs_device_t *device, gs_stagesurf_t *dst, gs_texture_t *src, uint32_t level)
 {
-	if (!dst || !src || dst->width != src->width || dst->height != src->height || dst->format != src->format) {
+	if (!dst || !src || level >= src->levels || dst->width != std::max(src->width >> level, 1u) ||
+	    dst->height != std::max(src->height >> level, 1u) || dst->format != src->format) {
 		blog(LOG_ERROR, "[libobs-vulkan] device_stage_texture: size or format mismatch");
 		return;
 	}
@@ -273,18 +275,23 @@ EXPORT void device_stage_texture(gs_device_t *device, gs_stagesurf_t *dst, gs_te
 		src->image, fam,
 		{VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL}, b);
 	device->tracker.use_buffer(dst->buffer, fam, {VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT}, b);
-	record_barriers(cmd, b);
+	vk_record_barriers(cmd, b);
 
 	VkBufferImageCopy region = {};
-	region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-	region.imageExtent = {src->width, src->height, 1};
+	region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, level, 0, 1};
+	region.imageExtent = {dst->width, dst->height, 1};
 	vkCmdCopyImageToBuffer(cmd, src->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst->buffer, 1, &region);
 
 	// Makes the copy available to the host once the submission's timeline value signals.
 	vk_barriers host;
 	device->tracker.use_buffer(dst->buffer, fam, {VK_PIPELINE_STAGE_2_HOST_BIT, VK_ACCESS_2_HOST_READ_BIT}, host);
-	record_barriers(cmd, host);
+	vk_record_barriers(cmd, host);
 	dst->copy_value = device->graphics.next_value; // the value the frame being recorded will signal
+}
+
+EXPORT void device_stage_texture(gs_device_t *device, gs_stagesurf_t *dst, gs_texture_t *src)
+{
+	obs_vulkan_test_stage_mip(device, dst, src, 0);
 }
 
 EXPORT void device_begin_frame(gs_device_t *device) {}
@@ -311,7 +318,7 @@ EXPORT void device_clear(gs_device_t *device, uint32_t clear_flags, const struct
 				  {VK_PIPELINE_STAGE_2_CLEAR_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
 				   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL},
 				  b);
-	record_barriers(cmd, b);
+	vk_record_barriers(cmd, b);
 
 	VkClearColorValue value = {{color->x, color->y, color->z, color->w}};
 	VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0,
@@ -386,13 +393,6 @@ EXPORT void device_projection_push(gs_device_t *device) {}
 EXPORT void device_projection_pop(gs_device_t *device) {}
 
 EXPORT void gs_swapchain_destroy(gs_swapchain_t *swapchain) {}
-
-EXPORT bool gs_texture_map(gs_texture_t *tex, uint8_t **ptr, uint32_t *linesize)
-{
-	return {};
-}
-
-EXPORT void gs_texture_unmap(gs_texture_t *tex) {}
 
 EXPORT void *gs_texture_get_obj(gs_texture_t *tex)
 {
