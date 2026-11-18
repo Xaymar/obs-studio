@@ -55,6 +55,8 @@ struct vk_frame_ring {
 	vk_frame frames[count];
 	uint32_t index = 0;
 	bool recording = false; // frames[index] is between begin() and submit()
+	// Test hook OBS_VULKAN_TEST_FAIL_SUBMIT=1 (read by vk_device_init): every submit fails. Tests may toggle it.
+	bool test_fail_submit = false;
 
 	bool init(VkDevice dev, uint32_t family);
 	void destroy();

@@ -131,15 +131,6 @@ static int teardown(void **)
 	return 0;
 }
 
-static void set_env(const char *name, const char *value)
-{
-#ifdef _WIN32
-	_putenv_s(name, value);
-#else
-	setenv(name, value, 1);
-#endif
-}
-
 // Runs fn on this thread; aborts the process when it takes longer than 5 s (a hang would stall ctest).
 template<typename F> static void within_5s(F fn)
 {
@@ -522,13 +513,13 @@ static void failed_submit_with_depth_does_not_hang(void **)
 {
 	fixture *f = open_fixture();
 	within_5s([&] {
-		set_env("OBS_VULKAN_TEST_FAIL_SUBMIT", "1");
+		f->d->frames.test_fail_submit = true;
 		clear_all(f);
 		quad(f, 0, 0, N, N, NEAR_Z, 1, 0, 0);
 		flush(f->d);
 		quad(f, 0, 0, N, N, NEAR_Z, 1, 0, 0);
 		flush(f->d);
-		set_env("OBS_VULKAN_TEST_FAIL_SUBMIT", "0");
+		f->d->frames.test_fail_submit = false;
 	});
 	assert_int_equal(f->d->graphics.failed_values.size(), 2);
 	assert_true(f->d->rendering_view == VK_NULL_HANDLE);

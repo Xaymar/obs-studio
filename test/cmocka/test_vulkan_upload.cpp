@@ -126,17 +126,10 @@ template<typename F> static void within_5s(F fn)
 	watchdog.join();
 }
 
-static void set_fail_submit(bool on)
+// Test hook OBS_VULKAN_TEST_FAIL_SUBMIT, read once at device creation; toggled here on the live device.
+static void set_fail_submit(gs_device *device, bool on)
 {
-#ifdef _WIN32
-	_putenv_s("OBS_VULKAN_TEST_FAIL_SUBMIT", on ? "1" : "");
-#else
-	if (on) {
-		setenv("OBS_VULKAN_TEST_FAIL_SUBMIT", "1", 1);
-	} else {
-		unsetenv("OBS_VULKAN_TEST_FAIL_SUBMIT");
-	}
-#endif
+	device->frames.test_fail_submit = on;
 }
 
 // Stages `tex` into a new stage surface and compares it with `want` (tightly packed).
@@ -663,9 +656,9 @@ static void test_failed_submit_after_upload_does_not_hang(void **)
 	assert_true(mapped);
 	texture_unmap(dyn);
 
-	set_fail_submit(true);
+	set_fail_submit(device, true);
 	flush(device);
-	set_fail_submit(false);
+	set_fail_submit(device, false);
 
 	// The lost copy must not make the next map wait for a value nobody signals.
 	within_5s([&] { mapped = texture_map(dyn, &ptr, &linesize); });
@@ -675,9 +668,9 @@ static void test_failed_submit_after_upload_does_not_hang(void **)
 	// arena space, so the unmap still applies the update.
 	within_5s([&] { mapped = texture_map(dyn, &ptr, &linesize); });
 	assert_true(mapped);
-	set_fail_submit(true);
+	set_fail_submit(device, true);
 	within_5s([&] { flush(device); });
-	set_fail_submit(false);
+	set_fail_submit(device, false);
 	uint8_t want[8 * 8 * 4];
 	write_pattern(ptr, linesize, 8 * 4, 8, 1, want);
 	within_5s([&] { texture_unmap(dyn); });

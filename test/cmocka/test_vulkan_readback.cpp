@@ -269,17 +269,10 @@ static void test_unsupported_format_returns_null(void **)
 	destroy_and_check(device);
 }
 
-static void set_fail_submit(bool on)
+// Test hook OBS_VULKAN_TEST_FAIL_SUBMIT, read once at device creation; toggled here on the live device.
+static void set_fail_submit(gs_device *device, bool on)
 {
-#ifdef _WIN32
-	_putenv_s("OBS_VULKAN_TEST_FAIL_SUBMIT", on ? "1" : "");
-#else
-	if (on) {
-		setenv("OBS_VULKAN_TEST_FAIL_SUBMIT", "1", 1);
-	} else {
-		unsetenv("OBS_VULKAN_TEST_FAIL_SUBMIT");
-	}
-#endif
+	device->frames.test_fail_submit = on;
 }
 
 // A copy in a failed submission never ran: map must report failure, never hang, and later frames must still work.
@@ -298,18 +291,18 @@ static void test_map_after_failed_submit_returns_false_without_hanging(void **)
 	// Nothing submitted afterwards: map must not wait for a value no one signals.
 	clear_to(device, tex, 1.0f, 0.0f, 0.0f, 1.0f);
 	stage_texture(device, stage, tex);
-	set_fail_submit(true);
+	set_fail_submit(device, true);
 	flush(device);
-	set_fail_submit(false);
+	set_fail_submit(device, false);
 	within_5s([&] { mapped = stagesurface_map(stage, &data, &linesize); });
 	assert_false(mapped);
 
 	// Other work recorded in between: map submits it, but the lost copy must still not read as success.
 	clear_to(device, tex, 1.0f, 0.0f, 0.0f, 1.0f);
 	stage_texture(device, stage, tex);
-	set_fail_submit(true);
+	set_fail_submit(device, true);
 	flush(device);
-	set_fail_submit(false);
+	set_fail_submit(device, false);
 	clear_to(device, tex, 0.0f, 1.0f, 0.0f, 1.0f);
 	mapped = true;
 	within_5s([&] { mapped = stagesurface_map(stage, &data, &linesize); });

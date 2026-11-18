@@ -62,11 +62,10 @@ static bool has_ext(const std::vector<VkExtensionProperties> &exts, const char *
 }
 
 // vulkan-1.dll is delay-loaded on Windows, so a missing loader must be detected before the first Vulkan call.
-// OBS_VULKAN_TEST_NO_LOADER=1 simulates its absence for tests. (Linux still hard-links libvulkan.)
-static bool loader_available()
+// The test hook OBS_VULKAN_TEST_NO_LOADER=1 simulates its absence. (Linux still hard-links libvulkan.)
+static bool loader_available(const gs_device *d)
 {
-	const char *no = getenv("OBS_VULKAN_TEST_NO_LOADER");
-	if (no && !strcmp(no, "1"))
+	if (d->test_no_loader)
 		return false;
 #ifdef _WIN32
 	return LoadLibraryW(L"vulkan-1.dll") != nullptr;
@@ -77,7 +76,7 @@ static bool loader_available()
 
 static int create_instance(gs_device *d)
 {
-	if (!loader_available())
+	if (!loader_available(d))
 		return GS_ERROR_NOT_SUPPORTED;
 
 	uint32_t version = VK_API_VERSION_1_0;
@@ -212,13 +211,6 @@ static float priority_value(VkQueueGlobalPriorityKHR p)
 	}
 }
 
-// Test hook: OBS_VULKAN_TEST_REFUSE_REALTIME=1 makes a realtime request fail as an unprivileged process's would.
-static bool refuse_realtime()
-{
-	const char *r = getenv("OBS_VULKAN_TEST_REFUSE_REALTIME");
-	return r && !strcmp(r, "1");
-}
-
 static VkSemaphore create_timeline(VkDevice dev)
 {
 	VkSemaphoreTypeCreateInfo ti = {VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO};
@@ -310,7 +302,7 @@ static int create_device(gs_device *d, uint32_t adapter)
 	std::vector<VkQueueGlobalPriorityKHR> tries;
 	std::string offered;
 	for (int i = 3; i >= 0; --i) {
-		const bool hook = levels[i] == VK_QUEUE_GLOBAL_PRIORITY_REALTIME_KHR && refuse_realtime();
+		const bool hook = levels[i] == VK_QUEUE_GLOBAL_PRIORITY_REALTIME_KHR && d->test_refuse_realtime;
 		if (levels[i] <= requested[0] && (supports(gfx, levels[i]) || hook))
 			tries.push_back(levels[i]);
 	}
@@ -369,7 +361,7 @@ static int create_device(gs_device *d, uint32_t adapter)
 					chained[i] = ((const VkDeviceQueueGlobalPriorityCreateInfoKHR *)s)->globalPriority;
 		}
 		VkDevice dev = VK_NULL_HANDLE;
-		if (level == VK_QUEUE_GLOBAL_PRIORITY_REALTIME_KHR && refuse_realtime())
+		if (level == VK_QUEUE_GLOBAL_PRIORITY_REALTIME_KHR && d->test_refuse_realtime)
 			res = VK_ERROR_NOT_PERMITTED_KHR;
 		else
 			res = vkCreateDevice(d->phys, &di, nullptr, &dev);
@@ -434,8 +426,25 @@ static int create_device(gs_device *d, uint32_t adapter)
 	return GS_SUCCESS;
 }
 
+static bool hook(const char *name, std::string &active)
+{
+	const char *v = getenv(name);
+	const bool on = v && !strcmp(v, "1");
+	if (on)
+		active += std::string(active.empty() ? "" : ", ") + name;
+	return on;
+}
+
 int vk_device_init(gs_device *d, uint32_t adapter)
 {
+	// Test hooks ("1" enables), compiled into every build: read once here, never per call, and logged when active.
+	std::string active;
+	d->test_no_loader = hook("OBS_VULKAN_TEST_NO_LOADER", active);
+	d->test_refuse_realtime = hook("OBS_VULKAN_TEST_REFUSE_REALTIME", active);
+	d->frames.test_fail_submit = hook("OBS_VULKAN_TEST_FAIL_SUBMIT", active);
+	if (!active.empty())
+		blog(LOG_WARNING, "[libobs-vulkan] test hook active: %s", active.c_str());
+
 	int ret = create_instance(d);
 	if (ret == GS_SUCCESS)
 		ret = create_device(d, adapter);

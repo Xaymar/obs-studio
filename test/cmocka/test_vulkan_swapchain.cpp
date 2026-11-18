@@ -294,17 +294,10 @@ static void test_two_swapchains_present_independently(void **)
 	destroy_window(wb);
 }
 
-static void set_fail_submit(bool on)
+// Test hook OBS_VULKAN_TEST_FAIL_SUBMIT, read once at device creation; toggled here on the live device.
+static void set_fail_submit(gs_device *device, bool on)
 {
-#ifdef _WIN32
-	_putenv_s("OBS_VULKAN_TEST_FAIL_SUBMIT", on ? "1" : "");
-#else
-	if (on) {
-		setenv("OBS_VULKAN_TEST_FAIL_SUBMIT", "1", 1);
-	} else {
-		unsetenv("OBS_VULKAN_TEST_FAIL_SUBMIT");
-	}
-#endif
+	device->frames.test_fail_submit = on;
 }
 
 // Carried finding 1: a failed render submit never signals the present semaphore, so present must be skipped
@@ -325,9 +318,9 @@ static void test_present_after_failed_submit_skips_and_recovers(void **)
 		struct vec4 color;
 		vec4_set(&color, 1.0f, 1.0f, 0.0f, 1.0f);
 		clear(device, GS_CLEAR_COLOR, &color, 1.0f, 0);
-		set_fail_submit(true);
+		set_fail_submit(device, true);
 		within_5s([&] { present(device); });
-		set_fail_submit(false);
+		set_fail_submit(device, false);
 		assert_int_equal(swap->image, UINT32_MAX);
 		assert_null(device->acquire_wait);
 	}

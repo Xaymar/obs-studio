@@ -2,9 +2,6 @@
 
 #include <util/base.h>
 
-#include <stdlib.h>
-#include <string.h>
-
 static void reset_transient(VkDevice dev, vk_frame &f)
 {
 	// shortcut: a mapping outstanding in this slot (held across vk_frame_ring::count submissions, or a failed one)
@@ -158,10 +155,7 @@ bool vk_frame_ring::submit(vk_queue &q, VkSemaphore *wait, VkSemaphore *signal)
 	si.signalSemaphoreInfoCount = nsignal;
 	si.pSignalSemaphoreInfos = signals;
 
-	// OBS_VULKAN_TEST_FAIL_SUBMIT=1 makes submissions fail, for tests.
-	const char *fail = getenv("OBS_VULKAN_TEST_FAIL_SUBMIT");
-	VkResult res = fail && !strcmp(fail, "1") ? VK_ERROR_OUT_OF_HOST_MEMORY
-						  : vkQueueSubmit2(q.q, 1, &si, VK_NULL_HANDLE);
+	VkResult res = test_fail_submit ? VK_ERROR_OUT_OF_HOST_MEMORY : vkQueueSubmit2(q.q, 1, &si, VK_NULL_HANDLE);
 	if (res != VK_SUCCESS) {
 		blog(LOG_ERROR, "[libobs-vulkan] vkQueueSubmit2 failed (%d)", (int)res);
 		// Resources deferred here may still be used by earlier submissions; the slot itself has none in flight.

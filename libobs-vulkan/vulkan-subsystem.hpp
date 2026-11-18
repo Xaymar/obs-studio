@@ -111,6 +111,9 @@ struct gs_device {
 	VkPhysicalDeviceLimits limits = {};
 	bool anisotropy = false;   // samplerAnisotropy enabled
 	bool mirror_clamp = false; // samplerMirrorClampToEdge enabled (GS_ADDRESS_MIRRORONCE)
+	// Test hooks, read once by vk_device_init (see also frames.test_fail_submit).
+	bool test_no_loader = false;       // OBS_VULKAN_TEST_NO_LOADER=1: behave as without vulkan-1.dll
+	bool test_refuse_realtime = false; // OBS_VULKAN_TEST_REFUSE_REALTIME=1: a realtime priority is refused
 
 	// Draw state, CPU side until device_draw.
 	vk_state state;
