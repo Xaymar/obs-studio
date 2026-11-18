@@ -38,6 +38,7 @@
 #include "media-io/audio-io.h"
 
 #include "obs.h"
+#include "obs-mem.h"
 
 #include <obsversion.h>
 #include <caption/caption.h>
@@ -616,19 +617,10 @@ extern void stop_raw_video(video_t *video, void (*callback)(void *param, struct 
 /* ------------------------------------------------------------------------- */
 /* obs shared context data */
 
-struct obs_weak_ref {
-	volatile long refs;
-	volatile long weak_refs;
-};
-
-struct obs_weak_object {
-	struct obs_weak_ref ref;
-	struct obs_context_data *object;
-};
-
 typedef void (*obs_destroy_cb)(void *obj);
 
 struct obs_context_data {
+	struct obs_mem_header hdr; /* must stay first: obs_mem casts the object to it */
 	char *name;
 	const char *uuid;
 	void *data;
@@ -636,9 +628,6 @@ struct obs_context_data {
 	signal_handler_t *signals;
 	proc_handler_t *procs;
 	enum obs_obj_type type;
-
-	struct obs_weak_object *control;
-	obs_destroy_cb destroy;
 
 	DARRAY(obs_hotkey_id) hotkeys;
 	DARRAY(obs_hotkey_pair_id) hotkey_pairs;
@@ -676,53 +665,7 @@ extern void obs_context_data_setname(struct obs_context_data *context, const cha
 extern void obs_context_data_setname_ht(struct obs_context_data *context, const char *name, void *phead);
 
 /* ------------------------------------------------------------------------- */
-/* ref-counting  */
-
-static inline void obs_ref_addref(struct obs_weak_ref *ref)
-{
-	os_atomic_inc_long(&ref->refs);
-}
-
-static inline bool obs_ref_release(struct obs_weak_ref *ref)
-{
-	return os_atomic_dec_long(&ref->refs) == -1;
-}
-
-static inline void obs_weak_ref_addref(struct obs_weak_ref *ref)
-{
-	os_atomic_inc_long(&ref->weak_refs);
-}
-
-static inline bool obs_weak_ref_release(struct obs_weak_ref *ref)
-{
-	return os_atomic_dec_long(&ref->weak_refs) == -1;
-}
-
-static inline bool obs_weak_ref_get_ref(struct obs_weak_ref *ref)
-{
-	long owners = os_atomic_load_long(&ref->refs);
-	while (owners > -1) {
-		if (os_atomic_compare_exchange_long(&ref->refs, &owners, owners + 1)) {
-			return true;
-		}
-	}
-
-	return false;
-}
-
-static inline bool obs_weak_ref_expired(struct obs_weak_ref *ref)
-{
-	long owners = os_atomic_load_long(&ref->refs);
-	return owners < 0;
-}
-
-/* ------------------------------------------------------------------------- */
 /* canvases */
-
-struct obs_weak_canvas {
-	struct obs_weak_ref ref;
-	struct obs_canvas *canvas;
-};
 
 struct obs_canvas {
 	struct obs_context_data context;
@@ -775,11 +718,6 @@ struct audio_action {
 		float vol;
 		bool set;
 	};
-};
-
-struct obs_weak_source {
-	struct obs_weak_ref ref;
-	struct obs_source *source;
 };
 
 struct audio_cb_info {
@@ -1169,11 +1107,6 @@ struct delay_data {
 
 typedef void (*encoded_callback_t)(void *data, struct encoder_packet *packet, struct encoder_packet_time *frame_time);
 
-struct obs_weak_output {
-	struct obs_weak_ref ref;
-	struct obs_output *output;
-};
-
 #define CAPTION_LINE_CHARS (32)
 #define CAPTION_LINE_BYTES (4 * CAPTION_LINE_CHARS)
 struct caption_text {
@@ -1336,11 +1269,6 @@ void obs_output_destroy(obs_output_t *output);
 /* ------------------------------------------------------------------------- */
 /* encoders  */
 
-struct obs_weak_encoder {
-	struct obs_weak_ref ref;
-	struct obs_encoder *encoder;
-};
-
 struct encoder_callback {
 	bool sent_first_packet;
 	encoded_callback_t new_packet;
@@ -1431,7 +1359,7 @@ struct obs_encoder {
 	 * up at the specific timestamp.  if this is the audio encoder,
 	 * it waits until it's ready to sync up with video */
 	bool first_received;
-	DARRAY(struct obs_weak_encoder *) paired_encoders;
+	DARRAY(obs_weak_encoder_t *) paired_encoders;
 	int64_t offset_usec;
 	uint64_t first_raw_ts;
 	uint64_t start_ts;
@@ -1484,11 +1412,6 @@ void obs_encoder_destroy(obs_encoder_t *encoder);
 
 /* ------------------------------------------------------------------------- */
 /* services */
-
-struct obs_weak_service {
-	struct obs_weak_ref ref;
-	struct obs_service *service;
-};
 
 struct obs_service {
 	struct obs_context_data context;

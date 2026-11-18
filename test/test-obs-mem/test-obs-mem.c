@@ -1,13 +1,16 @@
 #undef NDEBUG
 #include <assert.h>
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
+#include <obs.h>
 #include <obs-data.h>
 #include <obs-mem.h>
 #include <obs-missing-files.h>
 #include <util/bmem.h>
+#include <util/platform.h>
 #include <util/threading.h>
 
 struct test_obj {
@@ -306,6 +309,100 @@ static void test_missing_file_refs(void)
 	obs_missing_file_release(file);
 }
 
+static volatile long destroy_signal_ran;
+
+static void on_source_destroy(void *param, calldata_t *cd)
+{
+	obs_source_t *src = calldata_ptr(cd, "source");
+	obs_weak_source_t *w = obs_source_get_weak_source(src);
+	assert(obs_weak_source_expired(w));
+	assert(obs_weak_source_get_source(w) == NULL);
+	obs_weak_source_release(w);
+	os_atomic_inc_long(&destroy_signal_ran);
+	(void)param;
+}
+
+/* obs_wait_for_destroy_queue is a no-op without video, so poll for the deferred destroy instead. */
+static void wait_for(volatile long *flag)
+{
+	for (int i = 0; i < 5000 && !os_atomic_load_long(flag); i++)
+		os_sleep_ms(1);
+}
+
+static void test_source_weak_in_destroy_signal(void)
+{
+	obs_scene_t *s = obs_scene_create_private("t");
+	assert(s);
+	signal_handler_connect(obs_source_get_signal_handler(obs_scene_get_source(s)), "destroy", on_source_destroy,
+			       NULL);
+
+	obs_scene_release(s);
+	obs_wait_for_destroy_queue();
+	wait_for(&destroy_signal_ran);
+	assert(os_atomic_load_long(&destroy_signal_ran) == 1);
+}
+
+static void test_source_weak_basic(void)
+{
+	obs_scene_t *s = obs_scene_create_private("w");
+	obs_source_t *src = obs_scene_get_source(s);
+	obs_weak_source_t *w = obs_source_get_weak_source(src);
+	assert(!obs_weak_source_expired(w));
+	assert(obs_weak_source_references_source(w, src));
+
+	obs_source_t *strong = obs_weak_source_get_source(w);
+	assert(strong == src);
+	obs_source_release(strong);
+
+	obs_scene_release(s);
+	obs_wait_for_destroy_queue();
+	assert(obs_weak_source_expired(w));
+	assert(obs_weak_source_get_source(w) == NULL);
+	assert(obs_weak_source_references_source(w, src));
+	obs_weak_source_release(w);
+}
+
+static void test_sceneitem_survives_remove(void)
+{
+	obs_scene_t *a = obs_scene_create_private("a");
+	obs_scene_t *b = obs_scene_create_private("b");
+	obs_source_t *b_src = obs_scene_get_source(b);
+
+	obs_sceneitem_t *item = obs_scene_add(a, b_src);
+	assert(item);
+	obs_sceneitem_addref(item);
+	obs_sceneitem_remove(item);
+
+	assert(obs_sceneitem_get_source(item) == b_src);
+	assert(obs_sceneitem_get_id(item) > 0);
+	obs_sceneitem_release(item);
+
+	obs_scene_release(b);
+	obs_scene_release(a);
+	obs_wait_for_destroy_queue();
+}
+
+/* Without video, libobs logs graphics and canvas noise; only errors matter here. */
+static void errors_only_log(int lvl, const char *msg, va_list args, void *param)
+{
+	if (lvl <= LOG_ERROR) {
+		vfprintf(stderr, msg, args);
+		fputc('\n', stderr);
+	}
+	(void)param;
+}
+
+static void test_context_objects(void)
+{
+	base_set_log_handler(errors_only_log, NULL);
+	assert(obs_startup("en-US", NULL, NULL));
+	test_source_weak_in_destroy_signal();
+	test_source_weak_basic();
+	test_sceneitem_survives_remove();
+	obs_wait_for_destroy_queue();
+	obs_shutdown();
+}
+
 int main(void)
 {
 	test_header_layout();
@@ -319,6 +416,7 @@ int main(void)
 	test_data_item_next();
 	test_data_array_refs();
 	test_missing_file_refs();
+	test_context_objects();
 
 	printf("test-obs-mem: all tests passed\n");
 	return 0;

@@ -17,8 +17,6 @@
 
 #include "obs-internal.h"
 
-#define get_weak(service) ((obs_weak_service_t *)service->context.control)
-
 const struct obs_service_info *find_service(const char *id)
 {
 	size_t i;
@@ -120,6 +118,7 @@ static void actually_destroy_service(struct obs_service *service)
 
 	blog(LOG_DEBUG, "service '%s' destroyed", service->context.name);
 
+	obs_mem_finalize(service);
 	obs_context_data_free(&service->context);
 	if (service->owns_info_id)
 		bfree((void *)service->info.id);
@@ -298,14 +297,7 @@ void obs_service_release(obs_service_t *service)
 	if (!service)
 		return;
 
-	obs_weak_service_t *control = get_weak(service);
-	if (obs_ref_release(&control->ref)) {
-		// The order of operations is important here since
-		// get_context_by_name in obs.c relies on weak refs
-		// being alive while the context is listed
-		obs_service_destroy(service);
-		obs_weak_service_release(control);
-	}
+	obs_mem_release(service);
 }
 
 void obs_weak_service_addref(obs_weak_service_t *weak)
@@ -313,7 +305,7 @@ void obs_weak_service_addref(obs_weak_service_t *weak)
 	if (!weak)
 		return;
 
-	obs_weak_ref_addref(&weak->ref);
+	obs_mem_weak_acquire((obs_mem_weak_t *)weak);
 }
 
 void obs_weak_service_release(obs_weak_service_t *weak)
@@ -321,8 +313,7 @@ void obs_weak_service_release(obs_weak_service_t *weak)
 	if (!weak)
 		return;
 
-	if (obs_weak_ref_release(&weak->ref))
-		bfree(weak);
+	obs_mem_weak_release((obs_mem_weak_t *)weak);
 }
 
 obs_service_t *obs_service_get_ref(obs_service_t *service)
@@ -330,7 +321,7 @@ obs_service_t *obs_service_get_ref(obs_service_t *service)
 	if (!service)
 		return NULL;
 
-	return obs_weak_service_get_service(get_weak(service));
+	return obs_mem_get_ref(service);
 }
 
 obs_weak_service_t *obs_service_get_weak_service(obs_service_t *service)
@@ -338,9 +329,7 @@ obs_weak_service_t *obs_service_get_weak_service(obs_service_t *service)
 	if (!service)
 		return NULL;
 
-	obs_weak_service_t *weak = get_weak(service);
-	obs_weak_service_addref(weak);
-	return weak;
+	return (obs_weak_service_t *)obs_mem_get_weak(service);
 }
 
 obs_service_t *obs_weak_service_get_service(obs_weak_service_t *weak)
@@ -348,15 +337,12 @@ obs_service_t *obs_weak_service_get_service(obs_weak_service_t *weak)
 	if (!weak)
 		return NULL;
 
-	if (obs_weak_ref_get_ref(&weak->ref))
-		return weak->service;
-
-	return NULL;
+	return obs_mem_weak_get_strong((obs_mem_weak_t *)weak);
 }
 
 bool obs_weak_service_references_service(obs_weak_service_t *weak, obs_service_t *service)
 {
-	return weak && service && weak->service == service;
+	return weak && service && obs_mem_weak_references((obs_mem_weak_t *)weak, service);
 }
 
 void *obs_service_get_type_data(obs_service_t *service)

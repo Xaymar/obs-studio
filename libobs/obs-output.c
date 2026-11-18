@@ -27,8 +27,6 @@
 #include <caption/caption.h>
 #include <caption/mpeg.h>
 
-#define get_weak(output) ((obs_weak_output_t *)output->context.control)
-
 #define RECONNECT_RETRY_MAX_MSEC (15 * 60 * 1000)
 #define RECONNECT_RETRY_BASE_EXP 1.5f
 
@@ -341,6 +339,7 @@ void obs_output_destroy(obs_output_t *output)
 		pthread_mutex_destroy(&output->delay_mutex);
 		pthread_mutex_destroy(&output->pkt_callbacks_mutex);
 		os_event_destroy(output->reconnect_stop_event);
+		obs_mem_finalize(output);
 		obs_context_data_free(&output->context);
 		deque_free(&output->delay_data);
 		if (output->owns_info_id)
@@ -3042,14 +3041,7 @@ void obs_output_release(obs_output_t *output)
 	if (!output)
 		return;
 
-	obs_weak_output_t *control = get_weak(output);
-	if (obs_ref_release(&control->ref)) {
-		// The order of operations is important here since
-		// get_context_by_name in obs.c relies on weak refs
-		// being alive while the context is listed
-		obs_output_destroy(output);
-		obs_weak_output_release(control);
-	}
+	obs_mem_release(output);
 }
 
 void obs_weak_output_addref(obs_weak_output_t *weak)
@@ -3057,7 +3049,7 @@ void obs_weak_output_addref(obs_weak_output_t *weak)
 	if (!weak)
 		return;
 
-	obs_weak_ref_addref(&weak->ref);
+	obs_mem_weak_acquire((obs_mem_weak_t *)weak);
 }
 
 void obs_weak_output_release(obs_weak_output_t *weak)
@@ -3065,8 +3057,7 @@ void obs_weak_output_release(obs_weak_output_t *weak)
 	if (!weak)
 		return;
 
-	if (obs_weak_ref_release(&weak->ref))
-		bfree(weak);
+	obs_mem_weak_release((obs_mem_weak_t *)weak);
 }
 
 obs_output_t *obs_output_get_ref(obs_output_t *output)
@@ -3074,7 +3065,7 @@ obs_output_t *obs_output_get_ref(obs_output_t *output)
 	if (!output)
 		return NULL;
 
-	return obs_weak_output_get_output(get_weak(output));
+	return obs_mem_get_ref(output);
 }
 
 obs_weak_output_t *obs_output_get_weak_output(obs_output_t *output)
@@ -3082,9 +3073,7 @@ obs_weak_output_t *obs_output_get_weak_output(obs_output_t *output)
 	if (!output)
 		return NULL;
 
-	obs_weak_output_t *weak = get_weak(output);
-	obs_weak_output_addref(weak);
-	return weak;
+	return (obs_weak_output_t *)obs_mem_get_weak(output);
 }
 
 obs_output_t *obs_weak_output_get_output(obs_weak_output_t *weak)
@@ -3092,15 +3081,12 @@ obs_output_t *obs_weak_output_get_output(obs_weak_output_t *weak)
 	if (!weak)
 		return NULL;
 
-	if (obs_weak_ref_get_ref(&weak->ref))
-		return weak->output;
-
-	return NULL;
+	return obs_mem_weak_get_strong((obs_mem_weak_t *)weak);
 }
 
 bool obs_weak_output_references_output(obs_weak_output_t *weak, obs_output_t *output)
 {
-	return weak && output && weak->output == output;
+	return weak && output && obs_mem_weak_references((obs_mem_weak_t *)weak, output);
 }
 
 void *obs_output_get_type_data(obs_output_t *output)

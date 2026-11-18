@@ -31,8 +31,6 @@
 #include "obs.h"
 #include "obs-internal.h"
 
-#define get_weak(source) ((obs_weak_source_t *)source->context.control)
-
 static bool filter_compatible(obs_source_t *source, obs_source_t *filter);
 
 static inline bool data_valid(const struct obs_source *source, const char *f)
@@ -869,6 +867,7 @@ static void obs_source_destroy_defer(struct obs_source *source)
 	pthread_mutex_destroy(&source->async_mutex);
 	pthread_mutex_destroy(&source->media_actions_mutex);
 	obs_data_release(source->private_settings);
+	obs_mem_finalize(source);
 	obs_context_data_free(&source->context);
 
 	if (source->owns_info_id) {
@@ -884,7 +883,7 @@ void obs_source_addref(obs_source_t *source)
 	if (!source)
 		return;
 
-	obs_ref_addref(&source->context.control->ref);
+	obs_mem_acquire(source);
 }
 
 void obs_source_release(obs_source_t *source)
@@ -898,11 +897,7 @@ void obs_source_release(obs_source_t *source)
 	if (!source)
 		return;
 
-	obs_weak_source_t *control = get_weak(source);
-	if (obs_ref_release(&control->ref)) {
-		obs_source_destroy(source);
-		obs_weak_source_release(control);
-	}
+	obs_mem_release(source);
 }
 
 void obs_weak_source_addref(obs_weak_source_t *weak)
@@ -910,7 +905,7 @@ void obs_weak_source_addref(obs_weak_source_t *weak)
 	if (!weak)
 		return;
 
-	obs_weak_ref_addref(&weak->ref);
+	obs_mem_weak_acquire((obs_mem_weak_t *)weak);
 }
 
 void obs_weak_source_release(obs_weak_source_t *weak)
@@ -918,8 +913,7 @@ void obs_weak_source_release(obs_weak_source_t *weak)
 	if (!weak)
 		return;
 
-	if (obs_weak_ref_release(&weak->ref))
-		bfree(weak);
+	obs_mem_weak_release((obs_mem_weak_t *)weak);
 }
 
 obs_source_t *obs_source_get_ref(obs_source_t *source)
@@ -927,7 +921,7 @@ obs_source_t *obs_source_get_ref(obs_source_t *source)
 	if (!source)
 		return NULL;
 
-	return obs_weak_source_get_source(get_weak(source));
+	return obs_mem_get_ref(source);
 }
 
 obs_weak_source_t *obs_source_get_weak_source(obs_source_t *source)
@@ -935,9 +929,7 @@ obs_weak_source_t *obs_source_get_weak_source(obs_source_t *source)
 	if (!source)
 		return NULL;
 
-	obs_weak_source_t *weak = get_weak(source);
-	obs_weak_source_addref(weak);
-	return weak;
+	return (obs_weak_source_t *)obs_mem_get_weak(source);
 }
 
 obs_source_t *obs_weak_source_get_source(obs_weak_source_t *weak)
@@ -945,20 +937,17 @@ obs_source_t *obs_weak_source_get_source(obs_weak_source_t *weak)
 	if (!weak)
 		return NULL;
 
-	if (obs_weak_ref_get_ref(&weak->ref))
-		return weak->source;
-
-	return NULL;
+	return obs_mem_weak_get_strong((obs_mem_weak_t *)weak);
 }
 
 bool obs_weak_source_expired(obs_weak_source_t *weak)
 {
-	return weak ? obs_weak_ref_expired(&weak->ref) : true;
+	return weak ? obs_mem_weak_expired((obs_mem_weak_t *)weak) : true;
 }
 
 bool obs_weak_source_references_source(obs_weak_source_t *weak, obs_source_t *source)
 {
-	return weak && source && weak->source == source;
+	return weak && source && obs_mem_weak_references((obs_mem_weak_t *)weak, source);
 }
 
 void obs_source_remove(obs_source_t *source)
