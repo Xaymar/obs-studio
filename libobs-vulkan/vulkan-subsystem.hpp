@@ -91,6 +91,9 @@ struct vk_pipeline_cache {
 	void forget(gs_shader *shader); // destroys (deferred) everything built from `shader`
 };
 
+// Threading: every graphics export is called with libobs's graphics context held (gs_enter_context), so all calls on
+// a device and its objects are serialised and nothing here locks. Only module globals are touched outside that lock:
+// the glslang reference count (its mutex), the validation message counter and the host priority (atomics).
 struct gs_device {
 	VkInstance instance = VK_NULL_HANDLE;
 	VkDebugUtilsMessengerEXT messenger = VK_NULL_HANDLE;
@@ -199,7 +202,9 @@ struct gs_swap_chain {
 	uint32_t image = UINT32_MAX;           // acquired index
 	bool recreate = false;                 // out of date, suboptimal or after a failed submit
 	enum gs_color_space space = GS_CS_SRGB;
-	bool test_not_ready = false; // test hook: acquire behaves as VK_NOT_READY
+	bool test_not_ready = false;  // test hook: acquire behaves as VK_NOT_READY
+	bool test_suboptimal = false; // test hook: a successful acquire reports VK_SUBOPTIMAL_KHR
+	uint32_t builds = 0;          // swapchains created (read by tests; handles may be reused)
 };
 
 struct gs_sampler_state {

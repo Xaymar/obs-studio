@@ -40,7 +40,11 @@ void vk_consume_semaphore(gs_device *d, VkSemaphore sem)
 	vkDestroySemaphore(d->dev, sem, nullptr);
 }
 
-// Submits recorded work and the pending acquire wait, if any.
+// Submits recorded work and the pending acquire wait, if any. With nothing recorded, the acquire wait is consumed by a
+// batch with no commands: later batches are then ordered after the acquire only by driver behaviour, not by the spec.
+// OBS's display order (obs-display.c render_display_begin/render_display: load_swapchain, is_present_ready, draw,
+// present per display) never gets here with
+// an empty frame; the remaining callers (release_images, destroy) idle the queue right after anyway.
 static void submit_pending(gs_device *d)
 {
 	if (d->acquire_wait || d->frames.recording) {
@@ -86,7 +90,7 @@ static bool build(gs_swap_chain *s)
 	s->swapchain = VK_NULL_HANDLE;
 	s->recreate = false;
 
-	VkSurfaceCapabilitiesKHR caps;
+	VkSurfaceCapabilitiesKHR caps = {}; // read below even when the query fails
 	VkResult r = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(d->phys, s->surface, &caps);
 	VkExtent2D ext = caps.currentExtent;
 	if (r == VK_SUCCESS && ext.width == UINT32_MAX) { // the surface takes the swapchain's size
@@ -154,7 +158,20 @@ static bool build(gs_swap_chain *s)
 	s->target.rt_format = s->surface_format.format;
 	s->target.width = ext.width;
 	s->target.height = ext.height;
+	++s->builds;
 	return true;
+}
+
+// VK_SUBOPTIMAL_KHR is still presentable; it needs a rebuild only when the surface size no longer matches (the format
+// and the FIFO present mode never change). Rebuilding on every SUBOPTIMAL would idle the queue on every acquire.
+static bool extent_changed(gs_swap_chain *s)
+{
+	VkSurfaceCapabilitiesKHR caps = {};
+	if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(s->device->phys, s->surface, &caps) != VK_SUCCESS) {
+		return true; // the rebuild reports it
+	}
+	const VkExtent2D e = caps.currentExtent; // UINT32_MAX: the swapchain decides, device_resize rebuilds
+	return e.width != UINT32_MAX && (e.width != s->target.width || e.height != s->target.height);
 }
 
 static void destroy_swap(gs_swap_chain *s)
@@ -318,8 +335,11 @@ EXPORT bool device_is_present_ready(gs_device_t *device)
 		VkResult r = s->test_not_ready
 				     ? VK_NOT_READY
 				     : vkAcquireNextImageKHR(device->dev, s->swapchain, 0, sem, VK_NULL_HANDLE, &idx);
+		if (r == VK_SUCCESS && s->test_suboptimal) {
+			r = VK_SUBOPTIMAL_KHR;
+		}
 		if (r == VK_SUCCESS || r == VK_SUBOPTIMAL_KHR) {
-			s->recreate = r == VK_SUBOPTIMAL_KHR; // still presentable; rebuilt on the next acquire
+			s->recreate = r == VK_SUBOPTIMAL_KHR && extent_changed(s); // still presentable
 			s->image = idx;
 			s->target.image = s->images[idx];
 			s->target.rt_view = s->views[idx];
@@ -382,8 +402,10 @@ EXPORT void device_present(gs_device_t *device)
 	pi.pSwapchains = &s->swapchain;
 	pi.pImageIndices = &idx;
 	VkResult r = vkQueuePresentKHR(device->graphics.q, &pi);
-	if (r != VK_SUCCESS) {
-		if (r != VK_ERROR_OUT_OF_DATE_KHR && r != VK_SUBOPTIMAL_KHR) {
+	if (r == VK_SUBOPTIMAL_KHR) {
+		s->recreate = s->recreate || extent_changed(s);
+	} else if (r != VK_SUCCESS) {
+		if (r != VK_ERROR_OUT_OF_DATE_KHR) {
 			blog(LOG_ERROR, "[libobs-vulkan] vkQueuePresentKHR failed (%d)", (int)r);
 		}
 		s->recreate = true;

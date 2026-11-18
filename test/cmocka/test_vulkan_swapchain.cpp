@@ -331,6 +331,34 @@ static void test_present_after_failed_submit_skips_and_recovers(void **)
 	destroy_window(window);
 }
 
+// A swapchain that keeps reporting VK_SUBOPTIMAL_KHR (test hook) at an unchanged size is not rebuilt every frame (a
+// rebuild idles the queue); once the window's size differs from the swapchain's, it is rebuilt to the new size.
+static void test_persistent_suboptimal_rebuilds_only_on_size_change(void **)
+{
+	void *window = create_window();
+	gs_device *device = create_or_skip();
+	gs_swapchain_t *swap = create_swap(device, window);
+	load_swapchain(device, swap);
+	present_frames(device, 1);
+
+	swap->test_suboptimal = true;
+	const uint32_t builds = swap->builds;
+	present_frames(device, 5);
+	assert_int_equal(swap->builds, builds);
+	assert_false(swap->recreate);
+
+#ifdef _WIN32
+	SetWindowPos((HWND)window, nullptr, 0, 0, size / 2, size / 2, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+	present_frames(device, 2);
+	assert_true(swap->builds > builds);
+	assert_int_equal(get_width(device), size / 2);
+#endif
+
+	swapchain_destroy(swap);
+	destroy_and_check(device);
+	destroy_window(window);
+}
+
 int main()
 {
 	const struct CMUnitTest tests[] = {
@@ -339,6 +367,7 @@ int main()
 		cmocka_unit_test(test_resize_back_recovers),
 		cmocka_unit_test(test_two_swapchains_present_independently),
 		cmocka_unit_test(test_present_after_failed_submit_skips_and_recovers),
+		cmocka_unit_test(test_persistent_suboptimal_rebuilds_only_on_size_change),
 	};
 	return cmocka_run_group_tests(tests, setup, teardown);
 }

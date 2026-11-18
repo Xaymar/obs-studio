@@ -117,6 +117,8 @@ EXPORT gs_shader_t *device_pixelshader_create(gs_device_t *device, const char *s
 	return shader_create(device, GS_SHADER_PIXEL, shader, file, error_string);
 }
 
+// Shaders must be destroyed before their device: this dereferences it. libobs's gs_destroy destroys effects (and so
+// their shaders) first; D3D11's gs_shader_destroy dereferences its device the same way.
 EXPORT void gs_shader_destroy(gs_shader_t *shader)
 {
 	if (shader && shader->device) {

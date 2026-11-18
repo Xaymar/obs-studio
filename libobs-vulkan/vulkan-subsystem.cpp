@@ -1,4 +1,5 @@
-// Graphics exports. Device lifetime, render target, clear, staging and flush are real; the rest are still stubs.
+// Graphics exports: device lifetime, render target, copy, clear, staging and flush here. Still stubs: cube textures,
+// timers, shared/GDI textures, gs_texture_get_obj, device_get_device_obj, HDR, debug markers, Linux dmabuf and sync.
 // Textures and stage surfaces live in vulkan-texture.cpp, swapchains and present in vulkan-swapchain.cpp, buffers and
 // samplers in vulkan-buffers.cpp, state, pipelines and draw in vulkan-pipeline.cpp.
 #include "vulkan-subsystem.hpp"
@@ -29,6 +30,7 @@ bool vk_flush(gs_device *d, VkSemaphore *signal)
 		return true;
 	}
 	vk_end_rendering(d);
+	// The submission waits on a pending acquire; see submit_pending (vulkan-swapchain.cpp) for one with no commands.
 	VkSemaphore wait = d->acquire_wait;
 	d->acquire_wait = VK_NULL_HANDLE;
 	if (d->frames.submit(d->graphics, wait ? &wait : nullptr, signal)) {
