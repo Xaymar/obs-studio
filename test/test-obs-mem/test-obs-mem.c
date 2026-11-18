@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <obs-data.h>
 #include <obs-mem.h>
 #include <util/bmem.h>
 #include <util/threading.h>
@@ -230,6 +231,59 @@ static void test_upgrade_race(void)
 	assert(race_upgraded > 0 && race_missed > 0);
 }
 
+static void test_data_item_release_quirk(void)
+{
+	obs_data_t *d = obs_data_create();
+	obs_data_set_int(d, "a", 1);
+
+	obs_data_item_t *item = obs_data_item_byname(d, "a");
+	assert(item);
+	obs_data_item_release(&item); /* data still holds a ref: not destroyed, pointer kept */
+	assert(item != NULL);
+
+	/* Today's remove() detaches and drops one ref but keeps the data's ref: item survives, pointer kept. */
+	obs_data_item_t *second = obs_data_item_byname(d, "a");
+	assert(second == item);
+	obs_data_item_remove(&second);
+	assert(second != NULL);
+	obs_data_item_release(&item); /* last ref: destroyed, pointer cleared */
+	assert(item == NULL);
+
+	obs_data_release(d);
+}
+
+static void test_data_item_next(void)
+{
+	obs_data_t *d = obs_data_create();
+	obs_data_set_int(d, "a", 1);
+	obs_data_set_int(d, "b", 2);
+	obs_data_set_int(d, "c", 3);
+
+	int n = 0;
+	obs_data_item_t *item = obs_data_first(d);
+	while (item) {
+		n++;
+		if (!obs_data_item_next(&item))
+			break;
+	}
+	assert(n == 3);
+	assert(item == NULL);
+
+	obs_data_release(d);
+}
+
+static void test_data_array_refs(void)
+{
+	obs_data_array_t *a = obs_data_array_create();
+	obs_data_t *d = obs_data_create();
+	obs_data_array_push_back(a, d);
+	obs_data_release(d);
+
+	obs_data_array_addref(a);
+	obs_data_array_release(a);
+	obs_data_array_release(a);
+}
+
 int main(void)
 {
 	test_header_layout();
@@ -239,6 +293,9 @@ int main(void)
 	test_get_weak_while_dying();
 	test_finalize_forced();
 	test_upgrade_race();
+	test_data_item_release_quirk();
+	test_data_item_next();
+	test_data_array_refs();
 
 	printf("test-obs-mem: all tests passed\n");
 	return 0;
