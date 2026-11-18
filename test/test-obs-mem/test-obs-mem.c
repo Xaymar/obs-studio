@@ -6,6 +6,7 @@
 
 #include <obs-data.h>
 #include <obs-mem.h>
+#include <obs-missing-files.h>
 #include <util/bmem.h>
 #include <util/threading.h>
 
@@ -276,12 +277,33 @@ static void test_data_array_refs(void)
 {
 	obs_data_array_t *a = obs_data_array_create();
 	obs_data_t *d = obs_data_create();
-	obs_data_array_push_back(a, d);
-	obs_data_release(d);
+	obs_data_set_int(d, "v", 42);
+	obs_data_array_push_back(a, d); /* the array takes its own ref */
 
 	obs_data_array_addref(a);
 	obs_data_array_release(a);
 	obs_data_array_release(a);
+
+	/* Array destroyed: the element survives on our ref alone. */
+	assert(obs_data_get_int(d, "v") == 42);
+	obs_data_release(d);
+}
+
+static void test_missing_file_refs(void)
+{
+	obs_missing_files_t *a = obs_missing_files_create();
+	obs_missing_files_t *b = obs_missing_files_create();
+	obs_missing_file_t *file = obs_missing_file_create("some/path", NULL, OBS_MISSING_FILE_SCRIPT, NULL, NULL);
+
+	obs_missing_files_add_file(a, file); /* a owns the creation ref */
+	obs_missing_files_append(b, a);      /* b takes its own ref */
+	obs_mem_acquire(file);               /* ours, to observe the file after both lists are gone */
+
+	obs_missing_files_destroy(a);
+	obs_missing_files_destroy(b);
+
+	assert(strcmp(obs_missing_file_get_path(file), "some/path") == 0);
+	obs_missing_file_release(file);
 }
 
 int main(void)
@@ -296,6 +318,7 @@ int main(void)
 	test_data_item_release_quirk();
 	test_data_item_next();
 	test_data_array_refs();
+	test_missing_file_refs();
 
 	printf("test-obs-mem: all tests passed\n");
 	return 0;

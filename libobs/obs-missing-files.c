@@ -19,9 +19,10 @@
 #include "util/dstr.h"
 #include "obs-missing-files.h"
 #include "obs.h"
+#include "obs-mem.h"
 
 struct obs_missing_file {
-	volatile long ref;
+	struct obs_mem_header hdr;
 	char *file_path;
 	obs_missing_file_cb callback;
 	int src_type;
@@ -71,8 +72,13 @@ void obs_missing_files_append(obs_missing_files_t *dst, obs_missing_files_t *src
 	for (size_t i = 0; i < src->files.num; i++) {
 		obs_missing_file_t *file = src->files.array[i];
 		obs_missing_files_add_file(dst, file);
-		os_atomic_inc_long(&file->ref);
+		obs_mem_acquire(file);
 	}
+}
+
+static void obs_missing_file_destroy_cb(void *file)
+{
+	obs_missing_file_destroy(file);
 }
 
 obs_missing_file_t *obs_missing_file_create(const char *path, obs_missing_file_cb callback, int src_type, void *src,
@@ -85,7 +91,7 @@ obs_missing_file_t *obs_missing_file_create(const char *path, obs_missing_file_c
 	file->src_type = src_type;
 	file->src = src;
 	file->data = data;
-	file->ref = 1;
+	obs_mem_init(file, obs_missing_file_destroy_cb);
 
 	switch (src_type) {
 	case OBS_MISSING_FILE_SOURCE:
@@ -103,8 +109,7 @@ void obs_missing_file_release(obs_missing_file_t *file)
 	if (!file)
 		return;
 
-	if (os_atomic_dec_long(&file->ref) == 0)
-		obs_missing_file_destroy(file);
+	obs_mem_release(file);
 }
 
 void obs_missing_file_destroy(obs_missing_file_t *file)
@@ -117,6 +122,7 @@ void obs_missing_file_destroy(obs_missing_file_t *file)
 		break;
 	}
 	bfree(file->file_path);
+	obs_mem_finalize(file);
 	bfree(file);
 }
 
