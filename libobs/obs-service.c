@@ -87,11 +87,12 @@ static obs_service_t *obs_service_create_internal(const char *id, const char *na
 	}
 
 	service->info = *info;
+	obs_context_init_control(&service->context, service, (obs_destroy_cb)obs_service_destroy);
+
 	service->context.data = service->info.create(service->context.settings, service);
 	if (!service->context.data)
 		blog(LOG_ERROR, "Failed to create service '%s'!", name);
 
-	obs_context_init_control(&service->context, service, (obs_destroy_cb)obs_service_destroy);
 	obs_context_data_insert(&service->context, &obs->data.services_mutex, &obs->data.first_service);
 
 	blog(LOG_DEBUG, "service '%s' (%s) created", name, id);
