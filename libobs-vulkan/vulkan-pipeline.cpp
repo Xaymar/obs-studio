@@ -29,6 +29,19 @@ void vk_end_rendering(gs_device *d)
 
 bool vk_arena_upload(gs_device *d, const void *data, VkDeviceSize size, VkDeviceSize align, vk_buffer &buf)
 {
+	VmaAllocation alloc;
+	uint8_t *p = vk_arena_alloc(d, size, align, buf, alloc);
+	if (!p) {
+		return false;
+	}
+	// Host writes before the submission are visible to it without a barrier.
+	memcpy(p, data, (size_t)size);
+	vmaFlushAllocation(d->vma, alloc, buf.offset, size);
+	return true;
+}
+
+uint8_t *vk_arena_alloc(gs_device *d, VkDeviceSize size, VkDeviceSize align, vk_buffer &buf, VmaAllocation &alloc)
+{
 	vk_frame_cmd(d); // the arena belongs to the frame being recorded
 	vk_frame &f = d->frames.frames[d->frames.index];
 	align = std::max<VkDeviceSize>(align, 1);
@@ -38,14 +51,14 @@ bool vk_arena_upload(gs_device *d, const void *data, VkDeviceSize size, VkDevice
 			vk_arena_chunk c;
 			c.size = std::max({(VkDeviceSize)1 << 20, f.arena.empty() ? 0 : f.arena.back().size * 2, size});
 			void *mapped;
-			if (!vk_create_host_buffer(d, c.size,
-						   VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
-							   VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-							   VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-						   VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, c.buffer,
-						   c.alloc, mapped)) {
+			if (!vk_create_host_buffer(
+				    d, c.size,
+				    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+					    VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+				    VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, c.buffer, c.alloc,
+				    mapped)) {
 				blog(LOG_ERROR, "[libobs-vulkan] upload arena: out of memory");
-				return false;
+				return nullptr;
 			}
 			c.mapped = (uint8_t *)mapped;
 			f.arena.push_back(c);
@@ -53,13 +66,11 @@ bool vk_arena_upload(gs_device *d, const void *data, VkDeviceSize size, VkDevice
 		vk_arena_chunk &c = f.arena[f.arena_chunk];
 		const VkDeviceSize off = (c.used + align - 1) / align * align;
 		if (off + size <= c.size) {
-			// Host writes before the submission are visible to it without a barrier.
-			memcpy(c.mapped + off, data, (size_t)size);
-			vmaFlushAllocation(d->vma, c.alloc, off, size);
 			c.used = off + size;
 			buf.buffer = c.buffer;
 			buf.offset = off;
-			return true;
+			alloc = c.alloc;
+			return c.mapped + off;
 		}
 	}
 }

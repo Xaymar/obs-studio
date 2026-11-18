@@ -7,10 +7,14 @@
 
 static void reset_transient(VkDevice dev, vk_frame &f)
 {
-	for (vk_arena_chunk &c : f.arena) {
-		c.used = 0;
+	// shortcut: a mapping outstanding in this slot (held across vk_frame_ring::count submissions, or a failed one)
+	// keeps the whole arena from being reused until the next begin(); it grows meanwhile. No libobs caller holds one.
+	if (!f.maps) {
+		for (vk_arena_chunk &c : f.arena) {
+			c.used = 0;
+		}
+		f.arena_chunk = 0;
 	}
-	f.arena_chunk = 0;
 	for (VkDescriptorPool p : f.desc_pools) {
 		vkResetDescriptorPool(dev, p, 0);
 	}

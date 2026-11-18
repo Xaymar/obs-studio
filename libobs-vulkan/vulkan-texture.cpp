@@ -169,8 +169,8 @@ static void generate_mips(gs_device *d, gs_texture *tex)
 static void destroy_texture_objects(gs_device *d, const gs_texture *tex)
 {
 	d->tracker.forget(tex->image);
-	if (tex->staging) {
-		d->tracker.forget(tex->staging);
+	if (tex->map_ptr) { // mapped, never unmapped: arena space, nothing to free; the slot may reuse it again
+		--d->frames.frames[tex->map_slot].maps;
 	}
 	d->frames.defer_destroy([dev = d->dev, vma = d->vma, t = *tex] {
 		vkDestroyImageView(dev, t.view, nullptr);
@@ -178,9 +178,6 @@ static void destroy_texture_objects(gs_device *d, const gs_texture *tex)
 		vkDestroyImageView(dev, t.rt_view, nullptr);
 		vkDestroyImageView(dev, t.rt_srgb_view, nullptr);
 		vmaDestroyImage(vma, t.image, t.alloc);
-		if (t.staging) {
-			vmaDestroyBuffer(vma, t.staging, t.staging_alloc);
-		}
 	});
 }
 
@@ -291,12 +288,7 @@ static gs_texture *create_texture(gs_device *device, enum gs_texture_type type, 
 	}
 	bool ok = tex->view && (!srgb || tex->srgb_view) && (!(flags & GS_RENDER_TARGET) || tex->rt_view) &&
 		  (!(flags & GS_RENDER_TARGET) || !srgb || tex->rt_srgb_view);
-	if (ok && (flags & GS_DYNAMIC)) {
-		const VkDeviceSize size = (VkDeviceSize)width * height * (gs_get_format_bpp(color_format) / 8);
-		ok = vk_create_host_buffer(device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-					   VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, tex->staging,
-					   tex->staging_alloc, tex->staging_mapped);
-	}
+	tex->dynamic = (flags & GS_DYNAMIC) != 0;
 	if (ok && data) {
 		ok = upload(device, tex, data, build_mips ? 1 : levels);
 		if (ok && build_mips) {
@@ -304,7 +296,7 @@ static gs_texture *create_texture(gs_device *device, enum gs_texture_type type, 
 		}
 	}
 	if (!ok) {
-		blog(LOG_ERROR, "[libobs-vulkan] device_texture_create: view, staging or upload failed");
+		blog(LOG_ERROR, "[libobs-vulkan] device_texture_create: view or upload failed");
 		destroy_texture_objects(device, tex);
 		delete tex;
 		return nullptr;
@@ -371,45 +363,61 @@ EXPORT void gs_texture_destroy(gs_texture_t *tex)
 	delete tex;
 }
 
-// Sync point: waits only while the previous unmap's copy may still read the staging buffer.
+static VkDeviceSize map_size(const gs_texture *tex)
+{
+	return (VkDeviceSize)tex->width * tex->height * (gs_get_format_bpp(tex->format) / 8);
+}
+
+// Never waits on the GPU (as D3D11's WRITE_DISCARD): the space comes from the recording frame's upload arena, which
+// the GPU stops reading before the slot is reused. Mip 0 only, tightly packed. As D3D11, a mapped texture cannot be
+// mapped again before its unmap.
 EXPORT bool gs_texture_map(gs_texture_t *tex, uint8_t **ptr, uint32_t *linesize)
 {
-	if (!tex->staging) {
+	if (!tex->dynamic || tex->map_ptr) {
 		return false;
 	}
 	gs_device *d = tex->device;
-	const uint64_t value = tex->upload_value;
-	if (value) {
-		// A failed submission signals its value from the host, so the wait cannot hang either way.
-		if (value >= d->graphics.next_value) {
-			vk_flush(d);
-		}
-		VkSemaphoreWaitInfo wi = {VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO};
-		wi.semaphoreCount = 1;
-		wi.pSemaphores = &d->graphics.timeline;
-		wi.pValues = &value;
-		if (vkWaitSemaphores(d->dev, &wi, UINT64_MAX) != VK_SUCCESS) {
-			return false;
-		}
+	// 16: a multiple of 4 and of every format's texel size, as vkCmdCopyBufferToImage's bufferOffset requires.
+	uint8_t *p = vk_arena_alloc(d, map_size(tex), 16, tex->map_buf, tex->map_alloc);
+	if (!p) {
+		return false;
 	}
-	*ptr = (uint8_t *)tex->staging_mapped;
+	tex->map_slot = d->frames.index;
+	++d->frames.frames[tex->map_slot].maps;
+	tex->map_ptr = p;
+	*ptr = p;
 	*linesize = tex->width * gs_get_format_bpp(tex->format) / 8;
 	return true;
 }
 
+// Records the copy into the frame being recorded. The mapped space is never reused while mapped (vk_frame::maps).
+// When a submit came between map and unmap (gs_flush, a present) it belongs to another slot's arena, which this
+// frame's copy must not outlive, so the data is first copied into this frame's arena. When it is this slot's (the
+// usual case, or the slot was begun again after a failed submit or a full turn of the ring) it is read in place.
 EXPORT void gs_texture_unmap(gs_texture_t *tex)
 {
-	if (!tex->staging) {
+	uint8_t *src = tex->map_ptr;
+	if (!src) {
 		return;
 	}
+	tex->map_ptr = nullptr;
 	gs_device *d = tex->device;
-	vmaFlushAllocation(d->vma, tex->staging_alloc, 0, VK_WHOLE_SIZE);
-
-	// Host writes before the submission are visible to it; the map wait covers buffer reuse.
+	const VkDeviceSize size = map_size(tex);
 	VkCommandBuffer cmd = vk_cmd(d);
+	vk_buffer buf = tex->map_buf;
+	bool ok = true;
+	if (tex->map_slot == d->frames.index) {
+		// Host writes before the submission are visible to it without a barrier.
+		vmaFlushAllocation(d->vma, tex->map_alloc, buf.offset, size);
+	} else {
+		ok = vk_arena_upload(d, src, size, 16, buf);
+	}
+	--d->frames.frames[tex->map_slot].maps; // after the copy above: the slot may reset its arena from now on
+	if (!ok) {
+		return;
+	}
+
 	vk_barriers b;
-	d->tracker.use_buffer(tex->staging, d->graphics.family,
-			      {VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_READ_BIT}, b);
 	d->tracker.use_image(tex->image, d->graphics.family,
 			     {VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
 			      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL},
@@ -417,10 +425,10 @@ EXPORT void gs_texture_unmap(gs_texture_t *tex)
 	vk_record_barriers(cmd, b);
 
 	VkBufferImageCopy region = {};
+	region.bufferOffset = buf.offset;
 	region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
 	region.imageExtent = {tex->width, tex->height, 1};
-	vkCmdCopyBufferToImage(cmd, tex->staging, tex->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-	tex->upload_value = d->graphics.next_value; // the value the frame being recorded will signal
+	vkCmdCopyBufferToImage(cmd, buf.buffer, tex->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 }
 
 EXPORT enum gs_texture_type device_get_texture_type(const gs_texture_t *texture)

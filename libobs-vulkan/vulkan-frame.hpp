@@ -34,12 +34,13 @@ struct vk_frame {
 	VkSemaphore done_sem = VK_NULL_HANDLE; // timeline the last submit signals
 	uint64_t done_value = 0;               // 0 when not in flight
 	std::vector<std::function<void()>> deferred;
-	// Uniform and dynamic vertex/index data, and descriptor sets, of draws recorded into this frame; both are
+	// Uniform, dynamic vertex/index and gs_texture_map data, and descriptor sets, recorded into this frame; both are
 	// reset (not freed) when the slot is reused, i.e. once the GPU has finished with them.
 	std::vector<vk_arena_chunk> arena;
 	size_t arena_chunk = 0; // chunk new allocations come from
 	std::vector<VkDescriptorPool> desc_pools;
 	size_t desc_pool = 0; // desc_pools entry new sets come from
+	uint32_t maps = 0; // gs_texture_map space in the arena not yet unmapped: begin() keeps the arena while nonzero
 
 	// Runs fn once the GPU has finished this frame's submission.
 	void defer_destroy(std::function<void()> fn) { deferred.push_back(std::move(fn)); }

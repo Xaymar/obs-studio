@@ -134,6 +134,13 @@ struct gs_device {
 	gs_device() { matrix4_identity(&proj); }
 };
 
+struct vk_buffer {
+	VkBuffer buffer = VK_NULL_HANDLE;
+	VmaAllocation alloc = VK_NULL_HANDLE; // null for arena space
+	VkDeviceSize offset = 0;
+	uint32_t stride = 0;
+};
+
 struct gs_texture {
 	gs_device *device;
 	VkImage image = VK_NULL_HANDLE;
@@ -147,11 +154,12 @@ struct gs_texture {
 	uint32_t depth = 1;                        // GS_TEXTURE_3D only
 	enum gs_texture_type type = GS_TEXTURE_2D; // 2D or 3D (volume)
 	gs_color_format format;
-	// GS_DYNAMIC only: persistently mapped staging buffer for gs_texture_map.
-	VkBuffer staging = VK_NULL_HANDLE;
-	VmaAllocation staging_alloc = VK_NULL_HANDLE;
-	void *staging_mapped = nullptr;
-	uint64_t upload_value = 0; // graphics timeline value of the submission holding the last unmap copy; 0: none
+	bool dynamic = false; // GS_DYNAMIC: gs_texture_map hands out upload arena space (see gs_texture_map)
+	// While mapped: arena space of frames[map_slot], counted in its `maps` so the slot never reuses it until unmapped.
+	uint8_t *map_ptr = nullptr; // null when not mapped
+	vk_buffer map_buf;
+	VmaAllocation map_alloc = VK_NULL_HANDLE;
+	uint32_t map_slot = 0;
 };
 
 // Depth/stencil buffer: one image and one attachment view, never sampled (as D3D11's DSV-only texture).
@@ -195,13 +203,6 @@ struct gs_sampler_state {
 	gs_device *device;
 	VkSampler sampler = VK_NULL_HANDLE;
 	gs_sampler_info info;
-};
-
-struct vk_buffer {
-	VkBuffer buffer = VK_NULL_HANDLE;
-	VmaAllocation alloc = VK_NULL_HANDLE; // null for arena space
-	VkDeviceSize offset = 0;
-	uint32_t stride = 0;
 };
 
 // Static data lives in host-visible buffers written once at creation. GS_DYNAMIC data is copied into the recording
@@ -287,6 +288,10 @@ void vk_end_rendering(gs_device *d);
 // Copies `data` into the recording frame's upload arena (begins a frame if none is); buf.buffer/offset point at it.
 // A full arena grows by a new chunk; never waits. False when out of memory.
 bool vk_arena_upload(gs_device *d, const void *data, VkDeviceSize size, VkDeviceSize align, vk_buffer &buf);
+// The same without the copy: reserves `size` bytes and returns their mapped address (nullptr when out of memory); the
+// caller writes them and flushes `alloc`. Chunks are never moved or freed before device teardown, so the address
+// stays valid; the space is reused once the slot is begun again (unless vk_frame::maps holds the arena).
+uint8_t *vk_arena_alloc(gs_device *d, VkDeviceSize size, VkDeviceSize align, vk_buffer &buf, VmaAllocation &alloc);
 // GS_DYNAMIC buffers: copies the CPU data into the recording frame's arena unless that is already done and current.
 bool vk_upload_dynamic(gs_device *d, gs_vertex_buffer *vb);
 bool vk_upload_dynamic(gs_device *d, gs_index_buffer *ib);
