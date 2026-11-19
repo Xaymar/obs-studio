@@ -400,10 +400,10 @@ bool video_output_connect2(video_t *video, const struct video_scale_info *conver
 {
 	bool success = false;
 
-	video = get_root(video);
-
 	if (!video || !callback || frame_rate_divisor == 0)
 		return false;
+
+	video = get_root(video);
 
 	pthread_mutex_lock(&video->input_mutex);
 
