@@ -1,27 +1,29 @@
 # Known libobs bugs
 
-Bugs found while writing the unit tests. Crashes are fixed (each entry names its commit); bugs that only give wrong
-results stay listed and unfixed, as decided, because the fix changes behaviour callers may depend on. Each entry names the file and how to trigger it. Bugs that were small enough were fixed in
-their own commits with a regression test and are not listed here.
+Bugs found while writing the unit tests. Each entry names the file, how to trigger it and, once fixed, the commit
+that fixed it with a regression test. Fixes that change behaviour plugins could rely on are marked
+**Behaviour change** here and in the commit message; the last section collects them. Entries without a commit are
+still open, with the reason.
 
 ## util/
 
 | File | Bug |
 | --- | --- |
-| util/cf-lexer.c | Not a crash (corrected): it is reported as "Expected '('". The crash seen in the first test run came from the next input, the open macro call below; stderr ordering made it look like this one. A function-like macro used without `(` (`#define M(a, b) a b` then `M 2`) crashes the preprocessor with an access violation. |
+| util/cf-lexer.c | Not a bug: a function-like macro used without `(` (`#define M(a, b) a b` then `M 2`) is reported as "Expected '('". It was listed as a crash because of stderr ordering; the crash came from the open macro call below. |
 | util/cf-lexer.c | **Fixed** in `9cb523235`: A macro call left open at end of file (`#define M(a) a` then `M(1, 2`) crashes the preprocessor: the token pointer steps past the end token. |
-| util/cf-lexer.c | `#define M()` (zero parameters) is rejected with "Expected identifier", so zero-parameter function macros cannot be defined. |
-| util/cf-lexer.c | Octal escapes in `cf_literal_to_str()` are decoded from the wrong position: the first digit is consumed by the `switch`, so `"\101"` becomes `"\x01"` instead of `"A"`. `"\0"` followed by digits is also taken as a lone NUL. |
+| util/cf-lexer.c | **Fixed** in `3cf1f7a20`: `#define M()` (zero parameters) is rejected with "Expected identifier", and calling such a macro reported "Mismatching number of macro parameters". |
+| util/cf-lexer.c | **Fixed** in `4fefeecf0`: Octal escapes in `cf_literal_to_str()` are decoded from the wrong position, so `"\101"` becomes `"\x01"` instead of `"A"`, and `"\0"` followed by digits is a lone NUL. Hex escapes read any number of digits and then skipped two characters. |
 | util/cf-lexer.c | **Fixed** in `cd4eaaad4`: `cf_preprocessor_add_def()` reports a redefinition through `pp->lex` and `pp->ed`, which are NULL until `cf_preprocess()` runs, so redefining before preprocessing crashes. |
-| util/cf-lexer.c | Errors in `#include`d files are reported with row/column computed against the including file's text. |
-| util/lexer.c | `valid_float_str()` rejects every signed exponent (`1e-3`, `1e+3`): `found_num` is reset at `e`, and the sign branch requires it. |
-| util/dstr.c | `dstr_ncopy()` copies `len + 1` bytes from `array`, reading one byte past a non-terminated strref. |
-| util/config-file.c | A section header without `]` (`[Broken`) still creates a section; the parse result is ignored. |
-| util/config-file.c | Duplicate keys or sections are added to the hash twice instead of replacing the first. |
-| util/text-lookup.c | Whitespace around `=` is not skipped: `Key = Value` stores `" "` as the value. |
-| util/array-serializer.c | `get_pos` returns the array size instead of the write position after a seek. |
-| util/array-serializer.c, util/buffered-file-serializer.c | `SERIALIZE_SEEK_END` moves backwards by `offset`; the buffered writer counts from its current position rather than the end. The file serializer uses `fseek()` semantics. |
-| util/platform-windows.c | `os_cpu_usage_info_query()` divides by zero (returns NaN) when called within the same clock tick as `os_cpu_usage_info_start()` or a previous query. |
+| util/cf-lexer.c | **Fixed** in `c9573ed79`: Errors in `#include`d files are reported with row/column computed against the including file's text. |
+| util/cf-lexer.c | **Fixed** in `e629d8773`: The tokens of an `#include`d file point at a lexer on the stack of `cf_include_file()`, so the second include of a file and the effect/shader parsers' error messages for its tokens read freed stack memory. |
+| util/lexer.c | **Fixed** in `a0b87467c`: `valid_float_str()` rejects every signed exponent (`1e-3`, `1e+3`): `found_num` is reset at `e`, and the sign branch requires it. |
+| util/dstr.c | **Fixed** in `44789e46c`: `dstr_ncopy()` copies `len + 1` bytes from `array`, reading one byte past a non-terminated strref. |
+| util/config-file.c | **Fixed** in `59a02be43`, **behaviour change**: A section header without `]` (`[Broken`) still creates a section; the parse result is ignored. A last line without its `]` or `=` was also accepted. |
+| util/config-file.c | **Fixed** in `77915b1ec`, **behaviour change**: Duplicate keys or sections are added to the hash twice instead of replacing the first. |
+| util/text-lookup.c | **Fixed** in `dc9cc505b`, **behaviour change**: Whitespace around `=` is not skipped: `Key = Value` stores `" "` as the value. |
+| util/array-serializer.c | **Fixed** in `9dfcdf37d`: `get_pos` returns the array size instead of the write position after a seek. |
+| util/array-serializer.c, util/buffered-file-serializer.c | **Fixed** in `723919330`, **behaviour change**: `SERIALIZE_SEEK_END` moves backwards by `offset`; the buffered writer counts from its current position rather than the end. The file serializer uses `fseek()` semantics, which all three now share. |
+| util/platform-windows.c | **Fixed** in `35bf48eeb`: `os_cpu_usage_info_query()` divides by zero (returns NaN) when called within the same clock tick as `os_cpu_usage_info_start()` or a previous query. |
 | util/platform.c | **Fixed** in `295c94d8f`: `os_get_path_extension(NULL)` crashes, unlike most `os_*` path helpers. |
 | util/profiler.c | **Fixed** in `435b31de3`. The actual cause: profiler_free() destroyed the static root mutex, and the next profiler call (in the next test) crashed; profiler_free() itself was fine. Originally listed as: `profiler_free()` crashes (access violation) after `profiler_start()`, a snapshot and `profiler_stop()`. |
 | util/profiler.c | Not a bug (explained): a call made while the profiler is stopped turns profiling off for that thread until `profile_reenable_thread()`, and the test made one before `profiler_start()`. Originally listed as: A snapshot reports fewer root calls than were made in `test_util_profiler`; not investigated yet. |
@@ -53,9 +55,9 @@ their own commits with a regression test and are not listed here.
 | graphics/shader-parser.c | `shader_sampler_convert()` reads `BorderColor` with `strtol(value + 1, ...)`: it skips the first character, so `0xff00ff00` becomes 0, and `strtol()` clamps colors above 0x7fffffff (alpha >= 0x80) on Windows, where `long` is 32 bits. |
 | graphics/graphics-ffmpeg.c | EXIF orientation is ignored: it is read from the "Orientation" frame metadata, which the bundled FFmpeg no longer sets (it exports a display matrix instead), so rotated JPEGs load unrotated. |
 
-## Core objects: fixes that change behaviour
+## Fixes that change behaviour
 
-Fixed while writing the core object tests. These fixes change behaviour that plugins might rely on.
+These fixes change behaviour that plugins might rely on.
 
 | Area | Change | Commit |
 | --- | --- | --- |
@@ -63,5 +65,9 @@ Fixed while writing the core object tests. These fixes change behaviour that plu
 | obs-source.c | `obs_source_filter_add()` refuses a source that is not a filter (it used to add inputs, scenes or transitions to the chain). | `3d46d4d78` |
 | obs.c | `obs_shutdown()` stops the threads and destroys the remaining objects before freeing types and unloading modules, so a module's `obs_module_unload()` now runs after them instead of before. | `66803a870` |
 | obs-data.c | `obs_data_item_remove()` drops the data's reference as well as the caller's, so the item is destroyed (it used to leak). | `75e67c897` |
+| util/config-file.c | A section header without `]` and the keys under it are skipped instead of forming a section; a last line without `]` or `=` is ignored. | `59a02be43` |
+| util/config-file.c | A repeated key replaces the earlier value and a repeated section is merged into the first; both used to be listed and saved twice, with only one copy readable. | `77915b1ec` |
+| util/text-lookup.c | Spaces and tabs around the name and `=` are skipped (`Key = Value` gives `Value`, not `" "`), and a CRLF line with a name but no value no longer defines it. | `dc9cc505b` |
+| util/array-serializer.c, util/buffered-file-serializer.c | `SERIALIZE_SEEK_END` adds the offset to the end like `fseek()`; a positive offset used to move back. | `723919330` |
 
 Open, not fixed yet: `obs_get_video_sdr_white_level()` returns 0 until `obs_set_video_levels()` is called once video is up (the frontend always calls it).
