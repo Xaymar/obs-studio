@@ -271,8 +271,8 @@ static bool push_rotation(obs_pipewire_stream *obs_pw_stream)
 }
 
 static const uint32_t supported_formats_async[] = {
-	SPA_VIDEO_FORMAT_RGBA,
-	SPA_VIDEO_FORMAT_YUY2,
+	SPA_VIDEO_FORMAT_RGBA, SPA_VIDEO_FORMAT_BGRA, SPA_VIDEO_FORMAT_BGRx, SPA_VIDEO_FORMAT_YUY2,
+	SPA_VIDEO_FORMAT_UYVY, SPA_VIDEO_FORMAT_NV12, SPA_VIDEO_FORMAT_I420,
 };
 
 #define N_SUPPORTED_FORMATS_ASYNC (sizeof(supported_formats_async) / sizeof(supported_formats_async[0]))
@@ -654,7 +654,6 @@ static bool prepare_obs_frame(obs_pipewire_stream *obs_pw_stream, struct obs_sou
 		return false;
 
 	frame->format = obs_pw_video_format.video_format;
-	frame->linesize[0] = SPA_ROUND_UP_N(frame->width * obs_pw_video_format.bpp, 4);
 	return true;
 }
 
@@ -686,12 +685,9 @@ static void process_video_async(obs_pipewire_stream *obs_pw_stream)
 		goto done;
 	}
 
-	for (uint32_t i = 0; i < buffer->n_datas && i < MAX_AV_PLANES; i++) {
-		out.data[i] = buffer->datas[i].data;
-		if (out.data[i] == NULL) {
-			blog(LOG_ERROR, "[pipewire] Failed to access data");
-			goto done;
-		}
+	if (!obs_pw_frame_set_planes(&out, buffer)) {
+		blog(LOG_ERROR, "[pipewire] Failed to access data");
+		goto done;
 	}
 
 #ifdef DEBUG_PIPEWIRE

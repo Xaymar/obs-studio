@@ -23,6 +23,7 @@
 
 #include <obs-module.h>
 
+#include <spa/buffer/buffer.h>
 #include <spa/param/video/format-utils.h>
 
 struct obs_pw_video_format {
@@ -36,3 +37,9 @@ struct obs_pw_video_format {
 };
 
 bool obs_pw_video_format_from_spa_format(uint32_t spa_format, struct obs_pw_video_format *out_format_info);
+
+/* Points the frame's planes at a mapped PipeWire buffer, using the strides and
+ * offsets the producer reports. The frame's format, width and height must be
+ * set. Returns false when the buffer is too small or the format has no async
+ * layout. */
+bool obs_pw_frame_set_planes(struct obs_source_frame *frame, const struct spa_buffer *buffer);

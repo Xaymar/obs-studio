@@ -44,6 +44,22 @@ target_link_libraries(test_video_device PRIVATE OBS::libobs cmocka::cmocka)
 
 add_test(test_video_device test_video_device)
 
+# PipeWire async frame plane layout
+if(OS_LINUX OR OS_FREEBSD OR OS_OPENBSD)
+  find_package(PipeWire 0.3.33 QUIET)
+  find_package(Libdrm QUIET)
+  if(PipeWire_FOUND AND Libdrm_FOUND)
+    get_target_property(_libdrm_includes Libdrm::Libdrm INTERFACE_INCLUDE_DIRECTORIES)
+    add_executable(test_pipewire_formats test_pipewire_formats.c ${CMAKE_SOURCE_DIR}/shared/pipewire/formats.c)
+    target_include_directories(
+      test_pipewire_formats
+      PRIVATE ${CMOCKA_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/shared/pipewire ${_libdrm_includes}
+    )
+    target_link_libraries(test_pipewire_formats PRIVATE OBS::libobs PipeWire::PipeWire cmocka::cmocka)
+    add_test(test_pipewire_formats test_pipewire_formats)
+  endif()
+endif()
+
 # Vulkan backend export test
 if(ENABLE_VULKAN)
   find_package(Vulkan REQUIRED)
