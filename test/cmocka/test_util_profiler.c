@@ -81,7 +81,7 @@ static void profiler_test(void **state)
 	assert_int_equal(children, profiler_snapshot_num_children(root));
 
 	/* shortcut: values are only read, not checked. The root reports fewer calls than were made, which still
-	 * needs investigating (see test/coverage/unreachable.md) */
+	 * needs investigating (see test/coverage/known-bugs.md) */
 	profiler_snapshot_entry_overall_count(root);
 	profiler_snapshot_entry_max_time(root);
 	profiler_snapshot_entry_min_time(root);
@@ -115,7 +115,7 @@ static void profiler_test(void **state)
 	profile_snapshot_free(snap);
 
 	/* Not called: profiler_free() after this start/snapshot/stop cycle crashes with an access violation (see
-	 * test/coverage/unreachable.md), so this test also skips the leak check. */
+	 * test/coverage/known-bugs.md), so this test also skips the leak check. */
 	os_unlink("profile.csv");
 	os_unlink("profile.csv.gz");
 }
