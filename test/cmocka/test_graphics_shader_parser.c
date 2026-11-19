@@ -17,6 +17,10 @@ static const char *shader =
 	"uniform float values[3];\n"
 	"uniform int count = 2;\n"
 	"uniform bool on;\n"
+	"uniform float init[3] = {1, 2, -3};\n"
+	"uniform bool flag = true;\n"
+	"uniform int2 ip = int2(3, 4);\n"
+	"uniform float2 pts[2] = {{1, 2}, float2(3, 4)};\n"
 	"uniform float2 v2 = {0.5, 0.5};\n"
 	"uniform float3 v3;\n"
 	"uniform float4 v4 = {1, 2, 3, 4};\n"
@@ -47,7 +51,23 @@ static void parse_test(void **state)
 	struct shader_var *var = shader_parser_getparam(&sp, "values");
 	assert_non_null(var);
 	assert_int_equal(var->array_count, 3);
-	/* array initializers and bool defaults are rejected by the parser (see known-bugs.md) */
+	/* Regression: array initializers, bool defaults and int vector defaults were rejected */
+	var = shader_parser_getparam(&sp, "init");
+	assert_non_null(var);
+	assert_int_equal(var->default_val.num, 3 * sizeof(float));
+	const float *init = (const float *)var->default_val.array;
+	assert_true(init[0] == 1.0f && init[1] == 2.0f && init[2] == -3.0f);
+	var = shader_parser_getparam(&sp, "flag");
+	assert_non_null(var);
+	assert_int_equal(*(const long *)var->default_val.array, 1);
+	var = shader_parser_getparam(&sp, "ip");
+	assert_non_null(var);
+	assert_int_equal(var->default_val.num, 2 * sizeof(long));
+	assert_int_equal(((const long *)var->default_val.array)[1], 4);
+	var = shader_parser_getparam(&sp, "pts");
+	assert_non_null(var);
+	assert_int_equal(var->default_val.num, 4 * sizeof(float));
+	assert_true(((const float *)var->default_val.array)[3] == 4.0f);
 	assert_non_null(shader_parser_getparam(&sp, "count"));
 	assert_null(shader_parser_getparam(&sp, "missing"));
 	assert_non_null(shader_parser_getstruct(&sp, "V"));
