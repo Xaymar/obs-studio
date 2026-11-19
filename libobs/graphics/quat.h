@@ -119,7 +119,6 @@ static inline void quat_neg(struct quat *dst, const struct quat *q)
 	dst->x = -q->x;
 	dst->y = -q->y;
 	dst->z = -q->z;
-	dst->w = q->w;
 	dst->w = -q->w;
 }
 
@@ -149,7 +148,8 @@ static inline bool quat_close(const struct quat *q1, const struct quat *q2, floa
 {
 	struct quat test;
 	quat_sub(&test, q1, q2);
-	return test.x < epsilon && test.y < epsilon && test.z < epsilon && test.w < epsilon;
+	return fabsf(test.x) < epsilon && fabsf(test.y) < epsilon && fabsf(test.z) < epsilon &&
+	       fabsf(test.w) < epsilon;
 }
 
 EXPORT void quat_from_axisang(struct quat *dst, const struct axisang *aa);
