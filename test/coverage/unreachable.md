@@ -78,6 +78,4 @@ Reasons:
 
 Reachable, but no test yet (not unreachable; tracked here until covered):
 
-- util/source-profiler.c (needs sources rendering on the null graphics module)
-- util/windows/window-helpers.c, util/windows/device-enum.c, util/windows/obfuscate.c, util/windows/win-version.h
 - util/util_uint64.h (the `util_mul_div64()` portable path)
