@@ -4,6 +4,7 @@
 #include <cmocka.h>
 
 #include "obs-core-test.h"
+#include "null-fail.h"
 
 #include <obs-missing-files.h>
 #include <util/threading.h>
@@ -44,6 +45,63 @@ static bool wait_long(volatile long *v, long count)
 	for (int i = 0; i < 400 && os_atomic_load_long(v) < count; i++)
 		os_sleep_ms(5);
 	return os_atomic_load_long(v) >= count;
+}
+
+static obs_canvas_t *projected_canvas;
+static volatile long projector_draws;
+
+/* what a projector draws: the main texture and a canvas texture, both ways */
+static void on_projector_draw(void *param, uint32_t cx, uint32_t cy)
+{
+	UNUSED_PARAMETER(param);
+	UNUSED_PARAMETER(cx);
+	UNUSED_PARAMETER(cy);
+	obs_render_main_texture();
+	obs_render_main_texture_src_color_only();
+	obs_render_canvas_texture(projected_canvas);
+	obs_render_canvas_texture_src_color_only(projected_canvas);
+	assert_non_null(obs_get_main_texture());
+	os_atomic_inc_long(&projector_draws);
+}
+
+static void projector_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+	core_start();
+
+	obs_source_t *src = obs_source_create("fake_input", "src", NULL, NULL);
+	obs_set_output_source(0, src);
+	struct obs_video_info ovi;
+	obs_get_video_info(&ovi);
+	ovi.base_width = ovi.output_width = 320;
+	ovi.base_height = ovi.output_height = 180;
+	projected_canvas = obs_canvas_create("projected", &ovi, PROGRAM);
+	obs_canvas_set_channel(projected_canvas, 0, src);
+
+	/* an SDR, an sRGB 16-bit float and a scRGB display */
+	static const enum gs_color_format formats[] = {GS_BGRA, GS_RGBA16F, GS_RGBA16F};
+	for (int i = 0; i < 3; i++) {
+		struct gs_init_data init = {.cx = 160, .cy = 90, .num_backbuffers = 1, .format = formats[i]};
+		obs_display_t *display = obs_display_create(&init, 0);
+		assert_non_null(display);
+		os_atomic_set_long(&projector_draws, 0);
+		obs_display_add_draw_callback(display, on_projector_draw, NULL);
+		assert_true(wait_long(&projector_draws, 3));
+		obs_display_remove_draw_callback(display, on_projector_draw, NULL);
+		obs_display_destroy(display);
+	}
+
+	/* a display whose swap chain cannot be created */
+	struct gs_init_data init = {.cx = 160, .cy = 90, .num_backbuffers = 1, .format = GS_BGRA};
+	null_fail_next("device_swapchain_create", 1);
+	assert_null(obs_display_create(&init, 0));
+
+	obs_canvas_set_channel(projected_canvas, 0, NULL);
+	obs_canvas_remove(projected_canvas);
+	obs_canvas_release(projected_canvas);
+	obs_set_output_source(0, NULL);
+	obs_source_release(src);
+	core_stop();
 }
 
 static void display_test(void **state)
@@ -384,7 +442,7 @@ static void missing_files_test(void **state)
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
-		cmocka_unit_test(display_test),
+		cmocka_unit_test(display_test), cmocka_unit_test(projector_test),
 		cmocka_unit_test(view_test),
 		cmocka_unit_test(canvas_test),
 		cmocka_unit_test(missing_files_test),
