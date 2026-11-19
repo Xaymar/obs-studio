@@ -113,7 +113,8 @@ void video_frame_get_linesizes(uint32_t linesize[MAX_AV_PLANES], enum video_form
 		break;
 
 	case VIDEO_FORMAT_V210: { /* one plane: bruh (Little Endian Compressed) */
-		align_uint32(&width, 48);
+		/* 48 is not a power of two, so the mask-based align_uint32() cannot be used */
+		width = (width + 47) / 48 * 48;
 		linesize[0] = ((width + 5) / 6) * 16;
 		break;
 	}
