@@ -5,10 +5,12 @@ if(NOT ENABLE_PIPEWIRE)
   return()
 endif()
 
+if(NOT TARGET OBS::pipewire-common)
+  add_subdirectory("${CMAKE_SOURCE_DIR}/shared/pipewire" "${CMAKE_BINARY_DIR}/shared/pipewire")
+endif()
+
+# For PipeWire_VERSION in this scope.
 find_package(PipeWire 0.3.33 REQUIRED)
-find_package(Gio 2.76 REQUIRED)
-find_package(Libdrm REQUIRED)
-get_target_property(libdrm_include_directories Libdrm::Libdrm INTERFACE_INCLUDE_DIRECTORIES)
 
 add_library(linux-pipewire MODULE)
 add_library(OBS::pipewire ALIAS linux-pipewire)
@@ -25,19 +27,11 @@ target_sources(
   PRIVATE
     $<$<BOOL:${_HAS_PIPEWIRE_CAMERA}>:camera-portal.c>
     $<$<BOOL:${_HAS_PIPEWIRE_CAMERA}>:camera-portal.h>
-    formats.c
-    formats.h
     linux-pipewire.c
-    pipewire.c
-    pipewire.h
-    portal.c
-    portal.h
     screencast-portal.c
     screencast-portal.h
 )
 
-target_include_directories(linux-pipewire PRIVATE ${libdrm_include_directories})
-
-target_link_libraries(linux-pipewire PRIVATE OBS::libobs OBS::glad PipeWire::PipeWire gio::gio)
+target_link_libraries(linux-pipewire PRIVATE OBS::libobs OBS::glad OBS::pipewire-common)
 
 set_target_properties_obs(linux-pipewire PROPERTIES FOLDER plugins PREFIX "")
