@@ -22,6 +22,13 @@ target_link_libraries(test_bitstream PRIVATE OBS::libobs cmocka::cmocka)
 
 add_test(test_bitstream test_bitstream)
 
+# Source ID aliases and settings migration
+add_executable(test_source_alias test_source_alias.c)
+target_include_directories(test_source_alias PRIVATE ${CMOCKA_INCLUDE_DIR})
+target_link_libraries(test_source_alias PRIVATE OBS::libobs cmocka::cmocka)
+
+add_test(test_source_alias test_source_alias)
+
 # Vulkan backend export test
 if(ENABLE_VULKAN)
   find_package(Vulkan REQUIRED)

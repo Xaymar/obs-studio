@@ -550,6 +550,13 @@ struct obs_core_hotkeys {
 
 typedef DARRAY(struct obs_source_info) obs_source_info_array_t;
 
+struct obs_source_alias {
+	char *old_id;
+	char *new_id;
+	obs_source_alias_migrate_t migrate;
+	void *param;
+};
+
 struct obs_core {
 	struct obs_module *first_module;
 	struct obs_module *first_disabled_module;
@@ -562,6 +569,8 @@ struct obs_core {
 	obs_source_info_array_t input_types;
 	obs_source_info_array_t filter_types;
 	obs_source_info_array_t transition_types;
+	pthread_mutex_t source_aliases_mutex;
+	DARRAY(struct obs_source_alias) source_aliases;
 	DARRAY(struct obs_output_info) output_types;
 	DARRAY(struct obs_encoder_info) encoder_types;
 	DARRAY(struct obs_service_info) service_types;
@@ -955,6 +964,7 @@ struct obs_source {
 
 extern struct obs_source_info *get_source_info(const char *id);
 extern struct obs_source_info *get_source_info2(const char *unversioned_id, uint32_t ver);
+extern void obs_free_source_aliases(void);
 extern bool obs_source_init_context(struct obs_source *source, obs_data_t *settings, const char *name, const char *uuid,
 				    obs_data_t *hotkey_data, bool private);
 

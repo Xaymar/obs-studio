@@ -378,6 +378,52 @@ void log_system_info(void)
 		obs_nix_x11_log_info();
 }
 
+/* Used when no display connection is available (headless runs, tests): libobs
+ * keeps working, hotkeys just never fire. */
+static bool null_hotkeys_init(struct obs_core_hotkeys *hotkeys)
+{
+	UNUSED_PARAMETER(hotkeys);
+	return true;
+}
+
+static void null_hotkeys_free(struct obs_core_hotkeys *hotkeys)
+{
+	UNUSED_PARAMETER(hotkeys);
+}
+
+static bool null_hotkeys_is_pressed(obs_hotkeys_platform_t *context, obs_key_t key)
+{
+	UNUSED_PARAMETER(context);
+	UNUSED_PARAMETER(key);
+	return false;
+}
+
+static void null_hotkeys_key_to_str(obs_key_t key, struct dstr *dstr)
+{
+	dstr_copy(dstr, obs_key_to_name(key));
+}
+
+static obs_key_t null_hotkeys_key_from_virtual_key(int sym)
+{
+	UNUSED_PARAMETER(sym);
+	return OBS_KEY_NONE;
+}
+
+static int null_hotkeys_key_to_virtual_key(obs_key_t key)
+{
+	UNUSED_PARAMETER(key);
+	return 0;
+}
+
+static const struct obs_nix_hotkeys_vtable null_hotkeys_vtable = {
+	.init = null_hotkeys_init,
+	.free = null_hotkeys_free,
+	.is_pressed = null_hotkeys_is_pressed,
+	.key_to_str = null_hotkeys_key_to_str,
+	.key_from_virtual_key = null_hotkeys_key_from_virtual_key,
+	.key_to_virtual_key = null_hotkeys_key_to_virtual_key,
+};
+
 bool obs_hotkeys_platform_init(struct obs_core_hotkeys *hotkeys)
 {
 	switch (obs_get_nix_platform()) {
@@ -393,6 +439,11 @@ bool obs_hotkeys_platform_init(struct obs_core_hotkeys *hotkeys)
 		break;
 	}
 
+	if (hotkeys_vtable && hotkeys_vtable->init(hotkeys))
+		return true;
+
+	blog(LOG_WARNING, "No display connection for hotkeys, hotkeys are disabled");
+	hotkeys_vtable = &null_hotkeys_vtable;
 	return hotkeys_vtable->init(hotkeys);
 }
 

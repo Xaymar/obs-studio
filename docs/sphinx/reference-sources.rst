@@ -857,6 +857,56 @@ General Source Functions
 
 ---------------------
 
+.. type:: void (*obs_source_alias_migrate_t)(void *param, const char *old_id, obs_data_t *settings)
+
+   Settings migration for a source created through an alias.  Called once per
+   created source, before the new source type sees the settings, with a
+   private copy of the settings that is safe to modify.  Rename or convert
+   keys here so the new source type understands what the old one saved.
+
+---------------------
+
+.. function:: bool obs_register_source_alias(const char *old_id, const char *new_id, obs_source_alias_migrate_t migrate, void *param)
+
+   Registers an alias, so that sources requested or saved with *old_id* are
+   created as the source type *new_id* instead.  Used to replace or merge
+   source types without breaking saved scene collections, scripts, websocket
+   clients or prebuilt plugins that create sources by ID.
+
+   Aliases are resolved when a source is created or loaded, never at
+   registration, so *new_id* may be registered by another module, in any
+   order.  This is safe with parallel module loading.  A source type
+   registered under *old_id* always wins over the alias, and an alias may
+   point at another alias, in which case every migration runs in order.
+
+   The created source reports *new_id* through :c:func:`obs_source_get_id()`
+   and is saved with it, so a scene collection only goes through the alias
+   once.  ID based queries such as :c:func:`obs_source_get_display_name()`,
+   :c:func:`obs_get_source_properties()` and
+   :c:func:`obs_get_source_defaults()` follow aliases too.
+
+   :param old_id:  Exact ID to replace, as saved in "versioned_id" (for
+                   example "xshm_input_v2").  Register each version
+                   separately.
+   :param new_id:  Exact ID of the replacement, or its unversioned ID to
+                   always use its latest version
+   :param migrate: Optional settings migration, see
+                   :c:type:`obs_source_alias_migrate_t`
+   :param param:   Passed to *migrate*
+   :return:        *false* if the arguments are invalid, *old_id* is
+                   already an alias, or a source type is already registered
+                   as *old_id*
+
+---------------------
+
+.. function:: const char *obs_source_alias_resolve(const char *id)
+
+   :return: The ID of the source type that *id* creates: *id* itself if it
+            is a registered source type, otherwise the type its alias chain
+            ends at.  *NULL* if *id* is unknown or its alias chain is broken.
+
+---------------------
+
 .. function:: const char *obs_source_get_display_name(const char *id)
 
    Calls the :c:member:`obs_source_info.get_name` callback to get the
