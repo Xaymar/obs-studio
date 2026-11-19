@@ -34,12 +34,12 @@ still open, with the reason.
 
 | File | Bug |
 | --- | --- |
-| media-io/format-conversion.c | `decompress_420()` packs pixels as `Y << 16 \| U << 8 \| V`, `decompress_nv12()` as `V << 16 \| U << 8 \| Y`: the same "packed 4:4:4" output in opposite byte orders. Neither has callers in the tree. |
+| media-io/format-conversion.c | Open, the right behaviour is unclear: `decompress_420()` packs pixels as `Y << 16 \| U << 8 \| V`, `decompress_nv12()` as `V << 16 \| U << 8 \| Y`, and `decompress_422()` keeps its input's byte order, while `compress_uyvx_to_*()` read `V << 16 \| Y << 8 \| U`. There is no documented packed 4:4:4 layout and no caller in the tree, so any choice breaks some plugin that relies on one of them. |
 | media-io/video-frame.c | **Fixed** in `391adc5d7`: `video_frame_init()` (and `video_frame_create()`) with `VIDEO_FORMAT_NONE` or an unknown format computes a size of 0 and calls `bmalloc(0)`, which crashes. |
 | media-io/video-io.c | **Fixed** in `b2ea2c61c`: `video_output_get_skipped_frames(NULL)` and `video_output_get_total_frames(NULL)` crash; every other getter returns a default for NULL. |
-| media-io/video-io.c | The getters of a frame-rate divisor output (`video_output_get_frame_rate()` and the rest) read the root output, so a half-rate output reports the full frame rate. |
-| media-io/video-io.c | `valid_video_params()` accepts `cache_size == 0`; such an output never locks a frame and keeps counting every frame as skipped. |
-| media-io/video-io.c | `video_output_unlock_frame()` without a successful `video_output_lock_frame()` decrements `available_frames` below zero (it is a `size_t`). |
+| media-io/video-io.c | **Fixed** in `1d79916d9`, **behaviour change**: The getters of a frame-rate divisor output (`video_output_get_frame_rate()`, `video_output_get_frame_time()`) read the root output, so a half-rate output reports the full frame rate. Format, size and frame counters still come from the root, which is right for them. |
+| media-io/video-io.c | **Fixed** in `e41de0eef`: `valid_video_params()` accepts `cache_size == 0`; such an output never locks a frame and keeps counting every frame as skipped. |
+| media-io/video-io.c | **Fixed** in `59c0b93e0`: `video_output_unlock_frame()` without a successful `video_output_lock_frame()` decrements `available_frames` below zero (it is a `size_t`). |
 | media-io/media-remux.c | **Fixed** in `5f4062de7`: `media_remux_job_create()` passes `out_filename` to `strcmp()` without a NULL check. |
 
 ## graphics/
@@ -69,5 +69,6 @@ These fixes change behaviour that plugins might rely on.
 | util/config-file.c | A repeated key replaces the earlier value and a repeated section is merged into the first; both used to be listed and saved twice, with only one copy readable. | `77915b1ec` |
 | util/text-lookup.c | Spaces and tabs around the name and `=` are skipped (`Key = Value` gives `Value`, not `" "`), and a CRLF line with a name but no value no longer defines it. | `dc9cc505b` |
 | util/array-serializer.c, util/buffered-file-serializer.c | `SERIALIZE_SEEK_END` adds the offset to the end like `fseek()`; a positive offset used to move back. | `723919330` |
+| media-io/video-io.c | `video_output_get_frame_rate()` and `video_output_get_frame_time()` of an encoder's frame rate divisor output give the divided rate; flv-mux's `framerate` metadata changes with it. | `1d79916d9` |
 
 Open, not fixed yet: `obs_get_video_sdr_white_level()` returns 0 until `obs_set_video_levels()` is called once video is up (the frontend always calls it).
