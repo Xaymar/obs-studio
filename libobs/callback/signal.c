@@ -359,8 +359,12 @@ void signal_handler_signal(signal_handler_t *handler, const char *signal, callda
 
 	pthread_mutex_unlock(&handler->global_callbacks_mutex);
 
-	if (remove_refs) {
-		os_atomic_set_long(&handler->refs, os_atomic_load_long(&handler->refs) - remove_refs);
+	/* drop the references of removed ref connections; the last one destroys the handler */
+	while (remove_refs--) {
+		if (os_atomic_dec_long(&handler->refs) == 0) {
+			signal_handler_actually_destroy(handler);
+			break;
+		}
 	}
 }
 
