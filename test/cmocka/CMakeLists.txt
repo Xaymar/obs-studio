@@ -41,6 +41,14 @@ target_link_libraries(test_type_alias PRIVATE OBS::libobs cmocka::cmocka)
 
 add_test(test_type_alias test_type_alias)
 
+# Settings migration of the NVENC plugin; plain libobs code, so it builds
+# without the NVENC SDK.
+add_executable(test_nvenc_migrate test_nvenc_migrate.c "${CMAKE_SOURCE_DIR}/plugins/knurbs-nvenc/nvenc-migrate.c")
+target_include_directories(test_nvenc_migrate PRIVATE ${CMOCKA_INCLUDE_DIR} "${CMAKE_SOURCE_DIR}/plugins/knurbs-nvenc")
+target_link_libraries(test_nvenc_migrate PRIVATE OBS::libobs cmocka::cmocka)
+
+add_test(test_nvenc_migrate test_nvenc_migrate)
+
 # Vulkan backend export test
 if(ENABLE_VULKAN)
   find_package(Vulkan REQUIRED)

@@ -1,4 +1,4 @@
-#include "obs-nvenc.h"
+#include "knurbs-nvenc.h"
 
 #include "nvenc-internal.h"
 #include "cuda-helpers.h"
@@ -27,7 +27,7 @@ static void *load_cuda_func(const char *func)
 {
 	void *func_ptr = os_dlsym(cuda_lib, func);
 	if (!func_ptr) {
-		blog(LOG_ERROR, "[obs-nvenc] Could not load function: %s", func);
+		blog(LOG_ERROR, "[knurbs-nvenc] Could not load function: %s", func);
 	}
 	return func_ptr;
 }
@@ -92,7 +92,7 @@ static bool init_cuda_internal(obs_encoder_t *encoder)
 		void *fptr = load_cuda_func(func.name);
 
 		if (!fptr) {
-			blog(LOG_ERROR, "[obs-nvenc] Failed to find CUDA function: %s", func.name);
+			blog(LOG_ERROR, "[knurbs-nvenc] Failed to find CUDA function: %s", func.name);
 			obs_encoder_set_last_error(encoder, "Loading CUDA functions failed.");
 			return false;
 		}

@@ -1,11 +1,9 @@
 cmake_minimum_required(VERSION 3.28...3.30)
 
 option(ENABLE_NVENC "Build NVIDIA Hardware Encoder Plugin" ON)
-option(ENABLE_NVENC_FFMPEG_IDS "Register FFmpeg encoder IDs" ON)
-mark_as_advanced(ENABLE_NVENC_FFMPEG_IDS)
 
 if(NOT ENABLE_NVENC)
-  target_disable_feature(obs-nvenc "NVIDIA Hardware Encoder")
+  target_disable_feature(knurbs-nvenc "NVIDIA Hardware Encoder")
   return()
 endif()
 
@@ -19,40 +17,40 @@ endif()
 
 find_package(FFnvcodec 12 REQUIRED)
 
-add_library(obs-nvenc MODULE)
-add_library(OBS::nvenc ALIAS obs-nvenc)
+add_library(knurbs-nvenc MODULE)
+add_library(OBS::nvenc ALIAS knurbs-nvenc)
 
-add_subdirectory(obs-nvenc-test)
+add_subdirectory(knurbs-nvenc-test)
 
 target_sources(
-  obs-nvenc
+  knurbs-nvenc
   PRIVATE
     $<$<PLATFORM_ID:Linux>:nvenc-opengl.c>
     $<$<PLATFORM_ID:Windows>:nvenc-d3d11.c>
     cuda-helpers.c
     cuda-helpers.h
-    nvenc-compat.c
+    knurbs-nvenc.c
+    knurbs-nvenc.h
+    nvenc-aliases.c
     nvenc-cuda.c
     nvenc-helpers.c
     nvenc-helpers.h
     nvenc-internal.h
+    nvenc-migrate.c
+    nvenc-migrate.h
     nvenc-opts-parser.c
     nvenc-properties.c
     nvenc.c
-    obs-nvenc.c
-    obs-nvenc.h
 )
 
 target_link_libraries(
-  obs-nvenc
+  knurbs-nvenc
   PRIVATE OBS::libobs OBS::opts-parser FFnvcodec::FFnvcodec $<$<PLATFORM_ID:Linux>:OBS::glad>
 )
 
-target_compile_definitions(obs-nvenc PRIVATE $<$<BOOL:${ENABLE_NVENC_FFMPEG_IDS}>:REGISTER_FFMPEG_IDS>)
-
 if(OS_WINDOWS)
-  configure_file(cmake/windows/obs-module.rc.in obs-nvenc.rc)
-  target_sources(obs-nvenc PRIVATE obs-nvenc.rc)
+  configure_file(cmake/windows/obs-module.rc.in knurbs-nvenc.rc)
+  target_sources(knurbs-nvenc PRIVATE knurbs-nvenc.rc)
 endif()
 
-set_target_properties_obs(obs-nvenc PROPERTIES FOLDER plugins/obs-nvenc PREFIX "")
+set_target_properties_obs(knurbs-nvenc PROPERTIES FOLDER plugins/knurbs-nvenc PREFIX "")

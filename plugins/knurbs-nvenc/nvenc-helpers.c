@@ -1,4 +1,4 @@
-#include "obs-nvenc.h"
+#include "knurbs-nvenc.h"
 #include "nvenc-helpers.h"
 
 #include <util/platform.h>
@@ -12,14 +12,14 @@ static pthread_mutex_t init_mutex = PTHREAD_MUTEX_INITIALIZER;
 NV_ENCODE_API_FUNCTION_LIST nv = {NV_ENCODE_API_FUNCTION_LIST_VER};
 NV_CREATE_INSTANCE_FUNC nv_create_instance = NULL;
 
-/* Will be populated with results from obs-nvenc-test */
+/* Will be populated with results from knurbs-nvenc-test */
 static struct encoder_caps encoder_capabilities[3];
 static bool codec_supported[3];
 static int num_devices;
 static int driver_version_major;
 static int driver_version_minor;
 
-#define error(format, ...) blog(LOG_ERROR, "[obs-nvenc] " format, ##__VA_ARGS__)
+#define error(format, ...) blog(LOG_ERROR, "[knurbs-nvenc] " format, ##__VA_ARGS__)
 
 bool nv_fail2(obs_encoder_t *encoder, void *session, const char *format, ...)
 {
@@ -290,9 +290,9 @@ static void read_codec_caps(config_t *config, enum codec_type codec, const char 
 static bool nvenc_check(void)
 {
 #ifdef _WIN32
-	char *test_exe = os_get_executable_path_ptr("obs-nvenc-test.exe");
+	char *test_exe = os_get_executable_path_ptr("knurbs-nvenc-test.exe");
 #else
-	char *test_exe = os_get_executable_path_ptr("obs-nvenc-test");
+	char *test_exe = os_get_executable_path_ptr("knurbs-nvenc-test");
 #endif
 	os_process_args_t *args;
 	struct dstr caps_str = {0};
@@ -349,7 +349,7 @@ static bool nvenc_check(void)
 	sscanf(driver_ver, "%d.%d", &driver_version_major, &driver_version_minor);
 
 	blog(LOG_INFO,
-	     "[obs-nvenc] NVENC version: %d.%d (compiled) / %s (driver), "
+	     "[knurbs-nvenc] NVENC version: %d.%d (compiled) / %s (driver), "
 	     "CUDA driver version: %s, AV1 supported: %s",
 	     NVCODEC_CONFIGURED_VERSION >> 4, NVCODEC_CONFIGURED_VERSION & 0xf, nvenc_ver, cuda_ver,
 	     codec_supported[CODEC_AV1] ? "true" : "false");
@@ -381,7 +381,7 @@ void obs_nvenc_load(void)
 {
 	pthread_mutex_init(&init_mutex, NULL);
 	register_encoders();
-	register_compat_encoders();
+	register_encoder_aliases();
 }
 
 void obs_nvenc_unload(void)

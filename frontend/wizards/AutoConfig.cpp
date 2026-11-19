@@ -213,7 +213,7 @@ void AutoConfig::TestHardwareEncoding()
 	size_t idx = 0;
 	const char *id;
 	while (obs_enum_encoder_types(idx++, &id)) {
-		if (strcmp(id, "ffmpeg_nvenc") == 0) {
+		if (strcmp(id, "com.xaymar.knurbs.nvenc.h264") == 0) {
 			hardwareEncodingAvailable = nvencAvailable = true;
 		} else if (strcmp(id, "obs_qsv11") == 0) {
 			hardwareEncodingAvailable = qsvAvailable = true;
