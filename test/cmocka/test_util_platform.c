@@ -164,6 +164,7 @@ static void path_test(void **state)
 	assert_string_equal(os_get_path_extension("dir.d/file.tar.gz"), ".gz");
 	assert_null(os_get_path_extension("dir.d/file"));
 	assert_null(os_get_path_extension("dir.d\\file"));
+	assert_null(os_get_path_extension(NULL)); /* regression: crashed */
 
 	char cwd[512];
 	assert_non_null(os_getcwd(cwd, sizeof(cwd)));

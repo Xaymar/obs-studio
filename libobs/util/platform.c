@@ -650,6 +650,9 @@ int os_mkdirs(const char *dir)
 
 const char *os_get_path_extension(const char *path)
 {
+	if (!path)
+		return NULL;
+
 	for (size_t pos = strlen(path); pos > 0; pos--) {
 		switch (path[pos - 1]) {
 		case '.':
