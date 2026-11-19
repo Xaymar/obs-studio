@@ -2078,12 +2078,12 @@ uint64_t obs_encoder_get_pause_offset(const obs_encoder_t *encoder)
 
 bool obs_encoder_has_roi(const obs_encoder_t *encoder)
 {
-	return encoder->roi.num > 0;
+	return obs_encoder_valid(encoder, "obs_encoder_has_roi") && encoder->roi.num > 0;
 }
 
 bool obs_encoder_add_roi(obs_encoder_t *encoder, const struct obs_encoder_roi *roi)
 {
-	if (!roi)
+	if (!obs_encoder_valid(encoder, "obs_encoder_add_roi") || !roi)
 		return false;
 	if (!(encoder->info.caps & OBS_ENCODER_CAP_ROI))
 		return false;
@@ -2104,7 +2104,7 @@ bool obs_encoder_add_roi(obs_encoder_t *encoder, const struct obs_encoder_roi *r
 
 void obs_encoder_clear_roi(obs_encoder_t *encoder)
 {
-	if (!encoder->roi.num)
+	if (!obs_encoder_valid(encoder, "obs_encoder_clear_roi") || !encoder->roi.num)
 		return;
 	pthread_mutex_lock(&encoder->roi_mutex);
 	da_clear(encoder->roi);
@@ -2116,6 +2116,9 @@ void obs_encoder_enum_roi(obs_encoder_t *encoder, void (*enum_proc)(void *, stru
 {
 	float scale_x = 0;
 	float scale_y = 0;
+
+	if (!obs_encoder_valid(encoder, "obs_encoder_enum_roi") || !enum_proc)
+		return;
 
 	/* Scale ROI passed to callback to output size */
 	if (encoder->scaled_height && encoder->scaled_width) {
@@ -2155,7 +2158,7 @@ void obs_encoder_enum_roi(obs_encoder_t *encoder, void (*enum_proc)(void *, stru
 
 uint32_t obs_encoder_get_roi_increment(const obs_encoder_t *encoder)
 {
-	return encoder->roi_increment;
+	return obs_encoder_valid(encoder, "obs_encoder_get_roi_increment") ? encoder->roi_increment : 0;
 }
 
 bool obs_encoder_set_group(obs_encoder_t *encoder, obs_encoder_group_t *group)
