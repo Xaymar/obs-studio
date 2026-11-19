@@ -3138,6 +3138,10 @@ void obs_source_filter_add(obs_source_t *source, obs_source_t *filter)
 		return;
 	if (!obs_ptr_valid(filter, "obs_source_filter_add"))
 		return;
+	if (filter->info.type != OBS_SOURCE_TYPE_FILTER) {
+		blog(LOG_WARNING, "Tried to add '%s', which is not a filter, as a filter", obs_source_get_name(filter));
+		return;
+	}
 
 	pthread_mutex_lock(&source->filter_mutex);
 
