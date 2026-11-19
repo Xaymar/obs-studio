@@ -791,7 +791,7 @@ void profiler_free(void)
 
 	da_free(old_root_entries);
 
-	pthread_mutex_destroy(&root_mutex);
+	/* root_mutex is statically initialized and used again by any later profiler call, so it is not destroyed */
 }
 
 /* ------------------------------------------------------------------------- */

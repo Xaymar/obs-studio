@@ -47,7 +47,9 @@ static void profiler_test(void **state)
 	profile_start(root_name);
 	profile_end(root_name);
 
+	/* a call while stopped turns profiling off for this thread until it is re-enabled */
 	profiler_start();
+	profile_reenable_thread();
 	profile_register_root(root_name, 1000000);
 	for (int i = 0; i < 5; i++) {
 		profile_start(root_name);
@@ -80,17 +82,16 @@ static void profiler_test(void **state)
 	profiler_snapshot_enumerate_children(root, count_entries, &children);
 	assert_int_equal(children, profiler_snapshot_num_children(root));
 
-	/* shortcut: values are only read, not checked. The root reports fewer calls than were made, which still
-	 * needs investigating (see test/coverage/known-bugs.md) */
-	profiler_snapshot_entry_overall_count(root);
-	profiler_snapshot_entry_max_time(root);
-	profiler_snapshot_entry_min_time(root);
+	assert_int_equal(profiler_snapshot_num_children(root), 1);
+	assert_true(profiler_snapshot_entry_overall_count(root) >= 5);
+	assert_true(profiler_snapshot_entry_max_time(root) >= profiler_snapshot_entry_min_time(root));
 	assert_non_null(profiler_snapshot_entry_times(root));
-	profiler_snapshot_entry_expected_time_between_calls(root);
+	assert_int_equal(profiler_snapshot_entry_expected_time_between_calls(root),
+			 1000); /* registered in ns, reported in us */
 	assert_non_null(profiler_snapshot_entry_times_between_calls(root));
-	profiler_snapshot_entry_overall_between_calls_count(root);
-	profiler_snapshot_entry_max_time_between_calls(root);
-	profiler_snapshot_entry_min_time_between_calls(root);
+	assert_true(profiler_snapshot_entry_overall_between_calls_count(root) >= 4);
+	assert_true(profiler_snapshot_entry_max_time_between_calls(root) >=
+		    profiler_snapshot_entry_min_time_between_calls(root));
 
 	profiler_print(snap);
 	profiler_print_time_between_calls(snap);
@@ -114,8 +115,17 @@ static void profiler_test(void **state)
 	profiler_print(snap);
 	profile_snapshot_free(snap);
 
-	/* Not called: profiler_free() after this start/snapshot/stop cycle crashes with an access violation (see
-	 * test/coverage/known-bugs.md), so this test also skips the leak check. */
+	profiler_free();
+
+	/* Regression: profiler_free() destroyed the static root mutex, so any later profiler call crashed */
+	snap = profile_snapshot_create();
+	profile_snapshot_free(snap);
+	profiler_start();
+	profile_start(root_name);
+	profile_end(root_name);
+	profiler_stop();
+	profiler_free();
+
 	os_unlink("profile.csv");
 	os_unlink("profile.csv.gz");
 }
@@ -160,7 +170,7 @@ static void null_test(void **state)
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
-		cmocka_unit_test(profiler_test),
+		obs_unit_test(profiler_test),
 		obs_unit_test(name_store_test),
 		obs_unit_test(null_test),
 	};
