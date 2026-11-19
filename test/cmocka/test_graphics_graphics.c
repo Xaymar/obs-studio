@@ -240,6 +240,10 @@ static void immediate_test(void **state)
 	assert_non_null(vb);
 	struct gs_vb_data *data = gs_vertexbuffer_get_data(vb);
 	assert_int_equal(data->num, 3);
+	/* Regression: gs_color4v() was an empty stub and dropped the colors */
+	assert_non_null(data->colors);
+	for (size_t i = 0; i < 3; i++)
+		assert_int_equal(data->colors[i], 0xff0000ff);
 	gs_vertexbuffer_destroy(vb);
 
 	/* a new buffer drawn right away, with mismatching counts */

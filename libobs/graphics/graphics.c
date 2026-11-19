@@ -792,8 +792,8 @@ void gs_normal3v(const struct vec3 *v)
 
 void gs_color4v(const struct vec4 *v)
 {
-	/* TODO */
-	UNUSED_PARAMETER(v);
+	/* the byte order of gs_color(): red in the lowest byte */
+	gs_color(vec4_to_rgba(v));
 }
 
 void gs_texcoord2v(const struct vec2 *v, int unit)
