@@ -3,6 +3,8 @@
 #include <setjmp.h>
 #include <cmocka.h>
 
+#include "obs-test.h"
+
 #include <stdio.h>
 #include <string.h>
 
@@ -316,24 +318,11 @@ static void api_def_test(void **state)
 	assert_int_equal(a.str.len, 2);
 }
 
-static int check_leaks(void **state)
-{
-	UNUSED_PARAMETER(state);
-	long allocs = bnum_allocs();
-	if (allocs)
-		print_error("%ld allocations leaked\n", allocs);
-	return allocs ? -1 : 0;
-}
-
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
-		cmocka_unit_test_teardown(lex_test, check_leaks),
-		cmocka_unit_test_teardown(literal_test, check_leaks),
-		cmocka_unit_test_teardown(define_test, check_leaks),
-		cmocka_unit_test_teardown(conditional_test, check_leaks),
-		cmocka_unit_test_teardown(include_test, check_leaks),
-		cmocka_unit_test_teardown(api_def_test, check_leaks),
+		obs_unit_test(lex_test),         obs_unit_test(literal_test), obs_unit_test(define_test),
+		obs_unit_test(conditional_test), obs_unit_test(include_test), obs_unit_test(api_def_test),
 	};
 
 	int ret = cmocka_run_group_tests(tests, NULL, NULL);

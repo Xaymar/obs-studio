@@ -330,6 +330,9 @@ foreach(
     test_util_dstr
     test_util_lexer
     test_util_cf_lexer
+    test_util_cf_parser
+    test_util_config_file
+    test_util_text_lookup
 )
   obs_add_unit_test(${test})
 endforeach()
