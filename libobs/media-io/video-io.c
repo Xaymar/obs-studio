@@ -218,7 +218,8 @@ static void *video_thread(void *param)
 
 static inline bool valid_video_params(const struct video_output_info *info)
 {
-	return info->height != 0 && info->width != 0 && info->fps_den != 0 && info->fps_num != 0;
+	return info->height != 0 && info->width != 0 && info->fps_den != 0 && info->fps_num != 0 &&
+	       info->cache_size != 0;
 }
 
 static inline void init_cache(struct video_output *video)

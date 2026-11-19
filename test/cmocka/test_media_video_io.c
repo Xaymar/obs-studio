@@ -94,6 +94,10 @@ static void open_test(void **state)
 	bad = make_info();
 	bad.fps_den = 0;
 	assert_int_equal(video_output_open(&video, &bad), VIDEO_OUTPUT_INVALIDPARAM);
+	/* Regression: an output without a frame cache was accepted and could never lock a frame */
+	bad = make_info();
+	bad.cache_size = 0;
+	assert_int_equal(video_output_open(&video, &bad), VIDEO_OUTPUT_INVALIDPARAM);
 
 	/* the cache is capped */
 	struct video_output_info big = make_info();
