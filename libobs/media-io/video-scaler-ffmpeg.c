@@ -94,7 +94,8 @@ static inline int get_ffmpeg_scale_type(enum video_scale_type type)
 	case VIDEO_SCALE_FAST_BILINEAR:
 		return SWS_FAST_BILINEAR;
 	case VIDEO_SCALE_BILINEAR:
-		return SWS_BILINEAR | SWS_AREA;
+		/* swscale rejects more than one scaling algorithm flag */
+		return SWS_BILINEAR;
 	case VIDEO_SCALE_BICUBIC:
 		return SWS_BICUBIC;
 	}
