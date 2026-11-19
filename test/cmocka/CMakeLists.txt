@@ -42,6 +42,24 @@ function(obs_add_graphics_test name)
   add_dependencies(${name} libobs-null)
 endfunction()
 
+# obs_add_core_test(<name>): a graphics test that starts libobs (see obs-core-test.h). libobs finds its effects
+# in ../../data/libobs relative to the working directory, so the test runs in work/<name>/bin/64bit next to a
+# copy of the data.
+function(obs_add_core_test name)
+  obs_add_graphics_test(${name})
+  set(work_dir "${CMAKE_CURRENT_BINARY_DIR}/work/${name}/bin/64bit")
+  file(MAKE_DIRECTORY "${work_dir}")
+  set_tests_properties(${name} PROPERTIES WORKING_DIRECTORY "${work_dir}")
+  add_custom_command(
+    TARGET ${name}
+    POST_BUILD
+    COMMAND
+      "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_SOURCE_DIR}/libobs/data"
+      "${CMAKE_CURRENT_BINARY_DIR}/work/${name}/data/libobs"
+    VERBATIM
+  )
+endfunction()
+
 # Serializer test
 add_executable(test_serializer test_serializer.c)
 target_include_directories(test_serializer PRIVATE ${CMOCKA_INCLUDE_DIR})
@@ -410,4 +428,14 @@ foreach(
     test_obs_codec_helpers
 )
   obs_add_graphics_test(${test})
+endforeach()
+
+# core/ libobs
+foreach(
+  test
+  IN
+  ITEMS
+    test_obs_source
+)
+  obs_add_core_test(${test})
 endforeach()
