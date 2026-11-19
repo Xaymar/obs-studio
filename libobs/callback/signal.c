@@ -97,7 +97,7 @@ static struct signal_info *getsignal(signal_handler_t *handler, const char *name
 {
 	struct signal_info *signal, *last = NULL;
 
-	signal = handler->first;
+	signal = name ? handler->first : NULL;
 	while (signal != NULL) {
 		if (strcmp(signal->func.name, name) == 0)
 			break;
