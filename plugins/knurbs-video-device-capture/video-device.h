@@ -11,6 +11,7 @@
 #pragma once
 
 #include <obs-module.h>
+#include <util/dstr.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -90,6 +91,14 @@ struct vd_backend {
 	void (*add_properties)(void *data, obs_properties_t *props, obs_data_t *settings);
 	void (*activate)(void *data);
 	void (*deactivate)(void *data);
+	/* Called on show and hide when "deactivate when not showing" is on. A
+	 * backend without them is destroyed on hide and created again on
+	 * show, which releases the device either way. */
+	void (*show)(void *data);
+	void (*hide)(void *data);
+	/* Optional. Frees what the backend shares between instances, on
+	 * module unload. */
+	void (*unload)(void);
 
 	/* Whether the backend can capture the device's own audio. */
 	bool has_audio;
@@ -100,6 +109,24 @@ extern const struct vd_backend *const vd_backends[];
 extern const size_t vd_num_backends;
 
 const struct vd_backend *vd_find_backend(const char *name);
+
+/* Helpers for backends. */
+
+/* VD_COLOR_SPACE and VD_COLOR_RANGE values. "auto" and unknown values give
+ * VIDEO_CS_DEFAULT and VIDEO_RANGE_DEFAULT; use vd_is_auto to tell them
+ * apart from an explicit choice. */
+enum video_colorspace vd_parse_color_space(const char *value);
+enum video_range_type vd_parse_color_range(const char *value);
+bool vd_is_auto(const char *value);
+
+/* Fills the frame's matrix, range, full_range and transfer for a colour
+ * space and range. */
+void vd_frame_set_color(struct obs_source_frame *frame, enum video_colorspace space, enum video_range_type range);
+
+/* The settings key of a device control: "<backend>.control.<name>", with
+ * the name lowercased and every run of other characters turned into '-'
+ * ("White Balance, Auto" becomes "v4l2.control.white-balance-auto"). */
+void vd_control_key(struct dstr *out, const char *backend, const char *name);
 
 extern struct obs_source_info video_device_capture_info;
 

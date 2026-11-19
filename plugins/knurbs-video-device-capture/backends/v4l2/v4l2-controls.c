@@ -20,6 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <linux/videodev2.h>
 #include <libv4l2.h>
 
+#include <util/dstr.h>
+
 #include "v4l2-controls.h"
 #include "video-device.h"
 
@@ -32,6 +34,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define UINT_TO_POINTER(val) ((void *)(unsigned int)(val))
 #define POINTER_TO_UINT(p) ((unsigned int)(unsigned int)(p))
 #endif
+
+static void control_key(struct dstr *key, const struct v4l2_queryctrl *qctrl)
+{
+	vd_control_key(key, "v4l2", (const char *)qctrl->name);
+}
 
 static bool v4l2_control_changed(void *data, obs_properties_t *props, obs_property_t *prop, obs_data_t *settings)
 {
@@ -74,7 +81,9 @@ static bool v4l2_update_controls_menu(int_fast32_t dev, obs_properties_t *props,
 	obs_property_t *prop;
 	struct v4l2_querymenu qmenu;
 
-	prop = obs_properties_add_list(props, (char *)qctrl->name, (char *)qctrl->name, OBS_COMBO_TYPE_LIST,
+	struct dstr key = {0};
+	control_key(&key, qctrl);
+	prop = obs_properties_add_list(props, key.array, (char *)qctrl->name, OBS_COMBO_TYPE_LIST,
 				       OBS_COMBO_FORMAT_INT);
 
 	obs_property_set_modified_callback2(prop, v4l2_control_changed, UINT_TO_POINTER(qctrl->id));
@@ -89,10 +98,12 @@ static bool v4l2_update_controls_menu(int_fast32_t dev, obs_properties_t *props,
 	}
 
 	if (obs_property_list_item_count(prop) == 0) {
-		obs_properties_remove_by_name(props, (char *)qctrl->name);
+		obs_properties_remove_by_name(props, key.array);
+		dstr_free(&key);
 		return false;
 	}
 
+	dstr_free(&key);
 	return true;
 }
 
@@ -107,31 +118,36 @@ static inline void add_control_property(obs_properties_t *props, obs_data_t *set
 					struct v4l2_queryctrl *qctrl)
 {
 	obs_property_t *prop = NULL;
+	struct dstr key = {0};
 
 	if (!valid_control(qctrl)) {
 		return;
 	}
 
+	control_key(&key, qctrl);
+
 	switch (qctrl->type) {
 	case V4L2_CTRL_TYPE_INTEGER:
-		prop = obs_properties_add_int_slider(props, (char *)qctrl->name, (char *)qctrl->name, qctrl->minimum,
+		prop = obs_properties_add_int_slider(props, key.array, (char *)qctrl->name, qctrl->minimum,
 						     qctrl->maximum, qctrl->step);
-		obs_data_set_default_int(settings, (char *)qctrl->name, qctrl->default_value);
+		obs_data_set_default_int(settings, key.array, qctrl->default_value);
 		obs_property_set_modified_callback2(prop, v4l2_control_changed, UINT_TO_POINTER(qctrl->id));
 		break;
 	case V4L2_CTRL_TYPE_BOOLEAN:
-		prop = obs_properties_add_bool(props, (char *)qctrl->name, (char *)qctrl->name);
-		obs_data_set_default_bool(settings, (char *)qctrl->name, qctrl->default_value);
+		prop = obs_properties_add_bool(props, key.array, (char *)qctrl->name);
+		obs_data_set_default_bool(settings, key.array, qctrl->default_value);
 		obs_property_set_modified_callback2(prop, v4l2_control_changed, UINT_TO_POINTER(qctrl->id));
 		break;
 	case V4L2_CTRL_TYPE_MENU:
 	case V4L2_CTRL_TYPE_INTEGER_MENU:
 		if (v4l2_update_controls_menu(dev, props, qctrl)) {
-			obs_data_set_default_int(settings, (char *)qctrl->name, qctrl->default_value);
-			blog(LOG_INFO, "setting default for %s to %d", (char *)qctrl->name, qctrl->default_value);
+			obs_data_set_default_int(settings, key.array, qctrl->default_value);
+			blog(LOG_INFO, "setting default for %s to %d", key.array, qctrl->default_value);
 		}
 		break;
 	}
+
+	dstr_free(&key);
 }
 
 int_fast32_t v4l2_update_controls(int_fast32_t dev, obs_properties_t *props, obs_data_t *settings)
@@ -149,4 +165,28 @@ int_fast32_t v4l2_update_controls(int_fast32_t dev, obs_properties_t *props, obs
 	}
 
 	return 0;
+}
+
+void v4l2_apply_controls(int_fast32_t dev, obs_data_t *settings)
+{
+	struct v4l2_queryctrl qctrl;
+	struct dstr key = {0};
+
+	if (dev == -1 || !settings)
+		return;
+
+	memset(&qctrl, 0, sizeof(qctrl));
+	qctrl.id = V4L2_CTRL_FLAG_NEXT_CTRL;
+	while (0 == v4l2_ioctl(dev, VIDIOC_QUERYCTRL, &qctrl)) {
+		control_key(&key, &qctrl);
+		if (valid_control(&qctrl) && obs_data_has_user_value(settings, key.array)) {
+			struct v4l2_control control = {.id = qctrl.id};
+			control.value = qctrl.type == V4L2_CTRL_TYPE_BOOLEAN ? obs_data_get_bool(settings, key.array)
+									     : (int)obs_data_get_int(settings, key.array);
+			if (0 != v4l2_ioctl(dev, VIDIOC_S_CTRL, &control))
+				blog(LOG_WARNING, "unable to set %s to %d", key.array, control.value);
+		}
+		qctrl.id |= V4L2_CTRL_FLAG_NEXT_CTRL;
+	}
+	dstr_free(&key);
 }

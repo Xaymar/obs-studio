@@ -7,6 +7,7 @@
 #include "migrate.h"
 #include "video-device.h"
 
+#include <util/darray.h>
 #include <util/dstr.h>
 
 #include <stdio.h>
@@ -86,6 +87,61 @@ static void replace_string(obs_data_t *s, const char *key, const char *value)
 {
 	obs_data_erase(s, key);
 	obs_data_set_string(s, key, value);
+}
+
+/* Keys the new source itself uses. Everything else left over after a
+ * migration that has no '.' is a device control saved under its own name. */
+static bool is_common_key(const char *key)
+{
+	static const char *const keys[] = {
+		VD_BACKEND,       VD_DEVICE_BACKEND,         VD_DEVICE_ID,     VD_DEVICE_NAME, VD_RESOLUTION,
+		VD_FRAME_RATE,    VD_PIXEL_FORMAT,           VD_COLOR_SPACE,   VD_COLOR_RANGE, VD_BUFFERING,
+		VD_FLIP_VERTICAL, VD_DEACTIVATE_WHEN_HIDDEN, VD_CAPTURE_AUDIO,
+	};
+	for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
+		if (strcmp(key, keys[i]) == 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/* Moves the camera controls, which the old sources saved under the device's
+ * own control names ("White Balance Temperature"), to their new keys. */
+static void move_controls(obs_data_t *s, const char *backend)
+{
+	DARRAY(char *) names;
+	da_init(names);
+	for (obs_data_item_t *item = obs_data_first(s); item; obs_data_item_next(&item)) {
+		const char *name = obs_data_item_get_name(item);
+		if (!strchr(name, '.') && !is_common_key(name) && obs_data_item_has_user_value(item)) {
+			char *copy = bstrdup(name);
+			da_push_back(names, &copy);
+		}
+	}
+
+	struct dstr key = {0};
+	for (size_t i = 0; i < names.num; i++) {
+		vd_control_key(&key, backend, names.array[i]);
+		move_key(s, names.array[i], key.array);
+		bfree(names.array[i]);
+	}
+	dstr_free(&key);
+	da_free(names);
+}
+
+/* The JSON object saved as a string under key, or NULL when there is none
+ * (missing, empty, or another type). */
+static obs_data_t *json_value(obs_data_t *s, const char *key)
+{
+	obs_data_item_t *item = obs_data_item_byname(s, key);
+	bool is_string = item && obs_data_item_gettype(item) == OBS_DATA_STRING;
+	obs_data_item_release(&item);
+	if (!is_string) {
+		return NULL;
+	}
+	const char *text = obs_data_get_string(s, key);
+	return *text == '{' ? obs_data_create_from_json(text) : NULL;
 }
 
 static void set_device(obs_data_t *s, const char *backend, const char *id, const char *name)
@@ -350,10 +406,48 @@ void vd_migrate_v4l2(void *param, const char *old_id, obs_data_t *s)
 	move_backend_key(s, "v4l2", "dv_timing");
 	move_backend_key(s, "v4l2", "auto_reset");
 	move_backend_key(s, "v4l2", "timeout_frames");
+
+	move_controls(s, "v4l2");
 }
 
 /* ------------------------------------------------------------------------- */
 /* PipeWire camera portal (pipewire-camera-source)                           */
+
+/* enum spa_video_format values the camera could save, as the DRM FourCC the
+ * PipeWire backend shows. Numbers, so this builds without PipeWire. */
+static const char *spa_format_fourcc(long long spa_format)
+{
+	switch (spa_format) {
+	case 2: /* SPA_VIDEO_FORMAT_I420 */
+		return "YU12";
+	case 3: /* SPA_VIDEO_FORMAT_YV12 */
+		return "YV12";
+	case 4: /* SPA_VIDEO_FORMAT_YUY2 */
+		return "YUYV";
+	case 5: /* SPA_VIDEO_FORMAT_UYVY */
+		return "UYVY";
+	case 7: /* SPA_VIDEO_FORMAT_RGBx */
+		return "XB24";
+	case 8: /* SPA_VIDEO_FORMAT_BGRx */
+		return "XR24";
+	case 11: /* SPA_VIDEO_FORMAT_RGBA */
+		return "AB24";
+	case 12: /* SPA_VIDEO_FORMAT_BGRA */
+		return "AR24";
+	case 23: /* SPA_VIDEO_FORMAT_NV12 */
+		return "NV12";
+	default:
+		return NULL;
+	}
+}
+
+static void set_pixel_format_from_spa(obs_data_t *s, long long spa_format)
+{
+	const char *fourcc = spa_format_fourcc(spa_format);
+	if (fourcc) {
+		obs_data_set_string(s, VD_PIXEL_FORMAT, fourcc);
+	}
+}
 
 void vd_migrate_pipewire_camera(void *param, const char *old_id, obs_data_t *s)
 {
@@ -363,18 +457,39 @@ void vd_migrate_pipewire_camera(void *param, const char *old_id, obs_data_t *s)
 	set_device(s, "pipewire", obs_data_get_string(s, "device_id"), "");
 	obs_data_erase(s, "device_id");
 
-	/* Resolution and frame rate are JSON strings. */
-	if (has(s, "resolution")) {
-		obs_data_t *res = obs_data_create_from_json(obs_data_get_string(s, "resolution"));
-		obs_data_erase(s, VD_RESOLUTION);
-		if (res) {
-			set_resolution(s, obs_data_get_int(res, "width"), obs_data_get_int(res, "height"));
+	/* Newer versions saved format and size together as JSON in "format";
+	 * older ones saved "pixelformat" and a "resolution" JSON. */
+	long long w = 0, h = 0;
+	if (has(s, "format")) {
+		obs_data_t *fmt = json_value(s, "format");
+		if (fmt) {
+			if (!obs_data_get_bool(fmt, "encoded")) {
+				set_pixel_format_from_spa(s, obs_data_get_int(fmt, "video_format"));
+			}
+			w = obs_data_get_int(fmt, "width");
+			h = obs_data_get_int(fmt, "height");
 		}
-		obs_data_release(res);
+		obs_data_release(fmt);
+	} else {
+		if (has(s, "pixelformat")) {
+			set_pixel_format_from_spa(s, obs_data_get_int(s, "pixelformat"));
+		}
+		if (has(s, "resolution")) {
+			obs_data_t *res = json_value(s, "resolution");
+			if (res) {
+				w = obs_data_get_int(res, "width");
+				h = obs_data_get_int(res, "height");
+			}
+			obs_data_release(res);
+		}
 	}
+	obs_data_erase(s, "format");
+	obs_data_erase(s, "pixelformat");
+	obs_data_erase(s, VD_RESOLUTION);
+	set_resolution(s, w, h);
 
 	if (has(s, "framerate")) {
-		obs_data_t *fr = obs_data_create_from_json(obs_data_get_string(s, "framerate"));
+		obs_data_t *fr = json_value(s, "framerate");
 		struct media_frames_per_second fps = {0};
 		if (fr && obs_data_get_frames_per_second(fr, "framerate", &fps, NULL)) {
 			set_fps(s, fps.numerator, fps.denominator);
@@ -383,9 +498,10 @@ void vd_migrate_pipewire_camera(void *param, const char *old_id, obs_data_t *s)
 		obs_data_erase(s, "framerate");
 	}
 
-	/* SPA video format numbers and the format JSON are PipeWire-specific. */
-	move_backend_key(s, "pipewire", "pixelformat");
-	move_backend_key(s, "pipewire", "format");
+	/* The old source always paused its stream while hidden. */
+	obs_data_set_bool(s, VD_DEACTIVATE_WHEN_HIDDEN, true);
+
+	move_controls(s, "pipewire");
 }
 
 /* ------------------------------------------------------------------------- */

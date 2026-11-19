@@ -130,8 +130,7 @@ static void v4l2_prep_obs_frame(struct v4l2_data *data, struct obs_source_frame 
 	frame->height = data->height;
 	frame->format = format;
 	frame->flip = data->flip;
-	video_format_get_parameters_for_format(data->color_space, data->color_range, format, frame->color_matrix,
-					       frame->color_range_min, frame->color_range_max);
+	vd_frame_set_color(frame, data->color_space, data->color_range);
 
 	switch (data->pixfmt) {
 	case V4L2_PIX_FMT_NV12:
@@ -617,37 +616,6 @@ static int64_t parse_framerate(const char *rate)
 	return v4l2_pack_tuple(den, num);
 }
 
-static int parse_color_range(const char *range)
-{
-	if (range && strcmp(range, "partial") == 0) {
-		return VIDEO_RANGE_PARTIAL;
-	}
-	if (range && strcmp(range, "full") == 0) {
-		return VIDEO_RANGE_FULL;
-	}
-	return VIDEO_RANGE_DEFAULT;
-}
-
-static int parse_color_space(const char *space)
-{
-	if (!space) {
-		return VIDEO_CS_DEFAULT;
-	}
-	if (strcmp(space, "601") == 0) {
-		return VIDEO_CS_601;
-	}
-	if (strcmp(space, "709") == 0) {
-		return VIDEO_CS_709;
-	}
-	if (strcmp(space, "2100pq") == 0) {
-		return VIDEO_CS_2100_PQ;
-	}
-	if (strcmp(space, "2100hlg") == 0) {
-		return VIDEO_CS_2100_HLG;
-	}
-	return VIDEO_CS_DEFAULT;
-}
-
 static void read_settings(obs_data_t *settings, struct v4l2_settings *s)
 {
 	s->device_id = obs_data_get_string(settings, VD_DEVICE_ID);
@@ -656,10 +624,16 @@ static void read_settings(obs_data_t *settings, struct v4l2_settings *s)
 	s->standard = (int)obs_data_get_int(settings, S_STANDARD);
 	s->dv_timing = (int)obs_data_get_int(settings, S_DV_TIMING);
 	s->resolution = parse_resolution(obs_data_get_string(settings, VD_RESOLUTION));
-	/* "match" isn't supported by this backend yet: use the device rate. */
-	s->framerate = parse_framerate(obs_data_get_string(settings, VD_FRAME_RATE));
-	s->color_range = parse_color_range(obs_data_get_string(settings, VD_COLOR_RANGE));
-	s->color_space = parse_color_space(obs_data_get_string(settings, VD_COLOR_SPACE));
+	const char *rate = obs_data_get_string(settings, VD_FRAME_RATE);
+	if (strcmp(rate, VD_FRAME_RATE_MATCH) == 0) {
+		/* The driver picks its interval closest to the output's. */
+		struct obs_video_info ovi;
+		s->framerate = obs_get_video_info(&ovi) ? v4l2_pack_tuple(ovi.fps_den, ovi.fps_num) : -1;
+	} else {
+		s->framerate = parse_framerate(rate);
+	}
+	s->color_range = vd_parse_color_range(obs_data_get_string(settings, VD_COLOR_RANGE));
+	s->color_space = vd_parse_color_space(obs_data_get_string(settings, VD_COLOR_SPACE));
 	s->flip = obs_data_get_bool(settings, VD_FLIP_VERTICAL);
 	/* V4L2 buffered by default: Auto means on. */
 	s->buffering = strcmp(obs_data_get_string(settings, VD_BUFFERING), "off") != 0;
@@ -974,6 +948,11 @@ static void v4l2_init(struct v4l2_data *data)
 		goto fail;
 	}
 	blog(LOG_INFO, "Input: %d", data->input);
+
+	/* Saved control values, so they apply without opening the properties. */
+	obs_data_t *settings = obs_source_get_settings(data->source);
+	v4l2_apply_controls(data->dev, settings);
+	obs_data_release(settings);
 	if (v4l2_get_input_caps(data->dev, -1, &input_caps) < 0) {
 		blog(LOG_ERROR, "Unable to get input capabilities");
 		goto fail;

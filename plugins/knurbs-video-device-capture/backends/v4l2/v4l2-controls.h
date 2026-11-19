@@ -34,6 +34,11 @@ extern "C" {
  */
 int_fast32_t v4l2_update_controls(int_fast32_t dev, obs_properties_t *props, obs_data_t *settings);
 
+/**
+ * Applies the control values saved in the settings to an open device.
+ */
+void v4l2_apply_controls(int_fast32_t dev, obs_data_t *settings);
+
 #ifdef __cplusplus
 }
 #endif

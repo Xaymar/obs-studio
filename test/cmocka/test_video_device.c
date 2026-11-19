@@ -8,6 +8,7 @@
 
 #include <obs.h>
 #include <util/bmem.h>
+#include <util/dstr.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -273,18 +274,73 @@ static void migrate_v4l2_packed_formats(void **state)
 static void migrate_pipewire_camera(void **state)
 {
 	UNUSED_PARAMETER(state);
+
+	/* Older settings: "pixelformat" and a "resolution" JSON. */
 	obs_data_t *s = json("{\"device_id\":\"node-42\","
 			     "\"resolution\":\"{\\\"width\\\":1280,\\\"height\\\":720}\","
 			     "\"framerate\":\"{\\\"framerate\\\":{\\\"numerator\\\":60,\\\"denominator\\\":1}}\","
-			     "\"pixelformat\":7}");
+			     "\"pixelformat\":7,\"Brightness\":5}");
 	vd_migrate_pipewire_camera(NULL, "pipewire-camera-source", s);
 	assert_string_equal(obs_data_get_string(s, VD_DEVICE_BACKEND), "pipewire");
 	assert_string_equal(obs_data_get_string(s, VD_DEVICE_ID), "node-42");
 	assert_string_equal(obs_data_get_string(s, VD_RESOLUTION), "1280x720");
 	assert_string_equal(obs_data_get_string(s, VD_FRAME_RATE), "60/1");
-	assert_int_equal(obs_data_get_int(s, "pipewire.pixelformat"), 7);
+	assert_string_equal(obs_data_get_string(s, VD_PIXEL_FORMAT), "XB24");
+	/* The old source always paused while hidden. */
+	assert_true(obs_data_get_bool(s, VD_DEACTIVATE_WHEN_HIDDEN));
+	assert_int_equal(obs_data_get_int(s, "pipewire.control.brightness"), 5);
 	assert_new_style_keys(s, NULL);
 	obs_data_release(s);
+
+	/* Newer settings: format and size together in "format". */
+	s = json("{\"device_id\":\"node-7\","
+		 "\"format\":\"{\\\"encoded\\\":false,\\\"video_format\\\":23,\\\"width\\\":1920,"
+		 "\\\"height\\\":1080}\"}");
+	vd_migrate_pipewire_camera(NULL, "pipewire-camera-source", s);
+	assert_string_equal(obs_data_get_string(s, VD_PIXEL_FORMAT), "NV12");
+	assert_string_equal(obs_data_get_string(s, VD_RESOLUTION), "1920x1080");
+	assert_false(obs_data_has_user_value(s, "format"));
+	assert_new_style_keys(s, NULL);
+	obs_data_release(s);
+}
+
+static void migrate_v4l2_controls(void **state)
+{
+	UNUSED_PARAMETER(state);
+	obs_data_t *s = obs_data_create();
+	obs_data_set_string(s, "device_id", "/dev/video0");
+	obs_data_set_bool(s, "White Balance, Auto", true);
+	obs_data_set_int(s, "Power Line Frequency", 2);
+
+	vd_migrate_v4l2(NULL, "v4l2_input", s);
+	assert_true(obs_data_get_bool(s, "v4l2.control.white-balance-auto"));
+	assert_int_equal(obs_data_get_int(s, "v4l2.control.power-line-frequency"), 2);
+	assert_new_style_keys(s, NULL);
+	obs_data_release(s);
+}
+
+static void control_keys_and_colors(void **state)
+{
+	UNUSED_PARAMETER(state);
+	struct dstr key = {0};
+	vd_control_key(&key, "v4l2", "White Balance, Auto");
+	assert_string_equal(key.array, "v4l2.control.white-balance-auto");
+	vd_control_key(&key, "pipewire", "  Exposure (Absolute) ");
+	assert_string_equal(key.array, "pipewire.control.exposure-absolute");
+	dstr_free(&key);
+
+	assert_int_equal(vd_parse_color_space("2100pq"), VIDEO_CS_2100_PQ);
+	assert_int_equal(vd_parse_color_space("auto"), VIDEO_CS_DEFAULT);
+	assert_int_equal(vd_parse_color_range("full"), VIDEO_RANGE_FULL);
+	assert_true(vd_is_auto("auto"));
+	assert_true(vd_is_auto(""));
+	assert_false(vd_is_auto("709"));
+
+	struct obs_source_frame f = {0};
+	f.format = VIDEO_FORMAT_BGRA;
+	vd_frame_set_color(&f, VIDEO_CS_2100_HLG, VIDEO_RANGE_FULL);
+	assert_int_equal(f.trc, VIDEO_TRC_HLG);
+	assert_true(f.full_range);
 }
 
 static void migrate_avfoundation(void **state)
@@ -417,6 +473,38 @@ static void missing_device_stays_listed(void **state)
 	obs_data_release(s);
 }
 
+static void deactivate_when_hidden_releases_backend(void **state)
+{
+	UNUSED_PARAMETER(state);
+	obs_data_t *s = obs_data_create();
+	obs_data_set_string(s, VD_BACKEND, "fake_a");
+
+	obs_source_t *src = obs_source_create(VIDEO_DEVICE_SOURCE_ID, "h", s, NULL);
+	void *data = obs_obj_get_data(src);
+	assert_int_equal(fake_a_state.creates, 1);
+
+	/* Off: hiding keeps the backend. */
+	video_device_capture_info.hide(data);
+	video_device_capture_info.show(data);
+	assert_int_equal(fake_a_state.destroys, 0);
+
+	/* On: fake_a has no hide of its own, so hiding destroys it, an update
+	 * while hidden waits, and showing creates it again. */
+	obs_data_set_bool(s, VD_DEACTIVATE_WHEN_HIDDEN, true);
+	apply_update(src, s);
+	video_device_capture_info.hide(data);
+	assert_int_equal(fake_a_state.destroys, 1);
+	apply_update(src, s);
+	assert_int_equal(fake_a_state.creates, 1);
+	video_device_capture_info.show(data);
+	assert_int_equal(fake_a_state.creates, 2);
+
+	obs_source_release(src);
+	obs_wait_for_destroy_queue();
+	assert_int_equal(fake_a_state.destroys, 2);
+	obs_data_release(s);
+}
+
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
@@ -424,11 +512,14 @@ int main(void)
 		cmocka_unit_test_setup_teardown(migrate_dshow_preferred_and_matching, setup, teardown),
 		cmocka_unit_test_setup_teardown(migrate_v4l2_packed_formats, setup, teardown),
 		cmocka_unit_test_setup_teardown(migrate_pipewire_camera, setup, teardown),
+		cmocka_unit_test_setup_teardown(migrate_v4l2_controls, setup, teardown),
+		cmocka_unit_test_setup_teardown(control_keys_and_colors, setup, teardown),
 		cmocka_unit_test_setup_teardown(migrate_avfoundation, setup, teardown),
 		cmocka_unit_test_setup_teardown(old_id_creates_video_device, setup, teardown),
 		cmocka_unit_test_setup_teardown(auto_prefers_device_owner_then_first, setup, teardown),
 		cmocka_unit_test_setup_teardown(explicit_backend_and_switching, setup, teardown),
 		cmocka_unit_test_setup_teardown(missing_device_stays_listed, setup, teardown),
+		cmocka_unit_test_setup_teardown(deactivate_when_hidden_releases_backend, setup, teardown),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }

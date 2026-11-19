@@ -14,6 +14,12 @@ struct video_device {
 	obs_source_t *source;
 	const struct vd_backend *backend;
 	void *backend_data;
+
+	bool deactivate_when_hidden;
+	/* Hidden with the backend destroyed: updates wait for show. */
+	bool released;
+	/* Hidden through the backend's own hide. */
+	bool paused;
 };
 
 const struct vd_backend *vd_find_backend(const char *name)
@@ -27,6 +33,81 @@ const struct vd_backend *vd_find_backend(const char *name)
 		}
 	}
 	return NULL;
+}
+
+enum video_colorspace vd_parse_color_space(const char *value)
+{
+	if (!value) {
+		return VIDEO_CS_DEFAULT;
+	}
+	if (strcmp(value, "601") == 0) {
+		return VIDEO_CS_601;
+	}
+	if (strcmp(value, "709") == 0) {
+		return VIDEO_CS_709;
+	}
+	if (strcmp(value, "2100pq") == 0) {
+		return VIDEO_CS_2100_PQ;
+	}
+	if (strcmp(value, "2100hlg") == 0) {
+		return VIDEO_CS_2100_HLG;
+	}
+	return VIDEO_CS_DEFAULT;
+}
+
+enum video_range_type vd_parse_color_range(const char *value)
+{
+	if (value && strcmp(value, "partial") == 0) {
+		return VIDEO_RANGE_PARTIAL;
+	}
+	if (value && strcmp(value, "full") == 0) {
+		return VIDEO_RANGE_FULL;
+	}
+	return VIDEO_RANGE_DEFAULT;
+}
+
+bool vd_is_auto(const char *value)
+{
+	return !value || !*value || strcmp(value, VD_AUTO) == 0;
+}
+
+void vd_frame_set_color(struct obs_source_frame *frame, enum video_colorspace space, enum video_range_type range)
+{
+	video_format_get_parameters_for_format(space, range, frame->format, frame->color_matrix, frame->color_range_min,
+					       frame->color_range_max);
+	frame->full_range = range == VIDEO_RANGE_FULL;
+	switch (space) {
+	case VIDEO_CS_2100_PQ:
+		frame->trc = VIDEO_TRC_PQ;
+		break;
+	case VIDEO_CS_2100_HLG:
+		frame->trc = VIDEO_TRC_HLG;
+		break;
+	default:
+		frame->trc = VIDEO_TRC_DEFAULT;
+		break;
+	}
+}
+
+void vd_control_key(struct dstr *out, const char *backend, const char *name)
+{
+	dstr_printf(out, "%s.control.", backend);
+	bool dash = false;
+	for (const char *c = name ? name : ""; *c; c++) {
+		char ch = *c;
+		if (ch >= 'A' && ch <= 'Z') {
+			ch = (char)(ch - 'A' + 'a');
+		}
+		if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+			if (dash && out->array[out->len - 1] != '.') {
+				dstr_cat_ch(out, '-');
+			}
+			dstr_cat_ch(out, ch);
+			dash = false;
+		} else {
+			dash = true;
+		}
+	}
 }
 
 static bool backend_available(const struct vd_backend *backend)
@@ -71,6 +152,7 @@ static void attach_backend(struct video_device *vd, obs_data_t *settings)
 {
 	vd->backend = choose_backend(settings);
 	vd->backend_data = NULL;
+	vd->paused = false;
 
 	if (!vd->backend) {
 		blog(LOG_WARNING, "[video-device] '%s': no backend available", obs_source_get_name(vd->source));
@@ -94,6 +176,7 @@ static void *vd_create(obs_data_t *settings, obs_source_t *source)
 {
 	struct video_device *vd = bzalloc(sizeof(*vd));
 	vd->source = source;
+	vd->deactivate_when_hidden = obs_data_get_bool(settings, VD_DEACTIVATE_WHEN_HIDDEN);
 	attach_backend(vd, settings);
 	return vd;
 }
@@ -108,6 +191,12 @@ static void vd_destroy(void *data)
 static void vd_update(void *data, obs_data_t *settings)
 {
 	struct video_device *vd = data;
+
+	vd->deactivate_when_hidden = obs_data_get_bool(settings, VD_DEACTIVATE_WHEN_HIDDEN);
+	if (vd->released) {
+		/* Applied when the source shows again. */
+		return;
+	}
 
 	/* Switching backend means a different API: start over. */
 	if (choose_backend(settings) != vd->backend) {
@@ -134,6 +223,39 @@ static void vd_deactivate(void *data)
 	struct video_device *vd = data;
 	if (vd->backend && vd->backend_data && vd->backend->deactivate) {
 		vd->backend->deactivate(vd->backend_data);
+	}
+}
+
+static void vd_show(void *data)
+{
+	struct video_device *vd = data;
+	if (vd->released) {
+		obs_data_t *settings = obs_source_get_settings(vd->source);
+		vd->released = false;
+		attach_backend(vd, settings);
+		obs_data_release(settings);
+		return;
+	}
+	if (vd->paused) {
+		vd->paused = false;
+		if (vd->backend && vd->backend_data && vd->backend->show) {
+			vd->backend->show(vd->backend_data);
+		}
+	}
+}
+
+static void vd_hide(void *data)
+{
+	struct video_device *vd = data;
+	if (!vd->deactivate_when_hidden || !vd->backend || !vd->backend_data) {
+		return;
+	}
+	if (vd->backend->hide) {
+		vd->backend->hide(vd->backend_data);
+		vd->paused = true;
+	} else {
+		detach_backend(vd);
+		vd->released = true;
 	}
 }
 
@@ -311,6 +433,8 @@ struct obs_source_info video_device_capture_info = {
 	.update = vd_update,
 	.activate = vd_activate,
 	.deactivate = vd_deactivate,
+	.show = vd_show,
+	.hide = vd_hide,
 	.get_defaults = vd_get_defaults,
 	.get_properties = vd_get_properties,
 };

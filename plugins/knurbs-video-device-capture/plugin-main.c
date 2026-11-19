@@ -25,3 +25,12 @@ bool obs_module_load(void)
 	vd_register_aliases();
 	return true;
 }
+
+void obs_module_unload(void)
+{
+	for (size_t i = 0; i < vd_num_backends; i++) {
+		if (vd_backends[i]->unload) {
+			vd_backends[i]->unload();
+		}
+	}
+}
