@@ -73,3 +73,6 @@ endif()
 if(COMMAND set_target_properties_obs)
   set_target_properties_obs(knurbs PROPERTIES FOLDER frontend)
 endif()
+
+# Plugins that need this frontend.
+add_subdirectory(plugins)
