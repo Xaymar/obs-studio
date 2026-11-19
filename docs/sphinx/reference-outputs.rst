@@ -313,6 +313,48 @@ General Output Functions
 
 ---------------------
 
+.. type:: void (*obs_output_alias_migrate_t)(void *param, const char *old_id, obs_data_t *settings)
+
+   Settings migration for an output created through an alias.  Called once
+   per created output, before the new output type sees the settings, with a
+   private copy of the settings that is safe to modify.  Rename or convert
+   keys here so the new output type understands what the old one saved.
+
+---------------------
+
+.. function:: bool obs_register_output_alias(const char *old_id, const char *new_id, obs_output_alias_migrate_t migrate, void *param)
+
+   Registers an alias, so that outputs requested with *old_id* are created
+   as the output type *new_id* instead.  Used to rename or merge output
+   types without breaking saved profiles or code that creates outputs by ID.
+
+   Aliases are resolved when used, never at registration, so *new_id* may
+   be registered by another module, in any order.  An output type
+   registered under *old_id* always wins over the alias, and an alias may
+   point at another alias, in which case every migration runs in order.
+
+   The created output reports *new_id* through :c:func:`obs_output_get_id()`.
+   ID based queries such as :c:func:`obs_output_get_display_name()`, :c:func:`obs_get_output_flags()`, :c:func:`obs_output_defaults()` and :c:func:`obs_get_output_properties()` follow aliases too.
+
+   :param old_id:  ID to replace
+   :param new_id:  ID of the replacement
+   :param migrate: Optional settings migration, see
+                   :c:type:`obs_output_alias_migrate_t`
+   :param param:   Passed to *migrate*
+   :return:        *false* if the arguments are invalid, *old_id* is
+                   already an alias, or an output type is already
+                   registered as *old_id*
+
+---------------------
+
+.. function:: const char *obs_output_alias_resolve(const char *id)
+
+   :return: The ID of the output type that *id* creates: *id* itself if it
+            is a registered output type, otherwise the type its alias chain
+            ends at.  *NULL* if *id* is unknown or its alias chain is broken.
+
+---------------------
+
 .. function:: const char *obs_output_get_display_name(const char *id)
 
    Calls the :c:member:`obs_output_info.get_name` callback to get the

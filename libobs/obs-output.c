@@ -128,9 +128,42 @@ const struct obs_output_info *find_output(const char *id)
 	return NULL;
 }
 
+static const void *lookup_output(const char *id)
+{
+	return find_output(id);
+}
+
+const struct obs_output_info *find_output_resolved(const char *id, struct obs_type_alias_hop *hops, size_t *num_hops)
+{
+	struct obs_type_alias_hop local_hops[OBS_TYPE_ALIAS_MAX_HOPS];
+	size_t local_num_hops;
+
+	if (!hops || !num_hops) {
+		hops = local_hops;
+		num_hops = &local_num_hops;
+	}
+
+	return obs_type_alias_resolve(&obs->output_aliases, "Output", id, lookup_output, hops, num_hops);
+}
+
+bool obs_register_output_alias(const char *old_id, const char *new_id, obs_output_alias_migrate_t migrate, void *param)
+{
+	if (!obs)
+		return false;
+	return obs_type_alias_register(&obs->output_aliases, "output", old_id, new_id, migrate, param, lookup_output);
+}
+
+const char *obs_output_alias_resolve(const char *id)
+{
+	if (!obs)
+		return NULL;
+	const struct obs_output_info *info = find_output_resolved(id, NULL, NULL);
+	return info ? info->id : NULL;
+}
+
 const char *obs_output_get_display_name(const char *id)
 {
-	const struct obs_output_info *info = find_output(id);
+	const struct obs_output_info *info = find_output_resolved(id, NULL, NULL);
 	return (info != NULL) ? info->get_name(info->type_data) : NULL;
 }
 
@@ -194,9 +227,19 @@ static bool init_output_handlers(struct obs_output *output, const char *name, ob
 
 obs_output_t *obs_output_create(const char *id, const char *name, obs_data_t *settings, obs_data_t *hotkey_data)
 {
-	const struct obs_output_info *info = find_output(id);
+	struct obs_type_alias_hop hops[OBS_TYPE_ALIAS_MAX_HOPS];
+	size_t num_hops = 0;
+	const struct obs_output_info *info = find_output_resolved(id, hops, &num_hops);
+	obs_data_t *migrated = NULL;
 	struct obs_output *output;
+	bool handlers_ok;
 	int ret;
+
+	if (info && num_hops) {
+		blog(LOG_INFO, "Output ID '%s' is an alias, creating '%s'", id, info->id);
+		migrated = obs_type_alias_migrate(settings, hops, num_hops);
+		settings = migrated;
+	}
 
 	output = bzalloc(sizeof(struct obs_output));
 	pthread_mutex_init_value(&output->interleaved_mutex);
@@ -214,7 +257,10 @@ obs_output_t *obs_output_create(const char *id, const char *name, obs_data_t *se
 		goto fail;
 	if (os_event_init(&output->stopping_event, OS_EVENT_TYPE_MANUAL) != 0)
 		goto fail;
-	if (!init_output_handlers(output, name, settings, hotkey_data))
+	handlers_ok = init_output_handlers(output, name, settings, hotkey_data);
+	obs_data_release(migrated);
+	migrated = NULL;
+	if (!handlers_ok)
 		goto fail;
 
 	os_event_signal(output->stopping_event);
@@ -255,6 +301,7 @@ obs_output_t *obs_output_create(const char *id, const char *name, obs_data_t *se
 	return output;
 
 fail:
+	obs_data_release(migrated);
 	obs_output_destroy(output);
 	return NULL;
 }
@@ -572,7 +619,7 @@ uint32_t obs_output_get_flags(const obs_output_t *output)
 
 uint32_t obs_get_output_flags(const char *id)
 {
-	const struct obs_output_info *info = find_output(id);
+	const struct obs_output_info *info = find_output_resolved(id, NULL, NULL);
 	return info ? info->flags : 0;
 }
 
@@ -586,13 +633,13 @@ static inline obs_data_t *get_defaults(const struct obs_output_info *info)
 
 obs_data_t *obs_output_defaults(const char *id)
 {
-	const struct obs_output_info *info = find_output(id);
+	const struct obs_output_info *info = find_output_resolved(id, NULL, NULL);
 	return (info) ? get_defaults(info) : NULL;
 }
 
 obs_properties_t *obs_get_output_properties(const char *id)
 {
-	const struct obs_output_info *info = find_output(id);
+	const struct obs_output_info *info = find_output_resolved(id, NULL, NULL);
 	if (info && info->get_properties) {
 		obs_data_t *defaults = get_defaults(info);
 		obs_properties_t *properties;
@@ -3299,13 +3346,13 @@ void obs_enum_output_types_with_protocol(const char *protocol, void *data, bool 
 
 const char *obs_get_output_supported_video_codecs(const char *id)
 {
-	const struct obs_output_info *info = find_output(id);
+	const struct obs_output_info *info = find_output_resolved(id, NULL, NULL);
 	return info ? info->encoded_video_codecs : NULL;
 }
 
 const char *obs_get_output_supported_audio_codecs(const char *id)
 {
-	const struct obs_output_info *info = find_output(id);
+	const struct obs_output_info *info = find_output_resolved(id, NULL, NULL);
 	return info ? info->encoded_audio_codecs : NULL;
 }
 

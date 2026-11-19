@@ -1236,6 +1236,10 @@ static bool obs_init(const char *locale, const char *module_config_path, profile
 	pthread_mutex_init_value(&obs->source_aliases_mutex);
 	if (pthread_mutex_init(&obs->source_aliases_mutex, NULL) != 0)
 		return false;
+	if (!obs_type_alias_table_init(&obs->encoder_aliases))
+		return false;
+	if (!obs_type_alias_table_init(&obs->output_aliases))
+		return false;
 
 	pthread_mutex_init_value(&obs->audio.monitoring_mutex);
 	pthread_mutex_init_value(&obs->audio.task_mutex);
@@ -1406,6 +1410,8 @@ void obs_shutdown(void)
 	da_free(obs->source_types);
 
 	obs_free_source_aliases();
+	obs_type_alias_table_free(&obs->encoder_aliases);
+	obs_type_alias_table_free(&obs->output_aliases);
 
 #define FREE_REGISTERED_TYPES(structure, list)                         \
 	do {                                                           \
@@ -1842,7 +1848,8 @@ audio_t *obs_get_audio(void)
 
 video_t *obs_get_video(void)
 {
-	return obs->data.main_canvas->mix->video;
+	struct obs_core_video_mix *mix = obs->data.main_canvas->mix;
+	return mix ? mix->video : NULL;
 }
 
 obs_source_t *obs_get_output_source(uint32_t channel)
@@ -2266,7 +2273,7 @@ gs_texture_t *obs_get_main_texture(void)
 	struct obs_core_video_mix *video;
 
 	video = obs->data.main_canvas->mix;
-	if (!video->texture_rendered)
+	if (!video || !video->texture_rendered)
 		return NULL;
 
 	return video->render_texture;
@@ -3158,12 +3165,16 @@ void obs_add_raw_video_callback2(const struct video_scale_info *conversion, uint
 				 void (*callback)(void *param, struct video_data *frame), void *param)
 {
 	struct obs_core_video_mix *video = obs->data.main_canvas->mix;
+	if (!video)
+		return;
 	start_raw_video(video->video, conversion, frame_rate_divisor, callback, param);
 }
 
 void obs_remove_raw_video_callback(void (*callback)(void *param, struct video_data *frame), void *param)
 {
 	struct obs_core_video_mix *video = obs->data.main_canvas->mix;
+	if (!video)
+		return;
 	stop_raw_video(video->video, callback, param);
 }
 
@@ -3281,13 +3292,13 @@ bool obs_video_active(void)
 bool obs_nv12_tex_active(void)
 {
 	struct obs_core_video_mix *video = obs->data.main_canvas->mix;
-	return video->using_nv12_tex;
+	return video && video->using_nv12_tex;
 }
 
 bool obs_p010_tex_active(void)
 {
 	struct obs_core_video_mix *video = obs->data.main_canvas->mix;
-	return video->using_p010_tex;
+	return video && video->using_p010_tex;
 }
 
 /* ------------------------------------------------------------------------- */
