@@ -18,6 +18,7 @@ include(helpers)
 option(ENABLE_FRONTEND "Enable building with UI (requires Qt)" ON)
 option(ENABLE_SCRIPTING "Enable scripting support" ON)
 option(ENABLE_HEVC "Enable HEVC encoders" ON)
+option(ENABLE_VULKAN "Enable the Vulkan graphics backend (requires the Vulkan SDK)" OFF)
 
 add_subdirectory(libobs)
 if(OS_WINDOWS)
@@ -28,9 +29,18 @@ add_subdirectory(libobs-opengl)
 if(OS_MACOS)
   add_subdirectory(libobs-metal)
 endif()
+if(ENABLE_VULKAN)
+  add_subdirectory(deps/vma)
+  add_subdirectory(libobs-vulkan)
+endif()
 add_subdirectory(plugins)
 
 add_subdirectory(test/test-input)
+
+if(ENABLE_UNIT_TESTS)
+  enable_testing()
+  add_subdirectory(test/cmocka)
+endif()
 
 add_subdirectory(frontend)
 
