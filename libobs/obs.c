@@ -1478,6 +1478,8 @@ void obs_shutdown(void)
 	bfree(obs);
 	obs = NULL;
 	bfree(cmdline_args.argv);
+	/* the arguments can be set again for the next startup */
+	memset(&cmdline_args, 0, sizeof(cmdline_args));
 
 #ifdef _WIN32
 	if (com_initialized)
