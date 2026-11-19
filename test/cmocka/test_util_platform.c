@@ -358,6 +358,13 @@ static void formatted_filename_test(void **state)
 {
 	UNUSED_PARAMETER(state);
 
+	/* Regression: obs_get_video_info(), and so this function, crashed before obs_startup() */
+	struct obs_video_info ovi;
+	assert_false(obs_get_video_info(&ovi));
+	char *early = os_generate_formatted_filename("mkv", true, "%VF");
+	assert_string_equal(early, "None.mkv");
+	bfree(early);
+
 	assert_true(obs_startup("en-US", NULL, NULL));
 
 	char *name = os_generate_formatted_filename("mkv", true, "%CCYY-%MM-%DD %hh-%mm-%ss %% %a %b");
