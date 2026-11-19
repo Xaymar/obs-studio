@@ -193,6 +193,18 @@ static void define_test(void **state)
 		pp_result_free(&r);
 	}
 
+	/* Regression: zero-parameter function-like macros were rejected with "Expected identifier" */
+	assert_true(preprocess(&r, "#define Z() zero\n#define W( ) [ ]\na Z() W() b\n", NULL));
+	assert_string_equal(r.text, "a zero [ ] b");
+	assert_no_errors(&r);
+	pp_result_free(&r);
+	assert_true(preprocess(&r, "#define Z() zero\nZ(1)\n", NULL));
+	assert_true(has_error(&r, "Mismatching number of macro parameters"));
+	pp_result_free(&r);
+	assert_true(preprocess(&r, "#define Z(a,) a\n", NULL));
+	assert_true(has_error(&r, "Expected identifier"));
+	pp_result_free(&r);
+
 	/* commas inside nested parentheses belong to the argument */
 	assert_true(preprocess(&r, "#define M(a, b) [a|b]\nM(f(1, 2), 3)\n", NULL));
 	assert_string_equal(r.text, "[ f ( 1 , 2 ) | 3 ]");

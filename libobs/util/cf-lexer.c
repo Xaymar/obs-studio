@@ -730,6 +730,9 @@ static bool cf_preprocess_macro_params(struct cf_preprocessor *pp, struct cf_def
 
 	do {
 		next_token(&cur_token, true);
+		/* "M()": a function-like macro without parameters */
+		if (!def->params.num && cur_token->type == CFTOKEN_OTHER && *cur_token->str.array == ')')
+			break;
 		if (cur_token->type != CFTOKEN_NAME) {
 			cf_adderror_expecting(pp, cur_token, "identifier");
 			go_to_newline(&cur_token);
@@ -1200,6 +1203,7 @@ static void cf_preprocess_save_macro_params(struct cf_preprocessor *pp, struct c
 			/* if 0-param macro, ignore first entry */
 			if (count == 1 && !def->params.num && *cur_token->str.array == ')') {
 				macro_param_free(&param);
+				count = 0;
 				break;
 			}
 		}
