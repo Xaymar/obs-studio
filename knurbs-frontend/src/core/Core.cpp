@@ -61,19 +61,26 @@ std::string Core::profilePath() const
 bool Core::startup(const std::string &locale)
 {
 #if !defined(_WIN32) && !defined(__APPLE__)
-	// Linux is Wayland only.
-	if (!QGuiApplication::platformName().contains(QStringLiteral("wayland"))) {
-		blog(LOG_ERROR, "[knurbs] Qt platform is '%s'; Knurbs needs Wayland",
-		     QGuiApplication::platformName().toUtf8().constData());
-		return false;
+	// Linux is Wayland only. Offscreen (headless tests) runs libobs without a
+	// display connection; hotkeys then never fire.
+	if (QGuiApplication::platformName() == QStringLiteral("offscreen")) {
+		blog(LOG_WARNING, "[knurbs] Running offscreen, without a display connection");
+		obs_set_nix_platform(OBS_NIX_PLATFORM_WAYLAND);
+		obs_set_nix_platform_display(nullptr);
+	} else {
+		if (!QGuiApplication::platformName().contains(QStringLiteral("wayland"))) {
+			blog(LOG_ERROR, "[knurbs] Qt platform is '%s'; Knurbs needs Wayland",
+			     QGuiApplication::platformName().toUtf8().constData());
+			return false;
+		}
+		auto *wayland = qGuiApp->nativeInterface<QNativeInterface::QWaylandApplication>();
+		if (!wayland) {
+			blog(LOG_ERROR, "[knurbs] Wayland native interface is not available");
+			return false;
+		}
+		obs_set_nix_platform(OBS_NIX_PLATFORM_WAYLAND);
+		obs_set_nix_platform_display(wayland->display());
 	}
-	auto *wayland = qGuiApp->nativeInterface<QNativeInterface::QWaylandApplication>();
-	if (!wayland) {
-		blog(LOG_ERROR, "[knurbs] Wayland native interface is not available");
-		return false;
-	}
-	obs_set_nix_platform(OBS_NIX_PLATFORM_WAYLAND);
-	obs_set_nix_platform_display(wayland->display());
 #endif
 
 	if (!obs_startup(locale.c_str(), paths_.pluginConfig().toUtf8().constData(), nullptr)) {
