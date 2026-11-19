@@ -25,3 +25,7 @@ if(OS_WINDOWS)
 else()
   add_test(NAME test-obs-mem COMMAND test-obs-mem)
 endif()
+
+# report failures on stderr instead of opening a dialog, and never hang the run
+target_sources(test-obs-mem PRIVATE "${CMAKE_SOURCE_DIR}/test/common/noninteractive.c")
+set_tests_properties(test-obs-mem PROPERTIES TIMEOUT 300)

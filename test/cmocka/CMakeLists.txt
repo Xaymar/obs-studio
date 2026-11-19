@@ -456,3 +456,15 @@ target_compile_definitions(
   PRIVATE FAKE_MODULE_PATH="$<TARGET_FILE:fake-module>" FAKE_MODULE_DATA="${CMAKE_CURRENT_SOURCE_DIR}/fake-module/data"
 )
 add_dependencies(test_obs_module fake-module)
+
+# Every test program reports failures on stderr instead of opening a dialog (see noninteractive.c), and no
+# test may hang the run.
+get_property(_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+foreach(_target IN LISTS _test_targets)
+  get_target_property(_type ${_target} TYPE)
+  if(_type STREQUAL "EXECUTABLE")
+    target_sources(${_target} PRIVATE "${CMAKE_SOURCE_DIR}/test/common/noninteractive.c")
+  endif()
+endforeach()
+get_property(_tests DIRECTORY PROPERTY TESTS)
+set_tests_properties(${_tests} PROPERTIES TIMEOUT 300)
