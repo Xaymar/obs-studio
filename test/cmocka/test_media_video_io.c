@@ -113,6 +113,9 @@ static void open_test(void **state)
 	assert_int_equal(video_output_get_width(NULL), 0);
 	assert_int_equal(video_output_get_height(NULL), 0);
 	assert_true(video_output_get_frame_rate(NULL) == 0.0);
+	/* Regression: these two dereferenced NULL */
+	assert_int_equal(video_output_get_skipped_frames(NULL), 0);
+	assert_int_equal(video_output_get_total_frames(NULL), 0);
 	struct video_frame frame;
 	assert_false(video_output_lock_frame(NULL, &frame, 1, 0));
 	video_output_unlock_frame(NULL);
