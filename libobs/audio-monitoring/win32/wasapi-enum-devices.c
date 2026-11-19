@@ -86,7 +86,7 @@ void obs_enum_audio_monitoring_devices(obs_enum_audio_device_cb cb, void *data)
 	UINT count;
 	HRESULT hr;
 
-	hr = CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL, &IID_IMMDeviceEnumerator, &enumerator);
+	hr = CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL, &IID_IMMDeviceEnumerator, (void **)&enumerator);
 	if (FAILED(hr)) {
 		goto fail;
 	}
@@ -122,7 +122,7 @@ static void get_default_id(char **p_id)
 	if (*p_id)
 		return;
 
-	hr = CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL, &IID_IMMDeviceEnumerator, &immde);
+	hr = CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL, &IID_IMMDeviceEnumerator, (void **)&immde);
 	if (FAILED(hr)) {
 		goto fail;
 	}

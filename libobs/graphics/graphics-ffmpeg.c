@@ -715,7 +715,7 @@ static void *wic_image_init(const struct ffmpeg_image *info, const char *file, e
 	if (file_w) {
 		IWICImagingFactory *pFactory = NULL;
 		HRESULT hr = CoCreateInstance(&CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER,
-					      &IID_IWICImagingFactory, &pFactory);
+					      &IID_IWICImagingFactory, (void **)&pFactory);
 		if (SUCCEEDED(hr)) {
 			IWICBitmapDecoder *pDecoder = NULL;
 			hr = pFactory->lpVtbl->CreateDecoderFromFilename(pFactory, file_w, NULL, GENERIC_READ,

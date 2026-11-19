@@ -314,17 +314,17 @@ static void log_security_products(void)
 	if (prod_list_clsid && prod_list_iid) {
 		blog(LOG_INFO, "Sec. Software Status:");
 
-		hr = CoCreateInstance(prod_list_clsid, NULL, CLSCTX_INPROC_SERVER, prod_list_iid, &prod_list);
+		hr = CoCreateInstance(prod_list_clsid, NULL, CLSCTX_INPROC_SERVER, prod_list_iid, (void **)&prod_list);
 		if (!FAILED(hr)) {
 			log_security_products_by_type(prod_list, WSC_SECURITY_PROVIDER_ANTIVIRUS);
 		}
 
-		hr = CoCreateInstance(prod_list_clsid, NULL, CLSCTX_INPROC_SERVER, prod_list_iid, &prod_list);
+		hr = CoCreateInstance(prod_list_clsid, NULL, CLSCTX_INPROC_SERVER, prod_list_iid, (void **)&prod_list);
 		if (!FAILED(hr)) {
 			log_security_products_by_type(prod_list, WSC_SECURITY_PROVIDER_FIREWALL);
 		}
 
-		hr = CoCreateInstance(prod_list_clsid, NULL, CLSCTX_INPROC_SERVER, prod_list_iid, &prod_list);
+		hr = CoCreateInstance(prod_list_clsid, NULL, CLSCTX_INPROC_SERVER, prod_list_iid, (void **)&prod_list);
 		if (!FAILED(hr)) {
 			log_security_products_by_type(prod_list, WSC_SECURITY_PROVIDER_ANTISPYWARE);
 		}
