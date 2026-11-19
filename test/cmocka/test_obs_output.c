@@ -1,0 +1,861 @@
+#include <stdarg.h>
+#include <stddef.h>
+#include <setjmp.h>
+#include <cmocka.h>
+
+#include "obs-core-test.h"
+
+/* ------------------------------------------------------------------------- */
+/* fake encoders: a video encoder that emits a keyframe every 10 frames and an audio encoder */
+
+struct fake_encoder {
+	obs_encoder_t *encoder;
+	int64_t frames;
+	uint8_t packet[16];
+	int updates;
+};
+
+static long long video_encodes, audio_encodes;
+
+static void *fake_enc_create(obs_data_t *settings, obs_encoder_t *encoder)
+{
+	UNUSED_PARAMETER(settings);
+	struct fake_encoder *fe = bzalloc(sizeof(*fe));
+	fe->encoder = encoder;
+	return fe;
+}
+
+static void fake_enc_destroy(void *data)
+{
+	bfree(data);
+}
+
+static bool fake_video_encode(void *data, struct encoder_frame *frame, struct encoder_packet *packet,
+			      bool *received_packet)
+{
+	struct fake_encoder *fe = data;
+	bool key = fe->frames % 10 == 0;
+	static const uint8_t idr[] = {0, 0, 0, 1, 0x65, 0x88, 0x84, 0x10};
+	static const uint8_t slice[] = {0, 0, 0, 1, 0x41, 0x9a, 0x02, 0x10};
+	memcpy(fe->packet, key ? idr : slice, sizeof(idr));
+	packet->data = fe->packet;
+	packet->size = sizeof(idr);
+	packet->pts = frame->pts;
+	packet->dts = frame->pts;
+	packet->keyframe = key;
+	packet->type = OBS_ENCODER_VIDEO;
+	*received_packet = true;
+	fe->frames++;
+	video_encodes++;
+	return true;
+}
+
+static bool fake_audio_encode(void *data, struct encoder_frame *frame, struct encoder_packet *packet,
+			      bool *received_packet)
+{
+	struct fake_encoder *fe = data;
+	memset(fe->packet, 0x11, 8);
+	packet->data = fe->packet;
+	packet->size = 8;
+	packet->pts = frame->pts;
+	packet->dts = frame->pts;
+	packet->type = OBS_ENCODER_AUDIO;
+	*received_packet = true;
+	fe->frames++;
+	audio_encodes++;
+	return true;
+}
+
+static size_t fake_audio_frame_size(void *data)
+{
+	UNUSED_PARAMETER(data);
+	return 1024;
+}
+
+static bool fake_enc_update(void *data, obs_data_t *settings)
+{
+	UNUSED_PARAMETER(settings);
+	((struct fake_encoder *)data)->updates++;
+	return true;
+}
+
+static void fake_enc_defaults(obs_data_t *settings)
+{
+	obs_data_set_default_int(settings, "bitrate", 2500);
+}
+
+static obs_properties_t *fake_enc_properties(void *data)
+{
+	UNUSED_PARAMETER(data);
+	obs_properties_t *props = obs_properties_create();
+	obs_properties_add_int(props, "bitrate", "Bitrate", 0, 100000, 1);
+	return props;
+}
+
+static bool fake_enc_extra_data(void *data, uint8_t **extra_data, size_t *size)
+{
+	static uint8_t header[] = {0x01, 0x64, 0x00, 0x1f, 0xff};
+	UNUSED_PARAMETER(data);
+	*extra_data = header;
+	*size = sizeof(header);
+	return true;
+}
+
+static void fake_enc_video_info(void *data, struct video_scale_info *info)
+{
+	UNUSED_PARAMETER(data);
+	info->format = VIDEO_FORMAT_NV12;
+}
+
+static void fake_enc_audio_info(void *data, struct audio_convert_info *info)
+{
+	UNUSED_PARAMETER(data);
+	info->format = AUDIO_FORMAT_FLOAT_PLANAR;
+}
+
+/* ------------------------------------------------------------------------- */
+/* fake outputs */
+
+struct fake_output {
+	obs_output_t *output;
+	bool encoded;
+	long long raw_video, raw_audio, video_packets, audio_packets, keyframes;
+	int starts, stops;
+	bool fail_start;
+};
+
+static void *fake_output_create(obs_data_t *settings, obs_output_t *output)
+{
+	UNUSED_PARAMETER(settings);
+	struct fake_output *fo = bzalloc(sizeof(*fo));
+	fo->output = output;
+	fo->encoded = (obs_output_get_flags(output) & OBS_OUTPUT_ENCODED) != 0;
+	return fo;
+}
+
+static void fake_output_destroy(void *data)
+{
+	bfree(data);
+}
+
+static bool fake_output_start(void *data)
+{
+	struct fake_output *fo = data;
+	fo->starts++;
+	if (fo->fail_start)
+		return false;
+	if (!obs_output_can_begin_data_capture(fo->output, 0))
+		return false;
+	if (fo->encoded && !obs_output_initialize_encoders(fo->output, 0))
+		return false;
+	return obs_output_begin_data_capture(fo->output, 0);
+}
+
+static void fake_output_stop(void *data, uint64_t ts)
+{
+	UNUSED_PARAMETER(ts);
+	struct fake_output *fo = data;
+	fo->stops++;
+	obs_output_end_data_capture(fo->output);
+}
+
+static void fake_raw_video(void *data, struct video_data *frame)
+{
+	UNUSED_PARAMETER(frame);
+	((struct fake_output *)data)->raw_video++;
+}
+
+static void fake_raw_audio(void *data, struct audio_data *frames)
+{
+	UNUSED_PARAMETER(frames);
+	((struct fake_output *)data)->raw_audio++;
+}
+
+static void fake_encoded_packet(void *data, struct encoder_packet *packet)
+{
+	struct fake_output *fo = data;
+	if (!packet)
+		return;
+	if (packet->type == OBS_ENCODER_VIDEO) {
+		fo->video_packets++;
+		if (packet->keyframe)
+			fo->keyframes++;
+	} else {
+		fo->audio_packets++;
+	}
+}
+
+static uint64_t fake_total_bytes(void *data)
+{
+	struct fake_output *fo = data;
+	return (uint64_t)(fo->video_packets + fo->audio_packets) * 8;
+}
+
+/* ------------------------------------------------------------------------- */
+/* fake service */
+
+struct fake_service {
+	obs_service_t *service;
+	char *url;
+};
+
+static void *fake_service_create(obs_data_t *settings, obs_service_t *service)
+{
+	struct fake_service *fs = bzalloc(sizeof(*fs));
+	fs->service = service;
+	fs->url = bstrdup(obs_data_get_string(settings, "server"));
+	return fs;
+}
+
+static void fake_service_destroy(void *data)
+{
+	struct fake_service *fs = data;
+	bfree(fs->url);
+	bfree(fs);
+}
+
+static void fake_service_update(void *data, obs_data_t *settings)
+{
+	struct fake_service *fs = data;
+	bfree(fs->url);
+	fs->url = bstrdup(obs_data_get_string(settings, "server"));
+}
+
+static const char *fake_service_connect_info(void *data, uint32_t type)
+{
+	struct fake_service *fs = data;
+	switch (type) {
+	case OBS_SERVICE_CONNECT_INFO_SERVER_URL:
+		return fs->url;
+	case OBS_SERVICE_CONNECT_INFO_STREAM_KEY:
+		return "key";
+	default:
+		return NULL;
+	}
+}
+
+static const char *fake_service_protocol(void *data)
+{
+	UNUSED_PARAMETER(data);
+	return "FAKE";
+}
+
+static const char *fake_service_output_type(void *data)
+{
+	UNUSED_PARAMETER(data);
+	return "fake_encoded_output";
+}
+
+static bool fake_service_can_connect(void *data)
+{
+	struct fake_service *fs = data;
+	return fs->url && *fs->url;
+}
+
+static const char *video_codecs[] = {"h264", NULL};
+static const char **fake_service_video_codecs(void *data)
+{
+	UNUSED_PARAMETER(data);
+	return video_codecs;
+}
+
+static void fake_service_max_bitrate(void *data, int *video, int *audio)
+{
+	UNUSED_PARAMETER(data);
+	*video = 6000;
+	*audio = 320;
+}
+
+static void fake_service_apply(void *data, obs_data_t *video, obs_data_t *audio)
+{
+	UNUSED_PARAMETER(data);
+	if (video)
+		obs_data_set_int(video, "bitrate", 6000);
+	if (audio)
+		obs_data_set_int(audio, "bitrate", 160);
+}
+
+static void register_output_types(void)
+{
+	struct obs_encoder_info venc = {
+		.id = "fake_video_enc",
+		.type = OBS_ENCODER_VIDEO,
+		.codec = "h264",
+		.get_name = fake_get_name,
+		.create = fake_enc_create,
+		.destroy = fake_enc_destroy,
+		.encode = fake_video_encode,
+		.update = fake_enc_update,
+		.get_defaults = fake_enc_defaults,
+		.get_properties = fake_enc_properties,
+		.get_extra_data = fake_enc_extra_data,
+		.get_video_info = fake_enc_video_info,
+		.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_ROI,
+	};
+	obs_register_encoder(&venc);
+
+	struct obs_encoder_info aenc = {
+		.id = "fake_audio_enc",
+		.type = OBS_ENCODER_AUDIO,
+		.codec = "aac",
+		.get_name = fake_get_name,
+		.create = fake_enc_create,
+		.destroy = fake_enc_destroy,
+		.encode = fake_audio_encode,
+		.get_frame_size = fake_audio_frame_size,
+		.update = fake_enc_update,
+		.get_defaults = fake_enc_defaults,
+		.get_audio_info = fake_enc_audio_info,
+	};
+	obs_register_encoder(&aenc);
+
+	struct obs_output_info raw = {
+		.id = "fake_raw_output",
+		.flags = OBS_OUTPUT_AV,
+		.get_name = fake_get_name,
+		.create = fake_output_create,
+		.destroy = fake_output_destroy,
+		.start = fake_output_start,
+		.stop = fake_output_stop,
+		.raw_video = fake_raw_video,
+		.raw_audio = fake_raw_audio,
+	};
+	obs_register_output(&raw);
+
+	struct obs_output_info encoded = {
+		.id = "fake_encoded_output",
+		.flags = OBS_OUTPUT_AV | OBS_OUTPUT_ENCODED | OBS_OUTPUT_SERVICE | OBS_OUTPUT_CAN_PAUSE,
+		.get_name = fake_get_name,
+		.create = fake_output_create,
+		.destroy = fake_output_destroy,
+		.start = fake_output_start,
+		.stop = fake_output_stop,
+		.encoded_packet = fake_encoded_packet,
+		.get_total_bytes = fake_total_bytes,
+		.encoded_video_codecs = "h264",
+		.encoded_audio_codecs = "aac",
+		.protocols = "FAKE",
+	};
+	obs_register_output(&encoded);
+
+	struct obs_service_info service = {
+		.id = "fake_service",
+		.get_name = fake_get_name,
+		.create = fake_service_create,
+		.destroy = fake_service_destroy,
+		.update = fake_service_update,
+		.get_connect_info = fake_service_connect_info,
+		.get_protocol = fake_service_protocol,
+		.get_output_type = fake_service_output_type,
+		.can_try_to_connect = fake_service_can_connect,
+		.get_supported_video_codecs = fake_service_video_codecs,
+		.get_max_bitrate = fake_service_max_bitrate,
+		.apply_encoder_settings = fake_service_apply,
+	};
+	obs_register_service(&service);
+}
+
+static void start(void)
+{
+	core_start();
+	register_output_types();
+	video_encodes = audio_encodes = 0;
+}
+
+static struct fake_output *fake_output_of(obs_output_t *output)
+{
+	return obs_obj_get_data(output);
+}
+
+static bool wait_for(volatile long long *counter, long long count)
+{
+	for (int i = 0; i < 400 && *counter < count; i++)
+		os_sleep_ms(5);
+	return *counter >= count;
+}
+
+static bool wait_inactive(obs_output_t *output)
+{
+	for (int i = 0; i < 400 && obs_output_active(output); i++)
+		os_sleep_ms(5);
+	return !obs_output_active(output);
+}
+
+static int output_signals;
+static void on_output_signal(void *data, calldata_t *cd)
+{
+	UNUSED_PARAMETER(data);
+	UNUSED_PARAMETER(cd);
+	output_signals++;
+}
+
+static void raw_output_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+	start();
+
+	obs_source_t *src = obs_source_create("fake_input", "src", NULL, NULL);
+	obs_set_output_source(0, src);
+
+	assert_int_equal(obs_get_output_flags("fake_raw_output"), OBS_OUTPUT_AV);
+	assert_string_equal(obs_output_get_display_name("fake_raw_output"), "Fake");
+	obs_output_t *out = obs_output_create("fake_raw_output", "raw", NULL, NULL);
+	assert_non_null(out);
+	assert_string_equal(obs_output_get_name(out), "raw");
+	assert_string_equal(obs_output_get_id(out), "fake_raw_output");
+	obs_output_t *found = obs_get_output_by_name("raw");
+	assert_ptr_equal(found, out);
+	obs_output_release(found);
+	assert_false(obs_output_can_pause(out));
+
+	signal_handler_t *sh = obs_output_get_signal_handler(out);
+	output_signals = 0;
+	signal_handler_connect(sh, "start", on_output_signal, NULL);
+	signal_handler_connect(sh, "stop", on_output_signal, NULL);
+	signal_handler_connect(sh, "activate", on_output_signal, NULL);
+	signal_handler_connect(sh, "deactivate", on_output_signal, NULL);
+
+	obs_output_set_media(out, obs_get_video(), obs_get_audio());
+	assert_ptr_equal(obs_output_video(out), obs_get_video());
+	assert_ptr_equal(obs_output_audio(out), obs_get_audio());
+	obs_output_set_mixers(out, 0x3);
+	assert_int_equal(obs_output_get_mixers(out), 0x3);
+	obs_output_set_mixer(out, 0);
+	assert_int_equal(obs_output_get_mixer(out), 0);
+
+	assert_true(obs_output_start(out));
+	assert_true(obs_output_active(out));
+	assert_true(obs_video_active());
+	struct fake_output *fo = fake_output_of(out);
+	assert_true(wait_for(&fo->raw_video, 5));
+	assert_true(wait_for(&fo->raw_audio, 2));
+	assert_true(obs_output_get_total_frames(out) > 0);
+	assert_int_equal(obs_output_get_width(out), 640);
+	assert_int_equal(obs_output_get_height(out), 360);
+
+	/* video cannot be reset while an output is active */
+	struct obs_video_info ovi;
+	obs_get_video_info(&ovi);
+	assert_int_equal(obs_reset_video(&ovi), OBS_VIDEO_CURRENTLY_ACTIVE);
+
+	obs_output_stop(out);
+	assert_true(wait_inactive(out));
+	assert_int_equal(fo->stops, 1);
+	assert_true(output_signals >= 4);
+	signal_handler_disconnect(sh, "start", on_output_signal, NULL);
+	signal_handler_disconnect(sh, "stop", on_output_signal, NULL);
+	signal_handler_disconnect(sh, "activate", on_output_signal, NULL);
+	signal_handler_disconnect(sh, "deactivate", on_output_signal, NULL);
+
+	/* a failing start reports an error */
+	fo->fail_start = true;
+	assert_false(obs_output_start(out));
+	assert_false(obs_output_active(out));
+	obs_output_set_last_error(out, "broken");
+	assert_string_equal(obs_output_get_last_error(out), "broken");
+	fo->fail_start = false;
+
+	/* preferred size and conversion */
+	obs_output_set_preferred_size(out, 320, 180);
+	assert_true(obs_output_start(out));
+	assert_int_equal(obs_output_get_width(out), 320);
+	assert_int_equal(obs_output_get_height(out), 180);
+	/* the data capture ends on its own thread */
+	obs_output_force_stop(out);
+	assert_true(wait_inactive(out));
+
+	obs_output_release(out);
+	obs_set_output_source(0, NULL);
+	obs_source_release(src);
+	core_stop();
+}
+
+static int roi_count;
+static struct obs_encoder_roi last_roi;
+static void count_roi(void *param, struct obs_encoder_roi *roi)
+{
+	UNUSED_PARAMETER(param);
+	roi_count++;
+	last_roi = *roi;
+}
+
+static void encoder_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+	start();
+
+	assert_string_equal(obs_get_encoder_codec("fake_video_enc"), "h264");
+	assert_int_equal(obs_get_encoder_type("fake_audio_enc"), OBS_ENCODER_AUDIO);
+	assert_int_equal(obs_get_encoder_caps("fake_video_enc"), OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_ROI);
+	assert_null(obs_get_encoder_codec("missing"));
+	obs_data_t *defaults = obs_encoder_defaults("fake_video_enc");
+	assert_int_equal(obs_data_get_int(defaults, "bitrate"), 2500);
+	obs_data_release(defaults);
+	obs_properties_t *props = obs_get_encoder_properties("fake_video_enc");
+	assert_non_null(obs_properties_get(props, "bitrate"));
+	obs_properties_destroy(props);
+
+	obs_encoder_t *venc = obs_video_encoder_create("fake_video_enc", "venc", NULL, NULL);
+	obs_encoder_t *aenc = obs_audio_encoder_create("fake_audio_enc", "aenc", NULL, 1, NULL);
+	assert_non_null(venc);
+	assert_non_null(aenc);
+	assert_string_equal(obs_encoder_get_name(venc), "venc");
+	obs_encoder_set_name(venc, "video");
+	assert_string_equal(obs_encoder_get_name(venc), "video");
+	assert_string_equal(obs_encoder_get_codec(venc), "h264");
+	assert_string_equal(obs_encoder_get_id(aenc), "fake_audio_enc");
+	assert_int_equal(obs_encoder_get_type(venc), OBS_ENCODER_VIDEO);
+	assert_int_equal(obs_encoder_get_mixer_index(aenc), 1);
+	assert_int_equal(obs_encoder_get_caps(venc), OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_ROI);
+	obs_encoder_t *found = obs_get_encoder_by_name("video");
+	assert_ptr_equal(found, venc);
+	obs_encoder_release(found);
+
+	obs_data_t *settings = obs_encoder_get_settings(venc);
+	assert_int_equal(obs_data_get_int(settings, "bitrate"), 2500);
+	obs_data_release(settings);
+	settings = obs_data_create();
+	obs_data_set_int(settings, "bitrate", 1000);
+	obs_encoder_update(venc, settings);
+	obs_data_release(settings);
+	props = obs_encoder_properties(venc);
+	obs_properties_destroy(props);
+
+	/* the encoder instance, and so its extra data, exists only once an output initializes it */
+	uint8_t *extra;
+	size_t extra_size;
+	assert_false(obs_encoder_get_extra_data(venc, &extra, &extra_size));
+
+	obs_encoder_set_video(venc, obs_get_video());
+	obs_encoder_set_audio(aenc, obs_get_audio());
+	assert_ptr_equal(obs_encoder_video(venc), obs_get_video());
+	assert_ptr_equal(obs_encoder_audio(aenc), obs_get_audio());
+	assert_int_equal(obs_encoder_get_width(venc), 640);
+	assert_int_equal(obs_encoder_get_sample_rate(aenc), 48000);
+
+	obs_encoder_set_scaled_size(venc, 320, 180);
+	assert_true(obs_encoder_scaling_enabled(venc));
+	assert_int_equal(obs_encoder_get_width(venc), 320);
+	assert_int_equal(obs_encoder_get_height(venc), 180);
+	obs_encoder_set_scaled_size(venc, 0, 0);
+	obs_encoder_set_gpu_scale_type(venc, OBS_SCALE_LANCZOS);
+	assert_int_equal(obs_encoder_get_scale_type(venc), OBS_SCALE_LANCZOS);
+	assert_true(obs_encoder_set_frame_rate_divisor(venc, 2));
+	assert_int_equal(obs_encoder_get_frame_rate_divisor(venc), 2);
+	assert_false(obs_encoder_set_frame_rate_divisor(venc, 0));
+	assert_true(obs_encoder_set_frame_rate_divisor(venc, 1));
+	obs_encoder_set_preferred_video_format(venc, VIDEO_FORMAT_I420);
+	assert_int_equal(obs_encoder_get_preferred_video_format(venc), VIDEO_FORMAT_I420);
+	obs_encoder_set_preferred_video_format(venc, VIDEO_FORMAT_NONE);
+	obs_encoder_set_preferred_color_space(venc, VIDEO_CS_709);
+	assert_int_equal(obs_encoder_get_preferred_color_space(venc), VIDEO_CS_709);
+	obs_encoder_set_preferred_range(venc, VIDEO_RANGE_FULL);
+	assert_int_equal(obs_encoder_get_preferred_range(venc), VIDEO_RANGE_FULL);
+
+	/* regions of interest */
+	struct obs_encoder_roi roi = {.top = 0, .bottom = 16, .left = 0, .right = 16, .priority = 0.5f};
+	uint32_t increment = obs_encoder_get_roi_increment(venc);
+	assert_true(obs_encoder_add_roi(venc, &roi));
+	assert_true(obs_encoder_has_roi(venc));
+	assert_true(obs_encoder_get_roi_increment(venc) > increment);
+	roi_count = 0;
+	obs_encoder_enum_roi(venc, count_roi, NULL);
+	assert_int_equal(roi_count, 1);
+	/* scaled encoders get the region scaled to their size */
+	obs_encoder_set_scaled_size(venc, 320, 180);
+	obs_encoder_enum_roi(venc, count_roi, NULL);
+	assert_int_equal(roi_count, 2);
+	assert_int_equal(last_roi.right, 8);
+	obs_encoder_set_scaled_size(venc, 0, 0);
+	roi.priority = 2.0f;
+	assert_false(obs_encoder_add_roi(venc, &roi));
+	roi.priority = 0.0f;
+	roi.bottom = 8;
+	assert_false(obs_encoder_add_roi(venc, &roi));
+	/* Regression: an inverted region underflowed the size check and was accepted */
+	roi.top = 32;
+	roi.bottom = 0;
+	assert_false(obs_encoder_add_roi(venc, &roi));
+	obs_encoder_clear_roi(venc);
+	assert_false(obs_encoder_has_roi(venc));
+	/* Regression: the ROI functions dereferenced a NULL encoder */
+	assert_false(obs_encoder_add_roi(NULL, &roi));
+	assert_false(obs_encoder_has_roi(NULL));
+	obs_encoder_clear_roi(NULL);
+	obs_encoder_enum_roi(NULL, count_roi, NULL);
+	assert_int_equal(obs_encoder_get_roi_increment(NULL), 0);
+
+	assert_false(obs_encoder_active(venc));
+	assert_false(obs_encoder_paused(venc));
+	/* the frame size comes from the encoder instance too */
+	assert_int_equal(obs_encoder_get_frame_size(aenc), 0);
+
+	obs_encoder_release(venc);
+	obs_encoder_release(aenc);
+	core_stop();
+}
+
+static void encoded_output_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+	start();
+
+	obs_source_t *src = obs_source_create("fake_input", "src", NULL, NULL);
+	obs_set_output_source(0, src);
+
+	obs_output_t *out = obs_output_create("fake_encoded_output", "enc", NULL, NULL);
+	obs_encoder_t *venc = obs_video_encoder_create("fake_video_enc", "venc", NULL, NULL);
+	obs_encoder_t *aenc = obs_audio_encoder_create("fake_audio_enc", "aenc", NULL, 0, NULL);
+	obs_encoder_set_video(venc, obs_get_video());
+	obs_encoder_set_audio(aenc, obs_get_audio());
+	obs_output_set_video_encoder(out, venc);
+	obs_output_set_audio_encoder(out, aenc, 0);
+	assert_ptr_equal(obs_output_get_video_encoder(out), venc);
+	assert_ptr_equal(obs_output_get_audio_encoder(out, 0), aenc);
+	assert_null(obs_output_get_audio_encoder(out, 1));
+	assert_true(obs_output_can_pause(out));
+	assert_string_equal(obs_output_get_supported_video_codecs(out), "h264");
+	assert_string_equal(obs_output_get_supported_audio_codecs(out), "aac");
+	assert_string_equal(obs_get_output_supported_video_codecs("fake_encoded_output"), "h264");
+
+	/* the output needs a service before it starts */
+	obs_data_t *ss = obs_data_create();
+	obs_data_set_string(ss, "server", "fake://server");
+	obs_service_t *service = obs_service_create("fake_service", "svc", ss, NULL);
+	obs_data_release(ss);
+	obs_output_set_service(out, service);
+	assert_ptr_equal(obs_output_get_service(out), service);
+
+	assert_true(obs_output_start(out));
+	assert_true(obs_output_active(out));
+	assert_true(obs_encoder_active(venc));
+	struct fake_output *fo = fake_output_of(out);
+	assert_true(wait_for(&fo->video_packets, 15));
+	assert_true(wait_for(&fo->audio_packets, 3));
+	assert_true(fo->keyframes >= 1);
+	assert_true(obs_output_get_total_bytes(out) > 0);
+	assert_true(obs_encoder_get_encoded_frames(venc) > 0);
+	uint8_t *extra;
+	size_t extra_size;
+	assert_true(obs_encoder_get_extra_data(venc, &extra, &extra_size));
+	assert_int_equal(extra_size, 5);
+	assert_false(obs_encoder_get_extra_data(aenc, &extra, &extra_size));
+	assert_int_equal(obs_encoder_get_frame_size(aenc), 1024);
+
+	/* encoders cannot change while active */
+	obs_encoder_set_scaled_size(venc, 100, 100);
+	assert_int_equal(obs_encoder_get_width(venc), 640);
+
+	/* pausing stops the packets */
+	assert_true(obs_output_pause(out, true));
+	assert_true(obs_output_paused(out));
+	assert_true(obs_encoder_paused(venc));
+	os_sleep_ms(100);
+	assert_true(obs_output_pause(out, false));
+	assert_false(obs_output_paused(out));
+	long long before = fo->video_packets;
+	assert_true(wait_for(&fo->video_packets, before + 5));
+	/* encoded outputs pause their encoders, which keep the offset */
+	assert_true(obs_encoder_get_pause_offset(venc) > 0);
+
+	obs_output_stop(out);
+	assert_true(wait_inactive(out));
+	assert_false(obs_encoder_active(venc));
+
+	obs_output_release(out);
+	obs_encoder_release(venc);
+	obs_encoder_release(aenc);
+	obs_service_release(service);
+	obs_set_output_source(0, NULL);
+	obs_source_release(src);
+	core_stop();
+}
+
+static long long packet_callbacks;
+static void on_packet(obs_output_t *output, struct encoder_packet *pkt, struct encoder_packet_time *pkt_time,
+		      void *param)
+{
+	UNUSED_PARAMETER(output);
+	UNUSED_PARAMETER(pkt);
+	UNUSED_PARAMETER(pkt_time);
+	UNUSED_PARAMETER(param);
+	packet_callbacks++;
+}
+
+static int reconnects;
+static void on_reconnect(void *data, calldata_t *cd)
+{
+	UNUSED_PARAMETER(data);
+	UNUSED_PARAMETER(cd);
+	reconnects++;
+}
+
+static void delay_reconnect_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+	start();
+
+	obs_source_t *src = obs_source_create("fake_input", "src", NULL, NULL);
+	obs_set_output_source(0, src);
+
+	obs_output_t *out = obs_output_create("fake_encoded_output", "enc", NULL, NULL);
+	obs_encoder_t *venc = obs_video_encoder_create("fake_video_enc", "venc", NULL, NULL);
+	obs_encoder_t *aenc = obs_audio_encoder_create("fake_audio_enc", "aenc", NULL, 0, NULL);
+	obs_encoder_set_video(venc, obs_get_video());
+	obs_encoder_set_audio(aenc, obs_get_audio());
+	obs_output_set_video_encoder(out, venc);
+	obs_output_set_audio_encoder(out, aenc, 0);
+	obs_data_t *ss = obs_data_create();
+	obs_data_set_string(ss, "server", "fake://server");
+	obs_service_t *service = obs_service_create("fake_service", "svc", ss, NULL);
+	obs_data_release(ss);
+	obs_output_set_service(out, service);
+	struct fake_output *fo = fake_output_of(out);
+
+	/* packets go through the delay buffer */
+	obs_output_set_delay(out, 1, 0);
+	assert_int_equal(obs_output_get_delay(out), 1);
+	packet_callbacks = 0;
+	obs_output_add_packet_callback(out, on_packet, NULL);
+	assert_true(obs_output_start(out));
+	os_sleep_ms(300);
+	/* nothing has come out of the 1 s delay yet */
+	assert_int_equal(fo->video_packets, 0);
+	assert_true(obs_output_get_active_delay(out) <= 1);
+	assert_true(wait_for(&fo->video_packets, 5));
+	assert_true(packet_callbacks > 0);
+	obs_output_stop(out);
+	assert_true(wait_inactive(out));
+	obs_output_remove_packet_callback(out, on_packet, NULL);
+	obs_output_set_delay(out, 0, 0);
+
+	/* a disconnect reconnects */
+	signal_handler_t *sh = obs_output_get_signal_handler(out);
+	reconnects = 0;
+	signal_handler_connect(sh, "reconnect", on_reconnect, NULL);
+	obs_output_set_reconnect_settings(out, 2, 1);
+	assert_true(obs_output_start(out));
+	assert_true(wait_for(&fo->video_packets, 10));
+	int starts = fo->starts;
+	obs_output_signal_stop(out, OBS_OUTPUT_DISCONNECTED);
+	for (int i = 0; i < 400 && reconnects == 0; i++)
+		os_sleep_ms(5);
+	assert_true(reconnects >= 1);
+	for (int i = 0; i < 600 && fo->starts == starts; i++)
+		os_sleep_ms(5);
+	assert_true(fo->starts > starts);
+	obs_output_stop(out);
+	assert_true(wait_inactive(out));
+	signal_handler_disconnect(sh, "reconnect", on_reconnect, NULL);
+
+	/* other errors stop the output */
+	obs_output_set_reconnect_settings(out, 0, 0);
+	assert_true(obs_output_start(out));
+	obs_output_signal_stop(out, OBS_OUTPUT_ERROR);
+	assert_true(wait_inactive(out));
+
+	obs_output_release(out);
+	obs_encoder_release(venc);
+	obs_encoder_release(aenc);
+	obs_service_release(service);
+	obs_set_output_source(0, NULL);
+	obs_source_release(src);
+	core_stop();
+}
+
+static void service_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+	start();
+
+	assert_string_equal(obs_service_get_display_name("fake_service"), "Fake");
+	obs_data_t *ss = obs_data_create();
+	obs_data_set_string(ss, "server", "fake://a");
+	obs_service_t *service = obs_service_create("fake_service", "svc", ss, NULL);
+	obs_data_release(ss);
+	assert_non_null(service);
+	assert_string_equal(obs_service_get_name(service), "svc");
+	assert_string_equal(obs_service_get_id(service), "fake_service");
+	assert_string_equal(obs_service_get_type(service), "fake_service");
+	assert_string_equal(obs_service_get_connect_info(service, OBS_SERVICE_CONNECT_INFO_SERVER_URL), "fake://a");
+	assert_string_equal(obs_service_get_connect_info(service, OBS_SERVICE_CONNECT_INFO_STREAM_KEY), "key");
+	assert_null(obs_service_get_connect_info(service, OBS_SERVICE_CONNECT_INFO_USERNAME));
+	assert_true(obs_service_can_try_to_connect(service));
+	assert_string_equal(obs_service_get_protocol(service), "FAKE");
+	assert_string_equal(obs_service_get_preferred_output_type(service), "fake_encoded_output");
+	const char **codecs = obs_service_get_supported_video_codecs(service);
+	assert_string_equal(codecs[0], "h264");
+	assert_null(obs_service_get_supported_audio_codecs(service));
+	int vb = 0, ab = 0;
+	obs_service_get_max_bitrate(service, &vb, &ab);
+	assert_int_equal(vb, 6000);
+	assert_int_equal(ab, 320);
+	int fps = -1;
+	obs_service_get_max_fps(service, &fps);
+	assert_int_equal(fps, 0);
+
+	obs_data_t *v = obs_data_create(), *a = obs_data_create();
+	obs_service_apply_encoder_settings(service, v, a);
+	assert_int_equal(obs_data_get_int(v, "bitrate"), 6000);
+	assert_int_equal(obs_data_get_int(a, "bitrate"), 160);
+	obs_data_release(v);
+	obs_data_release(a);
+
+	ss = obs_data_create();
+	obs_data_set_string(ss, "server", "");
+	obs_service_update(service, ss);
+	obs_data_release(ss);
+	assert_false(obs_service_can_try_to_connect(service));
+
+	obs_service_t *found = obs_get_service_by_name("svc");
+	assert_ptr_equal(found, service);
+	obs_service_release(found);
+	obs_service_t *priv = obs_service_create_private("fake_service", "priv", NULL);
+	assert_null(obs_get_service_by_name("priv"));
+	obs_service_release(priv);
+
+	/* an output only takes a service whose protocol it supports */
+	obs_output_t *raw = obs_output_create("fake_raw_output", "raw", NULL, NULL);
+	obs_output_set_service(raw, service);
+	assert_null(obs_output_get_service(raw));
+	obs_output_release(raw);
+
+	obs_service_release(service);
+	core_stop();
+}
+
+static void null_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+	start();
+
+	/* unknown ids create an output that keeps its settings, like sources */
+	obs_output_t *missing = obs_output_create("missing", "x", NULL, NULL);
+	assert_false(obs_output_start(missing));
+	obs_output_release(missing);
+	assert_false(obs_output_start(NULL));
+	obs_output_stop(NULL);
+	assert_false(obs_output_active(NULL));
+	obs_output_release(NULL);
+	assert_null(obs_output_get_name(NULL));
+	obs_encoder_release(NULL);
+	assert_null(obs_encoder_get_name(NULL));
+	assert_false(obs_encoder_active(NULL));
+	obs_service_release(NULL);
+	assert_null(obs_service_get_name(NULL));
+	obs_encoder_t *missing_enc = obs_video_encoder_create("missing", "x", NULL, NULL);
+	obs_encoder_release(missing_enc);
+
+	core_stop();
+}
+
+int main(void)
+{
+	const struct CMUnitTest tests[] = {
+		cmocka_unit_test(raw_output_test),     cmocka_unit_test(encoder_test),
+		cmocka_unit_test(encoded_output_test), cmocka_unit_test(delay_reconnect_test),
+		cmocka_unit_test(service_test),        cmocka_unit_test(null_test),
+	};
+
+	return cmocka_run_group_tests(tests, NULL, NULL);
+}
