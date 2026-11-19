@@ -12,7 +12,7 @@ set(OBS_SCRIPT_PLUGIN_DESTINATION "${OBS_DATA_DESTINATION}/obs-scripting/64bit")
 
 set(OBS_EXECUTABLE_DESTINATION bin/64bit)
 set(OBS_LIBRARY_DESTINATION lib)
-set(OBS_INCLUDE_DESTINATION include)
+set(OBS_INCLUDE_DESTINATION include/knurbs)
 # Set relative paths used by OBS for self-discovery
 set(OBS_PLUGIN_PATH "../../${CMAKE_INSTALL_LIBDIR}/core")
 set(OBS_SCRIPT_PLUGIN_PATH "../../${OBS_DATA_DESTINATION}/obs-scripting/64bit")

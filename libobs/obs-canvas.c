@@ -125,7 +125,7 @@ obs_canvas_t *obs_weak_canvas_get_canvas(obs_weak_canvas_t *weak)
 
 bool obs_weak_canvas_references_canvas(obs_weak_canvas_t *weak, obs_canvas_t *canvas)
 {
-	return weak && canvas && weak->canvas == canvas;
+	return weak && canvas && obs_mem_weak_references((obs_mem_weak_t *)weak, canvas);
 }
 
 /*** Creation / Destruction ***/
