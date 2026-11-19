@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
+#include <math.h>
 
 #include "obs-test.h"
 #include "gs-test.h"
@@ -68,9 +69,13 @@ static void orientation_test(void **state)
 {
 	UNUSED_PARAMETER(state);
 
-	/* Orientations 5 to 8 should swap width and height of the 3x2 source, but this FFmpeg no longer reports the
-	 * EXIF orientation as "Orientation" frame metadata, so libobs never rotates (see known-bugs.md). Only decoding
-	 * is checked. */
+	/* Regression: the EXIF orientation was read only from "Orientation" frame metadata, which this FFmpeg no longer
+	 * sets (it exports a display matrix instead), so rotated JPEGs loaded unrotated.
+	 *
+	 * Every file stores the same 3x2 image (make-images.py) with a different EXIF orientation; the decoded image
+	 * must be that image as displayed: src(sx, sy) for each output pixel (x, y). */
+	static const uint8_t colors[6][3] = {{255, 0, 0}, {0, 255, 0}, {0, 0, 255}, {255, 255, 0}, {0, 255, 255}, {255, 0, 255}};
+	const int w = 3, h = 2;
 	for (int o = 1; o <= 8; o++) {
 		char path[512];
 		snprintf(path, sizeof(path), "%s/orient%d.jpg", TEST_DATA_DIR, o);
@@ -79,7 +84,43 @@ static void orientation_test(void **state)
 		uint8_t *data = gs_create_texture_file_data(path, &format, &cx, &cy);
 		if (!data)
 			fail_msg("orient%d.jpg did not decode", o);
-		assert_true(cx * cy == 6);
+		const bool swapped = o >= 5;
+		assert_int_equal(cx, swapped ? h : w);
+		assert_int_equal(cy, swapped ? w : h);
+		assert_true(format == GS_RGBA || format == GS_BGRA || format == GS_BGRX);
+		const bool bgr = format != GS_RGBA;
+
+		for (int y = 0; y < (int)cy; y++) {
+			for (int x = 0; x < (int)cx; x++) {
+				int sx, sy;
+				switch (o) {
+				case 2: sx = w - 1 - x; sy = y; break;
+				case 3: sx = w - 1 - x; sy = h - 1 - y; break;
+				case 4: sx = x; sy = h - 1 - y; break;
+				case 5: sx = y; sy = x; break;
+				case 6: sx = y; sy = h - 1 - x; break;
+				case 7: sx = w - 1 - y; sy = h - 1 - x; break;
+				case 8: sx = w - 1 - y; sy = x; break;
+				default: sx = x; sy = y; break;
+				}
+				/* JPEG subsamples the chroma of this tiny image away; luma survives, and the six colors
+				 * have distinct luma, so each pixel must be closest to the expected color's */
+				const uint8_t *px = data + (y * cx + x) * 4;
+				float luma = 0.299f * px[bgr ? 2 : 0] + 0.587f * px[1] + 0.114f * px[bgr ? 0 : 2];
+				int nearest = 0;
+				float best = 1e9f;
+				for (int i = 0; i < 6; i++) {
+					float l = 0.299f * colors[i][0] + 0.587f * colors[i][1] + 0.114f * colors[i][2];
+					if (fabsf(l - luma) < best) {
+						best = fabsf(l - luma);
+						nearest = i;
+					}
+				}
+				if (nearest != sy * w + sx)
+					fail_msg("orient%d.jpg: pixel (%d, %d) looks like source pixel %d, not %d", o, x, y,
+						 nearest, sy * w + sx);
+			}
+		}
 		bfree(data);
 	}
 }
