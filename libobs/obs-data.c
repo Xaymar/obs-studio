@@ -1557,7 +1557,12 @@ void obs_data_item_release(obs_data_item_t **item)
 void obs_data_item_remove(obs_data_item_t **item)
 {
 	if (item && *item) {
-		obs_data_item_detach(*item);
+		obs_data_item_t *it = *item;
+		if (it->parent) {
+			obs_data_item_detach(it);
+			/* drop the reference the parent held, as obs_data_erase() does */
+			obs_mem_release(it);
+		}
 		obs_data_item_release(item);
 	}
 }
