@@ -1135,6 +1135,9 @@ static size_t add_item(struct list_data *data, const char *name, const void *val
 
 static void insert_item(struct list_data *data, size_t idx, const char *name, const void *val)
 {
+	if (idx > data->items.num)
+		return;
+
 	struct list_item item = {NULL};
 	item.name = bstrdup(name);
 
@@ -1350,7 +1353,7 @@ size_t obs_property_frame_rate_fps_range_add(obs_property_t *p, struct media_fra
 void obs_property_frame_rate_option_insert(obs_property_t *p, size_t idx, const char *name, const char *description)
 {
 	struct frame_rate_data *data = get_type_data(p, OBS_PROPERTY_FRAME_RATE);
-	if (!data)
+	if (!data || idx > data->extra_options.num)
 		return;
 
 	struct frame_rate_option *opt = da_insert_new(data->extra_options, idx);
@@ -1363,7 +1366,7 @@ void obs_property_frame_rate_fps_range_insert(obs_property_t *p, size_t idx, str
 					      struct media_frames_per_second max)
 {
 	struct frame_rate_data *data = get_type_data(p, OBS_PROPERTY_FRAME_RATE);
-	if (!data)
+	if (!data || idx > data->ranges.num)
 		return;
 
 	struct frame_rate_range *rng = da_insert_new(data->ranges, idx);
