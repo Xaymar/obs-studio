@@ -55,7 +55,7 @@ static void parse_obu_header(const uint8_t *buf, size_t size, size_t *obu_start,
 	if (has_size_field)
 		*obu_size = (size_t)leb128(buf + *obu_start, size - *obu_start, &size_len);
 	else
-		*obu_size = size - 1;
+		*obu_size = size - *obu_start;
 
 	*obu_start += size_len;
 }
