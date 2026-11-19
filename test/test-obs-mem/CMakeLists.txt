@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.28...3.30)
 
+option(ENABLE_TEST_OBS_MEM "Build the obs_mem refcounting test (not installed by default builds)" OFF)
+
+if(NOT ENABLE_TEST_OBS_MEM)
+  target_disable(test-obs-mem)
+  return()
+endif()
+
 add_executable(test-obs-mem test-obs-mem.c)
 target_link_libraries(test-obs-mem PRIVATE OBS::libobs)
 set_target_properties_obs(test-obs-mem PROPERTIES FOLDER "Tests and Examples")
