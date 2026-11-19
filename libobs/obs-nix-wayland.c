@@ -239,6 +239,9 @@ void obs_nix_wayland_log_info(void)
 static bool obs_nix_wayland_hotkeys_platform_init(struct obs_core_hotkeys *hotkeys)
 {
 	struct wl_display *display = obs_get_nix_platform_display();
+	if (!display)
+		return false;
+
 	hotkeys->platform_context = bzalloc(sizeof(obs_hotkeys_platform_t));
 	hotkeys->platform_context->display = display;
 	hotkeys->platform_context->xkb_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
