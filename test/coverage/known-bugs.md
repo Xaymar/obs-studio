@@ -29,6 +29,7 @@ still open, with the reason.
 | util/profiler.c | Not a bug (explained): a call made while the profiler is stopped turns profiling off for that thread until `profile_reenable_thread()`, and the test made one before `profiler_start()`. Originally listed as: A snapshot reports fewer root calls than were made in `test_util_profiler`; not investigated yet. |
 | util/profiler.c | **Fixed** in `a4c6474e5`: `profiler_snapshot_filter_roots(NULL, ...)` crashes, unlike every other snapshot accessor. |
 | obs.c | **Fixed** in `ebdce7c8d`: `obs_get_video_info()` (and so `os_generate_formatted_filename()`) dereferences `obs` and crashes before `obs_startup()`. |
+| obs.c | **Fixed** in `686380e63`: `obs_get_video_sdr_white_level()` and `obs_get_video_hdr_nominal_peak_level()` return 0 once video is up until `obs_set_video_levels()` is called (the frontend always calls it), so every SDR/HDR multiplier divided by 0. They now start at the 300 and 1000 nits reported before video is up. |
 
 ## media-io/
 
@@ -76,5 +77,3 @@ These fixes change behaviour that plugins might rely on.
 | graphics/graphics.c | `gs_color4v()` adds the color; with fewer colors than vertices, the draw is shortened like it is for `gs_color()`. | `7cf55011e` |
 | graphics/shader-parser.c | Sampler `BorderColor` values are used as written; most used to become 0 or 0x7fffffff. | `d1858d906` |
 | graphics/graphics-ffmpeg.c | JPEGs with an EXIF orientation load rotated or mirrored as displayed, and orientations 5 to 8 swap width and height. | `ea51c4f7e` |
-
-Open, not fixed yet: `obs_get_video_sdr_white_level()` returns 0 until `obs_set_video_levels()` is called once video is up (the frontend always calls it).
