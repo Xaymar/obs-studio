@@ -436,6 +436,7 @@ foreach(
   IN
   ITEMS
     test_obs_source
+    test_obs_source_av
 )
   obs_add_core_test(${test})
 endforeach()
