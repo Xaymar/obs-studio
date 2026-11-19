@@ -491,6 +491,110 @@ static void transition_test(void **state)
 	assert_int_equal(fake.creates, fake.destroys);
 }
 
+static int enum_count;
+static void count_child(obs_source_t *parent, obs_source_t *child, void *param)
+{
+	UNUSED_PARAMETER(parent);
+	UNUSED_PARAMETER(child);
+	UNUSED_PARAMETER(param);
+	enum_count++;
+}
+
+static void keep_loaded(void *param, obs_source_t *source)
+{
+	*(obs_source_t **)param = obs_source_get_ref(source);
+}
+
+/* obs_load_sources() releases what it loaded, so the callback keeps a reference */
+static obs_source_t *load_transition(obs_data_t *saved, const char *name, const char *source_a)
+{
+	obs_source_t *loaded = NULL;
+	obs_data_t *copy = obs_data_create();
+	obs_data_apply(copy, saved);
+	obs_data_set_string(copy, "name", name);
+	obs_data_set_string(copy, "transition_source_a", source_a);
+	obs_data_array_t *array = obs_data_array_create();
+	obs_data_array_push_back(array, copy);
+	obs_load_sources(array, keep_loaded, &loaded);
+	obs_data_array_release(array);
+	obs_data_release(copy);
+	return loaded;
+}
+
+static void transition_save_load_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+	core_start();
+
+	obs_source_t *a = obs_source_create("fake_input", "a", NULL, NULL);
+	obs_source_t *b = obs_source_create("fake_input", "b", NULL, NULL);
+	obs_source_t *tr = obs_source_create("fake_transition", "tr", NULL, NULL);
+	obs_transition_set(tr, a);
+	obs_transition_set_alignment(tr, OBS_ALIGN_RIGHT);
+	obs_transition_set_scale_type(tr, OBS_TRANSITION_SCALE_ASPECT);
+	obs_transition_set_size(tr, 320, 180);
+
+	obs_data_t *saved = obs_save_source(tr);
+	assert_string_equal(obs_data_get_string(saved, "transition_source_a"), "a");
+	assert_int_equal(obs_data_get_int(saved, "transition_cx"), 320);
+
+	/* a loaded transition takes over the saved state */
+	obs_source_t *tr2 = load_transition(saved, "tr2", "a");
+	assert_non_null(tr2);
+	obs_source_t *active = obs_transition_get_active_source(tr2);
+	assert_ptr_equal(active, a);
+	obs_source_release(active);
+	assert_int_equal(obs_transition_get_alignment(tr2), OBS_ALIGN_RIGHT);
+	assert_int_equal(obs_transition_get_scale_type(tr2), OBS_TRANSITION_SCALE_ASPECT);
+	uint32_t cx, cy;
+	obs_transition_get_size(tr2, &cx, &cy);
+	assert_int_equal(cx, 320);
+	assert_int_equal(cy, 180);
+	obs_source_release(tr2);
+
+	/* a missing source, and a transition that would contain itself, load without a source */
+	obs_source_t *tr3 = load_transition(saved, "tr3", "missing");
+	assert_null(obs_transition_get_active_source(tr3));
+	obs_source_release(tr3);
+	obs_source_t *tr4 = load_transition(saved, "tr4", "tr4");
+	assert_null(obs_transition_get_active_source(tr4));
+	obs_source_release(tr4);
+	obs_data_release(saved);
+
+	/* both sides are active children while transitioning */
+	enum_count = 0;
+	obs_source_enum_active_sources(tr, count_child, NULL);
+	assert_int_equal(enum_count, 1);
+	assert_true(obs_transition_start(tr, OBS_TRANSITION_MODE_MANUAL, 0, b));
+	obs_transition_set_manual_torque(tr, 0.0f, 0.0f);
+	obs_transition_set_manual_time(tr, 0.25f);
+	enum_count = 0;
+	obs_source_enum_active_sources(tr, count_child, NULL);
+	assert_int_equal(enum_count, 2);
+
+	/* while it renders and mixes audio on the output */
+	obs_set_output_source(0, tr);
+	core_wait_frames(5);
+	obs_transition_set_manual_time(tr, 0.75f);
+	core_wait_frames(5);
+	assert_true(obs_transition_is_active(tr));
+	assert_true(obs_transition_get_time(tr) == 0.75f);
+	obs_set_output_source(0, NULL);
+
+	/* saved while transitioning: the destination is saved */
+	saved = obs_save_source(tr);
+	assert_string_equal(obs_data_get_string(saved, "transition_source_a"), "b");
+	obs_data_release(saved);
+	obs_transition_force_stop(tr);
+	obs_transition_clear(tr);
+
+	obs_source_release(tr);
+	obs_source_release(a);
+	obs_source_release(b);
+	core_stop();
+	assert_int_equal(fake.creates, fake.destroys);
+}
+
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
@@ -498,6 +602,7 @@ int main(void)
 		cmocka_unit_test(source_test),
 		cmocka_unit_test(filter_test),
 		cmocka_unit_test(transition_test),
+		cmocka_unit_test(transition_save_load_test),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);
