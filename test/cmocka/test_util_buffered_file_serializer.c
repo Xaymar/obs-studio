@@ -25,9 +25,11 @@ static void write_test(void **state)
 	s_write(&s, "AB", 2);
 	assert_int_equal(serializer_seek(&s, 4, SERIALIZE_SEEK_CURRENT), 6);
 	s_write(&s, "gh", 2);
-	/* SEEK_END moves back from the current write position */
-	assert_int_equal(serializer_seek(&s, 1, SERIALIZE_SEEK_END), 7);
+	/* Regression: SEEK_END moved back from the current write position; it now counts from the end like fseek() */
+	assert_int_equal(serializer_seek(&s, 2, SERIALIZE_SEEK_START), 2);
+	assert_int_equal(serializer_seek(&s, -1, SERIALIZE_SEEK_END), 7);
 	s_write(&s, "H", 1);
+	assert_int_equal(serializer_seek(&s, 0, SERIALIZE_SEEK_END), 8);
 	buffered_file_serializer_free(&s);
 
 	size_t size = 0;

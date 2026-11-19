@@ -59,7 +59,7 @@ static int64_t array_output_seek(void *param, int64_t offset, enum serialize_see
 		new_pos = output->cur_pos + offset;
 		break;
 	case SERIALIZE_SEEK_END:
-		new_pos = output->bytes.num - offset;
+		new_pos = output->bytes.num + offset;
 		break;
 	}
 

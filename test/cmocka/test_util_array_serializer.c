@@ -32,13 +32,16 @@ static void write_seek_test(void **state)
 	assert_int_equal(data.bytes.num, 8);
 	assert_memory_equal(data.bytes.array, "aXYd1234", 8);
 
-	/* SEEK_END counts backwards from the end */
-	assert_int_equal(serializer_seek(&s, 2, SERIALIZE_SEEK_END), 6);
+	/* Regression: SEEK_END used to count backwards for a positive offset; it now works like fseek() */
+	assert_int_equal(serializer_seek(&s, -2, SERIALIZE_SEEK_END), 6);
 	assert_int_equal(serializer_get_pos(&s), 6);
 	s_write(&s, "!", 1);
 	assert_memory_equal(data.bytes.array, "aXYd12!4", 8);
 
 	assert_int_equal(serializer_seek(&s, 100, SERIALIZE_SEEK_START), -1);
+	assert_int_equal(serializer_seek(&s, 1, SERIALIZE_SEEK_END), -1);
+	assert_int_equal(serializer_seek(&s, -9, SERIALIZE_SEEK_END), -1);
+	assert_int_equal(serializer_seek(&s, 0, SERIALIZE_SEEK_END), 8);
 
 	array_output_serializer_reset(&data);
 	assert_int_equal(data.bytes.num, 0);
