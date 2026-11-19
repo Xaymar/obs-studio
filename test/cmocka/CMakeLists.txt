@@ -414,6 +414,7 @@ foreach(
   IN
   ITEMS
     test_graphics_graphics
+    test_graphics_failures
     test_graphics_effect
     test_graphics_image_file
     test_graphics_texture_render
