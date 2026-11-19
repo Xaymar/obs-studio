@@ -62,11 +62,13 @@ static void move_key(obs_data_t *s, const char *from, const char *to)
 	obs_data_erase(s, from);
 }
 
-/* Moves a key into the backend's namespace: "<backend>.<key>". */
+/* Moves a key into the backend's namespace: "<backend>.<key>", with '_'
+ * spelled '-' as in every new key. */
 static void move_backend_key(obs_data_t *s, const char *backend, const char *key)
 {
 	struct dstr to = {0};
 	dstr_printf(&to, "%s.%s", backend, key);
+	dstr_replace(&to, "_", "-");
 	move_key(s, key, to.array);
 	dstr_free(&to);
 }
@@ -271,6 +273,8 @@ void vd_migrate_dshow(void *param, const char *old_id, obs_data_t *s)
 	if (has(s, "color_range")) {
 		replace_string(s, VD_COLOR_RANGE, map_color_range(obs_data_get_string(s, "color_range")));
 	}
+	obs_data_erase(s, "color_space");
+	obs_data_erase(s, "color_range");
 
 	if (has(s, "buffering")) {
 		static const char *buffering[] = {VD_AUTO, "on", "off"};
@@ -299,6 +303,7 @@ void vd_migrate_v4l2(void *param, const char *old_id, obs_data_t *s)
 
 	/* The device path is the ID. V4L2 settings never stored a name. */
 	set_device(s, "v4l2", obs_data_get_string(s, "device_id"), "");
+	obs_data_erase(s, "device_id");
 
 	if (has(s, "resolution")) {
 		long long packed = obs_data_get_int(s, "resolution");
@@ -333,6 +338,7 @@ void vd_migrate_v4l2(void *param, const char *old_id, obs_data_t *s)
 
 	if (has(s, "color_range")) {
 		replace_string(s, VD_COLOR_RANGE, map_video_range(obs_data_get_int(s, "color_range")));
+		obs_data_erase(s, "color_range");
 	}
 
 	if (has(s, "buffering")) {
@@ -355,6 +361,7 @@ void vd_migrate_pipewire_camera(void *param, const char *old_id, obs_data_t *s)
 	UNUSED_PARAMETER(old_id);
 
 	set_device(s, "pipewire", obs_data_get_string(s, "device_id"), "");
+	obs_data_erase(s, "device_id");
 
 	/* Resolution and frame rate are JSON strings. */
 	if (has(s, "resolution")) {
@@ -388,18 +395,18 @@ void vd_migrate_avfoundation(void *param, const char *old_id, obs_data_t *s)
 {
 	UNUSED_PARAMETER(param);
 
-	/* "device" is the AVCaptureDevice uniqueID; "device_name" already
-	 * matches the new key in the legacy source. */
-	const char *name = obs_data_get_string(s, VD_DEVICE_NAME);
+	/* "device" is the AVCaptureDevice uniqueID. */
+	const char *name = obs_data_get_string(s, "device_name");
 	struct dstr name_copy = {0};
 	dstr_copy(&name_copy, name);
 	set_device(s, "avfoundation", obs_data_get_string(s, "device"), name_copy.array);
 	dstr_free(&name_copy);
 	obs_data_erase(s, "device");
+	obs_data_erase(s, "device_name");
 
 	/* The fast variant always captured with presets. */
 	if (old_id && strcmp(old_id, "macos-avcapture-fast") == 0 && !has(s, "use_preset")) {
-		obs_data_set_bool(s, "avfoundation.use_preset", true);
+		obs_data_set_bool(s, "avfoundation.use-preset", true);
 	}
 
 	move_key(s, "enable_audio", VD_CAPTURE_AUDIO);
@@ -407,6 +414,7 @@ void vd_migrate_avfoundation(void *param, const char *old_id, obs_data_t *s)
 	if (has(s, "color_space") && is_number(s, "color_space")) {
 		replace_string(s, VD_COLOR_SPACE, map_video_colorspace(obs_data_get_int(s, "color_space")));
 	}
+	obs_data_erase(s, "color_space");
 	if (has(s, "video_range")) {
 		replace_string(s, VD_COLOR_RANGE, map_video_range(obs_data_get_int(s, "video_range")));
 		obs_data_erase(s, "video_range");

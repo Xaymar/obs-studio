@@ -16,7 +16,7 @@
 extern "C" {
 #endif
 
-#define VIDEO_DEVICE_SOURCE_ID "video_device_capture"
+#define VIDEO_DEVICE_SOURCE_ID "video-device-capture"
 
 /* ------------------------------------------------------------------------- */
 /* Common settings, the same on every platform.                              */
@@ -28,30 +28,33 @@ extern "C" {
 /* Device identity: backend that owns the ID, the backend's stable ID, and the
  * display name used as a fallback when the ID no longer matches (another
  * machine, another port, another platform). */
-#define VD_DEVICE_BACKEND "device_backend"
-#define VD_DEVICE_ID "device_id"
-#define VD_DEVICE_NAME "device_name"
+#define VD_DEVICE_BACKEND "device-backend"
+#define VD_DEVICE_ID "device-id"
+#define VD_DEVICE_NAME "device-name"
 
 /* "WxH", or empty for the device's preferred resolution. */
 #define VD_RESOLUTION "resolution"
 /* Frame rate: "num/den" (for example "30000/1001"), empty for the highest the
  * device offers, or "match" for the device rate closest to the output. */
-#define VD_FRAME_RATE "frame_rate"
+#define VD_FRAME_RATE "frame-rate"
 #define VD_FRAME_RATE_MATCH "match"
 /* FourCC such as "NV12" or "MJPG", or empty for automatic. */
-#define VD_PIXEL_FORMAT "pixel_format"
+#define VD_PIXEL_FORMAT "pixel-format"
 
-#define VD_COLOR_SPACE "color_space" /* auto, 601, 709, 2100pq, 2100hlg */
-#define VD_COLOR_RANGE "color_range" /* auto, partial, full */
+#define VD_COLOR_SPACE "color-space" /* auto, 601, 709, 2100pq, 2100hlg */
+#define VD_COLOR_RANGE "color-range" /* auto, partial, full */
 #define VD_BUFFERING "buffering"     /* auto, on, off */
-#define VD_FLIP_VERTICAL "flip_vertical"
-#define VD_DEACTIVATE_WHEN_HIDDEN "deactivate_when_hidden"
-#define VD_CAPTURE_AUDIO "capture_audio"
+#define VD_FLIP_VERTICAL "flip-vertical"
+#define VD_DEACTIVATE_WHEN_HIDDEN "deactivate-when-hidden"
+#define VD_CAPTURE_AUDIO "capture-audio"
 
 #define VD_AUTO "auto"
 
-/* Backend-specific settings are stored as "<backend>.<key>", for example
- * "v4l2.dv_timing" or "dshow.audio_output_mode", so they survive a trip
+/* Names use only lowercase letters, digits, '-' and '.', never '_' or
+ * anything else that needs Shift.
+ *
+ * Backend-specific settings are stored as "<backend>.<key>", for example
+ * "v4l2.dv-timing" or "dshow.audio-output-mode", so they survive a trip
  * through another platform untouched. */
 
 /* ------------------------------------------------------------------------- */

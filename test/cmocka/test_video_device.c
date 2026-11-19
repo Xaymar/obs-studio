@@ -78,7 +78,7 @@ static void remember(struct fake_state *st, obs_data_t *settings)
 	}                                                                                      \
 	static const struct vd_backend tag##_backend = {                                       \
 		.name = #tag,                                                                  \
-		.display_name = "Backend." #tag,                                               \
+		.display_name = "backend." #tag,                                               \
 		.available = tag##_available,                                                  \
 		.enum_devices = tag##_enum,                                                    \
 		.create = tag##_create,                                                        \
@@ -93,7 +93,7 @@ FAKE_BACKEND(fake_b)
  * for the alias test: the migration names the backend "v4l2". */
 static const struct vd_backend v4l2_backend = {
 	.name = "v4l2",
-	.display_name = "Backend.V4L2",
+	.display_name = "backend.v4l2",
 	.available = fake_b_available,
 	.enum_devices = fake_b_enum,
 	.create = fake_b_create,
@@ -147,6 +147,24 @@ static obs_data_t *json(const char *text)
 /* ------------------------------------------------------------------------- */
 /* Migration                                                                 */
 
+/* New keys use only lowercase letters, digits, '-' and '.'. Keys a
+ * migration doesn't know (allowed) are left alone. */
+static void assert_new_style_keys(obs_data_t *s, const char *allowed)
+{
+	for (obs_data_item_t *item = obs_data_first(s); item; obs_data_item_next(&item)) {
+		const char *name = obs_data_item_get_name(item);
+		if (allowed && strcmp(name, allowed) == 0) {
+			continue;
+		}
+		for (const char *c = name; *c; c++) {
+			bool ok = (*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9') || *c == '-' || *c == '.';
+			if (!ok) {
+				fail_msg("key '%s' is not lowercase with '-' and '.' only", name);
+			}
+		}
+	}
+}
+
 static void migrate_dshow_custom(void **state)
 {
 	UNUSED_PARAMETER(state);
@@ -164,14 +182,14 @@ static void migrate_dshow_custom(void **state)
 	assert_string_equal(obs_data_get_string(s, VD_DEVICE_NAME), "Cam: Pro# 1");
 	assert_string_equal(obs_data_get_string(s, VD_RESOLUTION), "1920x1080");
 	assert_string_equal(obs_data_get_string(s, VD_FRAME_RATE), "10000000/166666");
-	assert_int_equal(obs_data_get_int(s, "dshow.video_format"), 200);
+	assert_int_equal(obs_data_get_int(s, "dshow.video-format"), 200);
 	assert_string_equal(obs_data_get_string(s, VD_COLOR_SPACE), "709");
 	assert_string_equal(obs_data_get_string(s, VD_COLOR_RANGE), "full");
 	assert_string_equal(obs_data_get_string(s, VD_BUFFERING), "off");
 	assert_true(obs_data_get_bool(s, VD_FLIP_VERTICAL));
 	assert_true(obs_data_get_bool(s, VD_DEACTIVATE_WHEN_HIDDEN));
-	assert_int_equal(obs_data_get_int(s, "dshow.audio_output_mode"), 1);
-	assert_true(obs_data_get_bool(s, "dshow.hw_decode"));
+	assert_int_equal(obs_data_get_int(s, "dshow.audio-output-mode"), 1);
+	assert_true(obs_data_get_bool(s, "dshow.hw-decode"));
 	assert_string_equal(obs_data_get_string(s, "unknown_key"), "kept");
 
 	assert_false(obs_data_has_user_value(s, "video_device_id"));
@@ -179,6 +197,7 @@ static void migrate_dshow_custom(void **state)
 	assert_false(obs_data_has_user_value(s, "frame_interval"));
 	assert_false(obs_data_has_user_value(s, "flip_vertically"));
 	assert_false(obs_data_has_user_value(s, "video_format"));
+	assert_new_style_keys(s, "unknown_key");
 	obs_data_release(s);
 }
 
@@ -190,8 +209,9 @@ static void migrate_dshow_preferred_and_matching(void **state)
 	obs_data_t *s = json("{\"video_device_id\":\"Cam:path\",\"res_type\":0,"
 			     "\"resolution\":\"640x480\",\"video_format\":3,\"color_space\":\"default\"}");
 	vd_migrate_dshow(NULL, "dshow_input", s);
+	assert_new_style_keys(s, NULL);
 	assert_false(obs_data_has_user_value(s, VD_RESOLUTION));
-	assert_false(obs_data_has_user_value(s, "dshow.video_format"));
+	assert_false(obs_data_has_user_value(s, "dshow.video-format"));
 	assert_string_equal(obs_data_get_string(s, VD_COLOR_SPACE), "auto");
 	assert_string_equal(obs_data_get_string(s, VD_DEVICE_NAME), "Cam");
 	obs_data_release(s);
@@ -231,10 +251,11 @@ static void migrate_v4l2_packed_formats(void **state)
 	assert_string_equal(obs_data_get_string(s, VD_PIXEL_FORMAT), "YUYV");
 	assert_string_equal(obs_data_get_string(s, VD_COLOR_RANGE), "partial");
 	assert_string_equal(obs_data_get_string(s, VD_BUFFERING), "off");
-	assert_int_equal(obs_data_get_int(s, "v4l2.dv_timing"), 3);
+	assert_int_equal(obs_data_get_int(s, "v4l2.dv-timing"), 3);
 	assert_int_equal(obs_data_get_int(s, "v4l2.input"), 1);
 	assert_false(obs_data_has_user_value(s, "framerate"));
 	assert_false(obs_data_has_user_value(s, "pixelformat"));
+	assert_new_style_keys(s, NULL);
 	obs_data_release(s);
 
 	/* Old 32-bit packing: 16 bits each. -1 means "leave unchanged". */
@@ -262,6 +283,7 @@ static void migrate_pipewire_camera(void **state)
 	assert_string_equal(obs_data_get_string(s, VD_RESOLUTION), "1280x720");
 	assert_string_equal(obs_data_get_string(s, VD_FRAME_RATE), "60/1");
 	assert_int_equal(obs_data_get_int(s, "pipewire.pixelformat"), 7);
+	assert_new_style_keys(s, NULL);
 	obs_data_release(s);
 }
 
@@ -276,11 +298,12 @@ static void migrate_avfoundation(void **state)
 	assert_string_equal(obs_data_get_string(s, VD_DEVICE_ID), "0x1234");
 	assert_string_equal(obs_data_get_string(s, VD_DEVICE_NAME), "FaceTime HD");
 	assert_false(obs_data_get_bool(s, VD_CAPTURE_AUDIO));
-	assert_true(obs_data_get_bool(s, "avfoundation.use_preset"));
+	assert_true(obs_data_get_bool(s, "avfoundation.use-preset"));
 	assert_string_equal(obs_data_get_string(s, "avfoundation.preset"), "AVCaptureSessionPreset1280x720");
 	assert_string_equal(obs_data_get_string(s, VD_COLOR_RANGE), "full");
 	assert_string_equal(obs_data_get_string(s, VD_COLOR_SPACE), "709");
 	assert_string_equal(obs_data_get_string(s, VD_BUFFERING), "on");
+	assert_new_style_keys(s, NULL);
 	obs_data_release(s);
 }
 

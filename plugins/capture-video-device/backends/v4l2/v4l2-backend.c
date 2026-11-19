@@ -324,7 +324,7 @@ static void v4l2_format_list(int dev, obs_property_t *prop)
 	dstr_init(&buffer);
 
 	obs_property_list_clear(prop);
-	obs_property_list_add_string(prop, obs_module_text("Auto"), "");
+	obs_property_list_add_string(prop, obs_module_text("auto"), "");
 
 	while (v4l2_ioctl(dev, VIDIOC_ENUM_FMT, &fmt) == 0) {
 		dstr_copy(&buffer, (char *)fmt.description);
@@ -355,7 +355,7 @@ static void v4l2_standard_list(int dev, obs_property_t *prop)
 
 	obs_property_list_clear(prop);
 
-	obs_property_list_add_int(prop, obs_module_text("LeaveUnchanged"), -1);
+	obs_property_list_add_int(prop, obs_module_text("v4l2.leave-unchanged"), -1);
 
 	while (v4l2_ioctl(dev, VIDIOC_ENUMSTD, &std) == 0) {
 		obs_property_list_add_int(prop, (char *)std.name, std.id);
@@ -375,7 +375,7 @@ static void v4l2_dv_timing_list(int dev, obs_property_t *prop)
 
 	obs_property_list_clear(prop);
 
-	obs_property_list_add_int(prop, obs_module_text("LeaveUnchanged"), -1);
+	obs_property_list_add_int(prop, obs_module_text("v4l2.leave-unchanged"), -1);
 
 	while (v4l2_enum_dv_timing(dev, &dvt, index) == 0) {
 		/* i do not pretend to understand, this is from qv4l2 ... */
@@ -408,7 +408,7 @@ static void v4l2_resolution_list(int dev, uint_fast32_t pixelformat, obs_propert
 
 	obs_property_list_clear(prop);
 
-	obs_property_list_add_string(prop, obs_module_text("LeaveUnchanged"), "");
+	obs_property_list_add_string(prop, obs_module_text("v4l2.leave-unchanged"), "");
 
 	v4l2_ioctl(dev, VIDIOC_ENUM_FRAMESIZES, &frmsize);
 
@@ -456,7 +456,7 @@ static void v4l2_framerate_list(int dev, uint_fast32_t pixelformat, uint_fast32_
 
 	obs_property_list_clear(prop);
 
-	obs_property_list_add_string(prop, obs_module_text("LeaveUnchanged"), "");
+	obs_property_list_add_string(prop, obs_module_text("v4l2.leave-unchanged"), "");
 
 	v4l2_ioctl(dev, VIDIOC_ENUM_FRAMEINTERVALS, &frmival);
 
@@ -569,9 +569,9 @@ static void v4l2_enum_devices(vd_device_cb cb, void *param)
 
 #define S_INPUT "v4l2.input"
 #define S_STANDARD "v4l2.standard"
-#define S_DV_TIMING "v4l2.dv_timing"
-#define S_AUTO_RESET "v4l2.auto_reset"
-#define S_TIMEOUT_FRAMES "v4l2.timeout_frames"
+#define S_DV_TIMING "v4l2.dv-timing"
+#define S_AUTO_RESET "v4l2.auto-reset"
+#define S_TIMEOUT_FRAMES "v4l2.timeout-frames"
 
 /* The common settings, as V4L2 values. */
 struct v4l2_settings {
@@ -699,7 +699,8 @@ static bool device_selected(obs_properties_t *props, obs_property_t *p, obs_data
 	v4l2_update_controls(dev, ctrl_props_new, settings);
 	v4l2_close(dev);
 
-	obs_properties_add_group(props, "controls", obs_module_text("CameraCtrls"), OBS_GROUP_NORMAL, ctrl_props_new);
+	obs_properties_add_group(props, "controls", obs_module_text("v4l2.camera-controls"), OBS_GROUP_NORMAL,
+				 ctrl_props_new);
 
 	obs_property_modified(prop, settings);
 
@@ -814,32 +815,33 @@ static void v4l2_add_properties(void *vptr, obs_properties_t *props, obs_data_t 
 
 	obs_property_t *device_list = obs_properties_get(props, VD_DEVICE_ID);
 
-	obs_property_t *input_list = obs_properties_add_list(props, S_INPUT, obs_module_text("Input"),
+	obs_property_t *input_list = obs_properties_add_list(props, S_INPUT, obs_module_text("v4l2.input"),
 							     OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 
-	obs_property_t *format_list = obs_properties_add_list(props, VD_PIXEL_FORMAT, obs_module_text("PixelFormat"),
+	obs_property_t *format_list = obs_properties_add_list(props, VD_PIXEL_FORMAT, obs_module_text("pixel-format"),
 							      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 
-	obs_property_t *standard_list = obs_properties_add_list(props, S_STANDARD, obs_module_text("VideoStandard"),
+	obs_property_t *standard_list = obs_properties_add_list(props, S_STANDARD, obs_module_text("v4l2.standard"),
 								OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 	obs_property_set_visible(standard_list, false);
 
-	obs_property_t *dv_timing_list = obs_properties_add_list(props, S_DV_TIMING, obs_module_text("DVTiming"),
+	obs_property_t *dv_timing_list = obs_properties_add_list(props, S_DV_TIMING, obs_module_text("v4l2.dv-timing"),
 								 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 	obs_property_set_visible(dv_timing_list, false);
 
-	obs_property_t *resolution_list = obs_properties_add_list(props, VD_RESOLUTION, obs_module_text("Resolution"),
+	obs_property_t *resolution_list = obs_properties_add_list(props, VD_RESOLUTION, obs_module_text("resolution"),
 								  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 
-	obs_properties_add_list(props, VD_FRAME_RATE, obs_module_text("FrameRate"), OBS_COMBO_TYPE_LIST,
+	obs_properties_add_list(props, VD_FRAME_RATE, obs_module_text("frame-rate"), OBS_COMBO_TYPE_LIST,
 				OBS_COMBO_FORMAT_STRING);
 
-	obs_properties_add_bool(props, S_AUTO_RESET, obs_module_text("AutoresetOnTimeout"));
-	obs_properties_add_int(props, S_TIMEOUT_FRAMES, obs_module_text("FramesUntilTimeout"), 2, 120, 1);
+	obs_properties_add_bool(props, S_AUTO_RESET, obs_module_text("v4l2.auto-reset"));
+	obs_properties_add_int(props, S_TIMEOUT_FRAMES, obs_module_text("v4l2.timeout-frames"), 2, 120, 1);
 
 	// a group to contain the camera control
 	obs_properties_t *ctrl_props = obs_properties_create();
-	obs_properties_add_group(props, "controls", obs_module_text("CameraCtrls"), OBS_GROUP_NORMAL, ctrl_props);
+	obs_properties_add_group(props, "controls", obs_module_text("v4l2.camera-controls"), OBS_GROUP_NORMAL,
+				 ctrl_props);
 
 	if (device_list) {
 		obs_property_set_modified_callback(device_list, device_selected);
@@ -1179,7 +1181,7 @@ static bool v4l2_backend_available(void)
 
 const struct vd_backend vd_v4l2_backend = {
 	.name = "v4l2",
-	.display_name = "Backend.V4L2",
+	.display_name = "backend.v4l2",
 	.available = v4l2_backend_available,
 	.enum_devices = v4l2_enum_devices,
 	.create = v4l2_backend_create,

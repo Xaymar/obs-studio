@@ -21,6 +21,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <libv4l2.h>
 
 #include "v4l2-controls.h"
+#include "video-device.h"
 
 #define blog(level, msg, ...) blog(level, "v4l2-controls: " msg, ##__VA_ARGS__)
 
@@ -34,7 +35,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 static bool v4l2_control_changed(void *data, obs_properties_t *props, obs_property_t *prop, obs_data_t *settings)
 {
-	int dev = v4l2_open(obs_data_get_string(settings, "device_id"), O_RDWR | O_NONBLOCK);
+	int dev = v4l2_open(obs_data_get_string(settings, VD_DEVICE_ID), O_RDWR | O_NONBLOCK);
 	bool ret = false;
 
 	(void)props;

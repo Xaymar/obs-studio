@@ -64,7 +64,7 @@ static const struct vd_backend *choose_backend(obs_data_t *settings)
 static const char *vd_get_name(void *type_data)
 {
 	UNUSED_PARAMETER(type_data);
-	return obs_module_text("VideoDeviceCapture");
+	return obs_module_text("video-device-capture");
 }
 
 static void attach_backend(struct video_device *vd, obs_data_t *settings)
@@ -191,7 +191,7 @@ static void fill_devices(obs_property_t *list, const struct vd_backend *backend,
 		const char *name = obs_data_get_string(settings, VD_DEVICE_NAME);
 		struct dstr label = {0};
 		dstr_printf(&label, "%s (%s)", name && *name ? name : ctx.selected_id,
-			    obs_module_text("DeviceNotFound"));
+			    obs_module_text("device.not-found"));
 		size_t idx = obs_property_list_add_string(list, label.array, ctx.selected_id);
 		obs_property_list_item_disable(list, idx, true);
 		dstr_free(&label);
@@ -210,23 +210,23 @@ static void add_string_list(obs_properties_t *props, const char *key, const char
 static void add_common_properties(obs_properties_t *props, const struct vd_backend *backend)
 {
 	static const char *const cs_values[] = {VD_AUTO, "601", "709", "2100pq", "2100hlg"};
-	static const char *const cs_labels[] = {"Auto", "ColorSpace.601", "ColorSpace.709", "ColorSpace.2100PQ",
-						"ColorSpace.2100HLG"};
-	add_string_list(props, VD_COLOR_SPACE, obs_module_text("ColorSpace"), cs_values, cs_labels, 5);
+	static const char *const cs_labels[] = {"auto", "color-space.601", "color-space.709", "color-space.2100pq",
+						"color-space.2100hlg"};
+	add_string_list(props, VD_COLOR_SPACE, obs_module_text("color-space"), cs_values, cs_labels, 5);
 
 	static const char *const cr_values[] = {VD_AUTO, "partial", "full"};
-	static const char *const cr_labels[] = {"Auto", "ColorRange.Partial", "ColorRange.Full"};
-	add_string_list(props, VD_COLOR_RANGE, obs_module_text("ColorRange"), cr_values, cr_labels, 3);
+	static const char *const cr_labels[] = {"auto", "color-range.partial", "color-range.full"};
+	add_string_list(props, VD_COLOR_RANGE, obs_module_text("color-range"), cr_values, cr_labels, 3);
 
 	static const char *const buf_values[] = {VD_AUTO, "on", "off"};
-	static const char *const buf_labels[] = {"Auto", "Buffering.On", "Buffering.Off"};
-	add_string_list(props, VD_BUFFERING, obs_module_text("Buffering"), buf_values, buf_labels, 3);
+	static const char *const buf_labels[] = {"auto", "buffering.on", "buffering.off"};
+	add_string_list(props, VD_BUFFERING, obs_module_text("buffering"), buf_values, buf_labels, 3);
 
-	obs_properties_add_bool(props, VD_FLIP_VERTICAL, obs_module_text("FlipVertical"));
-	obs_properties_add_bool(props, VD_DEACTIVATE_WHEN_HIDDEN, obs_module_text("DeactivateWhenHidden"));
+	obs_properties_add_bool(props, VD_FLIP_VERTICAL, obs_module_text("flip-vertical"));
+	obs_properties_add_bool(props, VD_DEACTIVATE_WHEN_HIDDEN, obs_module_text("deactivate-when-hidden"));
 
 	if (backend && backend->has_audio) {
-		obs_properties_add_bool(props, VD_CAPTURE_AUDIO, obs_module_text("CaptureAudio"));
+		obs_properties_add_bool(props, VD_CAPTURE_AUDIO, obs_module_text("capture-audio"));
 	}
 }
 
@@ -234,9 +234,9 @@ static bool backend_changed(obs_properties_t *props, obs_property_t *p, obs_data
 
 static void build_backend_list(obs_properties_t *props)
 {
-	obs_property_t *p = obs_properties_add_list(props, VD_BACKEND, obs_module_text("Backend"), OBS_COMBO_TYPE_LIST,
+	obs_property_t *p = obs_properties_add_list(props, VD_BACKEND, obs_module_text("backend"), OBS_COMBO_TYPE_LIST,
 						    OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(p, obs_module_text("Auto"), VD_BACKEND_AUTO);
+	obs_property_list_add_string(p, obs_module_text("auto"), VD_BACKEND_AUTO);
 	for (size_t i = 0; i < vd_num_backends; i++) {
 		size_t idx = obs_property_list_add_string(p, obs_module_text(vd_backends[i]->display_name),
 							  vd_backends[i]->name);
@@ -252,7 +252,7 @@ static void build_backend_properties(obs_properties_t *props, struct video_devic
 {
 	const struct vd_backend *backend = choose_backend(settings);
 
-	obs_property_t *p = obs_properties_add_list(props, VD_DEVICE_ID, obs_module_text("Device"), OBS_COMBO_TYPE_LIST,
+	obs_property_t *p = obs_properties_add_list(props, VD_DEVICE_ID, obs_module_text("device"), OBS_COMBO_TYPE_LIST,
 						    OBS_COMBO_FORMAT_STRING);
 	fill_devices(p, backend, settings);
 
