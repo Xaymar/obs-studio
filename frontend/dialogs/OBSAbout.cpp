@@ -154,7 +154,7 @@ void OBSAbout::ShowAuthors()
 void OBSAbout::ShowLicense()
 {
 	std::string path;
-	QString error = QTStr("About.Error").arg("https://github.com/obsproject/obs-studio/blob/master/COPYING");
+	QString error = QTStr("About.Error").arg("https://github.com/Xaymar/knurbs/blob/root/LICENSE");
 
 	if (!GetDataFilePath("license/gplv2.txt", path)) {
 		ui->textBrowser->setPlainText(error);
