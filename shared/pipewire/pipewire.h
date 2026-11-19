@@ -59,5 +59,17 @@ void obs_pipewire_stream_video_render(obs_pipewire_stream *obs_pw_stream, gs_eff
 void obs_pipewire_stream_set_cursor_visible(obs_pipewire_stream *obs_pw_stream, bool cursor_visible);
 void obs_pipewire_stream_destroy(obs_pipewire_stream *obs_pw_stream);
 
+/* Async streams only: settings that override what the producer reports. */
+struct obs_pipewire_frame_overrides {
+	bool color_space_set;
+	enum video_colorspace color_space;
+	bool color_range_set;
+	enum video_range_type color_range;
+	bool flip;
+};
+
+void obs_pipewire_stream_set_frame_overrides(obs_pipewire_stream *obs_pw_stream,
+					     const struct obs_pipewire_frame_overrides *overrides);
+
 void obs_pipewire_stream_set_framerate(obs_pipewire_stream *obs_pw_stream, const struct spa_fraction *framerate);
 void obs_pipewire_stream_set_resolution(obs_pipewire_stream *obs_pw, const struct spa_rectangle *resolution);

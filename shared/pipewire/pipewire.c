@@ -139,6 +139,9 @@ struct _obs_pipewire_stream {
 		bool set;
 	} framerate;
 
+	/* Written under the thread loop lock, read on the PipeWire thread. */
+	struct obs_pipewire_frame_overrides overrides;
+
 	struct {
 		int acquire_syncobj_fd;
 		int release_syncobj_fd;
@@ -642,18 +645,34 @@ static bool prepare_obs_frame(obs_pipewire_stream *obs_pw_stream, struct obs_sou
 {
 	struct obs_pw_video_format obs_pw_video_format;
 
+	const struct obs_pipewire_frame_overrides *overrides = &obs_pw_stream->overrides;
+	enum video_colorspace color_space;
+	enum video_range_type color_range;
+
 	frame->width = obs_pw_stream->format.info.raw.size.width;
 	frame->height = obs_pw_stream->format.info.raw.size.height;
-
-	video_format_get_parameters(video_colorspace_from_spa_color_matrix(obs_pw_stream->format.info.raw.color_matrix),
-				    video_color_range_from_spa_color_range(obs_pw_stream->format.info.raw.color_range),
-				    frame->color_matrix, frame->color_range_min, frame->color_range_max);
 
 	if (!obs_pw_video_format_from_spa_format(obs_pw_stream->format.info.raw.format, &obs_pw_video_format) ||
 	    obs_pw_video_format.video_format == VIDEO_FORMAT_NONE)
 		return false;
 
 	frame->format = obs_pw_video_format.video_format;
+
+	color_space = overrides->color_space_set
+			      ? overrides->color_space
+			      : video_colorspace_from_spa_color_matrix(obs_pw_stream->format.info.raw.color_matrix);
+	color_range = overrides->color_range_set
+			      ? overrides->color_range
+			      : video_color_range_from_spa_color_range(obs_pw_stream->format.info.raw.color_range);
+
+	video_format_get_parameters_for_format(color_space, color_range, frame->format, frame->color_matrix,
+					       frame->color_range_min, frame->color_range_max);
+	frame->full_range = color_range == VIDEO_RANGE_FULL;
+	if (color_space == VIDEO_CS_2100_PQ)
+		frame->trc = VIDEO_TRC_PQ;
+	else if (color_space == VIDEO_CS_2100_HLG)
+		frame->trc = VIDEO_TRC_HLG;
+	frame->flip = overrides->flip;
 	return true;
 }
 
@@ -1422,6 +1441,14 @@ void obs_pipewire_stream_destroy(obs_pipewire_stream *obs_pw_stream)
 
 	clear_format_info(obs_pw_stream);
 	bfree(obs_pw_stream);
+}
+
+void obs_pipewire_stream_set_frame_overrides(obs_pipewire_stream *obs_pw_stream,
+					     const struct obs_pipewire_frame_overrides *overrides)
+{
+	pw_thread_loop_lock(obs_pw_stream->obs_pw->thread_loop);
+	obs_pw_stream->overrides = *overrides;
+	pw_thread_loop_unlock(obs_pw_stream->obs_pw->thread_loop);
 }
 
 void obs_pipewire_stream_set_framerate(obs_pipewire_stream *obs_pw_stream, const struct spa_fraction *framerate)
