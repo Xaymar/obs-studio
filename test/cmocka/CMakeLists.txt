@@ -398,3 +398,13 @@ foreach(
 )
   obs_add_graphics_test(${test})
 endforeach()
+
+# core/
+foreach(
+  test
+  IN
+  ITEMS
+    test_obs_data
+)
+  obs_add_graphics_test(${test})
+endforeach()
