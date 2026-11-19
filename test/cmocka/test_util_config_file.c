@@ -167,6 +167,24 @@ static void set_save_test(void **state)
 	os_unlink("created.ini.bak");
 }
 
+/* saving fails cleanly when the file cannot be written any more */
+static void save_fail_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+
+	assert_int_equal(os_mkdir("gone"), MKDIR_SUCCESS);
+	config_t *config = config_create("gone/config.ini");
+	assert_non_null(config);
+	config_set_string(config, "S", "K", "V");
+	assert_int_equal(os_unlink("gone/config.ini"), 0);
+	assert_int_equal(os_rmdir("gone"), 0);
+
+	assert_int_equal(config_save(config), CONFIG_FILENOTFOUND);
+	assert_int_equal(config_save_safe(config, "tmp", "bak"), CONFIG_FILENOTFOUND);
+	assert_false(os_file_exists("gone"));
+	config_close(config);
+}
+
 /* Regression test: saving a config without sections reported CONFIG_ERROR */
 static void save_empty_test(void **state)
 {
@@ -253,7 +271,7 @@ static void defaults_test(void **state)
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
-		obs_unit_test(parse_test), obs_unit_test(duplicate_test), obs_unit_test(set_save_test), obs_unit_test(save_empty_test),
+		obs_unit_test(parse_test), obs_unit_test(duplicate_test), obs_unit_test(save_fail_test), obs_unit_test(set_save_test), obs_unit_test(save_empty_test),
 		obs_unit_test(open_test),  obs_unit_test(defaults_test),
 	};
 

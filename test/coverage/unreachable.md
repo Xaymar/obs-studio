@@ -41,6 +41,7 @@ Reasons:
 | util/buffered-file-serializer.c | 182-187, 215, 262, 317 | `fwrite()` failure and the `output_error` paths it enables | OS failure (disk full) |
 | util/buffered-file-serializer.c | 273-279 | writer waits for the I/O thread | Timing: only when the I/O thread falls behind; flaky to force |
 | util/profiler.c | `profiler_free()` | freeing after a start/snapshot/stop cycle | Now covered: the crash was a later call after the free (fixed in `435b31de3`) |
+| util/utf8.c | `wchar_to_utf8()`: `insize == 0` | the `wcslen()` fallback | Dead: `wchar_to_utf8()` is not exported, and its only callers (`os_wcs_to_utf8()` and friends) compute the length first |
 
 ## media-io/
 
@@ -75,22 +76,8 @@ Reasons:
 | graphics/libnsgif/* | interlacing, local color tables, extension blocks, LZW error paths | parts of the GIF format the test images do not use | Reachable with more crafted GIFs, not covered yet |
 | graphics/half.h | all | half-float conversion | No exported caller in libobs |
 
-Not yet covered and not tested on purpose (threading-level, may be replaced):
-
-- util/threading-windows.c, util/threading-windows.h, util/threading.h
-- util/task.c, util/spsc-fifo.h
-
 Reachable, but no test yet (not unreachable; tracked here until covered):
 
 - util/source-profiler.c (needs sources rendering on the null graphics module)
 - util/windows/window-helpers.c, util/windows/device-enum.c, util/windows/obfuscate.c, util/windows/win-version.h
 - util/util_uint64.h (the `util_mul_div64()` portable path)
-- util/config-file.c: 349-351: `config_save()`: `os_fopen()` fails
-- util/config-file.c: 424-429: `config_save_safe()`: temporary file cannot be written
-- util/serializer.h: 61: `serialize()` read path
-- util/utf8.c: 37: `wchar_to_utf8()` with `insize == 0`
-- media-io/video-io.c: 179-181: a repeated frame that is also skipped (`frame_info->skipped`)
-- media-io/video-io.c: 288: `video_output_close()` freeing inputs that are still connected
-- media-io/video-io.c: 322-327: `collapse_space()` for sRGB and HLG conversions
-- media-io/video-io.c: 457-462: `log_skipped()` after frames were skipped
-- media-io/video-scaler-ffmpeg.c: 260: copying into an output linesize smaller than the scaler's

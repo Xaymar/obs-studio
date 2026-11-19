@@ -222,12 +222,119 @@ static void skipped_test(void **state)
 	video_output_close(video);
 }
 
+struct blocking {
+	os_event_t *release;
+	volatile long frames;
+};
+
+static void on_frame_blocking(void *param, struct video_data *frame)
+{
+	UNUSED_PARAMETER(frame);
+	struct blocking *b = param;
+	os_event_wait(b->release);
+	os_atomic_inc_long(&b->frames);
+}
+
+/* a frame repeated because the cache was full is counted as skipped once per extra showing, and the count is
+ * logged when the last input disconnects */
+static void repeated_skipped_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+
+	struct video_output_info info = make_info();
+	info.cache_size = 2;
+	video_t *video = NULL;
+	assert_int_equal(video_output_open(&video, &info), VIDEO_OUTPUT_SUCCESS);
+
+	struct blocking b = {0};
+	assert_int_equal(os_event_init(&b.release, OS_EVENT_TYPE_MANUAL), 0);
+	assert_true(video_output_connect(video, NULL, on_frame_blocking, &b));
+
+	/* the video thread blocks in the callback for the first frame, so the cache fills up */
+	struct video_frame frame;
+	assert_true(video_output_lock_frame(video, &frame, 1, 0));
+	video_output_unlock_frame(video);
+	assert_true(video_output_lock_frame(video, &frame, 1, 1));
+	video_output_unlock_frame(video);
+	assert_false(video_output_lock_frame(video, &frame, 1, 2));
+	assert_false(video_output_lock_frame(video, &frame, 1, 3));
+
+	os_event_signal(b.release);
+	for (int i = 0; i < 1000 && os_atomic_load_long(&b.frames) < 4; i++)
+		os_sleep_ms(2);
+	/* the second frame is shown three times */
+	assert_int_equal(os_atomic_load_long(&b.frames), 4);
+	assert_int_equal(video_output_get_skipped_frames(video), 2);
+
+	video_output_disconnect(video, on_frame_blocking, &b);
+	video_output_close(video);
+	os_event_destroy(b.release);
+}
+
+/* inputs still connected when the output closes are freed with it, including their scalers */
+static void close_connected_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+
+	struct video_output_info info = make_info();
+	video_t *video = NULL;
+	assert_int_equal(video_output_open(&video, &info), VIDEO_OUTPUT_SUCCESS);
+
+	struct received raw = {0}, scaled = {0};
+	struct video_scale_info conv = {VIDEO_FORMAT_Y800, 32, 16, VIDEO_RANGE_FULL, VIDEO_CS_709};
+	assert_true(video_output_connect(video, NULL, on_frame, &raw));
+	assert_true(video_output_connect(video, &conv, on_frame, &scaled));
+	video_output_close(video);
+}
+
+/* sRGB counts as 709 and HLG as PQ when deciding whether an input needs a conversion */
+static void colorspace_match_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+
+	struct video_output_info info = make_info();
+	video_t *video = NULL;
+	assert_int_equal(video_output_open(&video, &info), VIDEO_OUTPUT_SUCCESS);
+
+	struct received srgb = {0};
+	struct video_scale_info conv = {VIDEO_FORMAT_Y800, 64, 32, VIDEO_RANGE_FULL, VIDEO_CS_SRGB};
+	assert_true(video_output_connect(video, &conv, on_frame, &srgb));
+
+	struct video_frame frame;
+	assert_true(video_output_lock_frame(video, &frame, 1, 0));
+	memset(frame.data[0], 0x21, 64 * 32);
+	video_output_unlock_frame(video);
+	wait_frames(&srgb, 1);
+	/* no scaler: the input gets the output's own frame */
+	assert_int_equal(os_atomic_load_long(&srgb.frames), 1);
+	assert_int_equal(srgb.first_byte, 0x21);
+	assert_int_equal(srgb.linesize, 64);
+	video_output_disconnect(video, on_frame, &srgb);
+	video_output_close(video);
+
+	info.colorspace = VIDEO_CS_2100_PQ;
+	assert_int_equal(video_output_open(&video, &info), VIDEO_OUTPUT_SUCCESS);
+	struct received hlg = {0};
+	conv.colorspace = VIDEO_CS_2100_HLG;
+	assert_true(video_output_connect(video, &conv, on_frame, &hlg));
+	assert_true(video_output_lock_frame(video, &frame, 1, 0));
+	memset(frame.data[0], 0x22, 64 * 32);
+	video_output_unlock_frame(video);
+	wait_frames(&hlg, 1);
+	assert_int_equal(hlg.first_byte, 0x22);
+	video_output_disconnect(video, on_frame, &hlg);
+	video_output_close(video);
+}
+
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test_setup_teardown(open_test, setup, teardown),
 		cmocka_unit_test_setup_teardown(frames_test, setup, teardown),
 		cmocka_unit_test_setup_teardown(skipped_test, setup, teardown),
+		cmocka_unit_test_setup_teardown(repeated_skipped_test, setup, teardown),
+		cmocka_unit_test_setup_teardown(close_connected_test, setup, teardown),
+		cmocka_unit_test_setup_teardown(colorspace_match_test, setup, teardown),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);

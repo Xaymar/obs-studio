@@ -90,6 +90,17 @@ static void scale_test(void **state)
 	assert_int_equal(padded.data[0][0], 0x80);
 	assert_int_equal(padded.data[0][48 + 31], 0x80);
 
+	/* an output linesize smaller than the scaler's gets each row cut to it */
+	uint8_t narrow[16 * 16 + 1];
+	memset(narrow, 0, sizeof(narrow));
+	uint8_t *narrow_planes[MAX_AV_PLANES] = {narrow};
+	uint32_t narrow_linesize[MAX_AV_PLANES] = {16};
+	assert_true(video_scaler_scale(scaler, narrow_planes, narrow_linesize, (const uint8_t *const *)in.data,
+				       in.linesize));
+	assert_int_equal(narrow[0], 0x80);
+	assert_int_equal(narrow[16 * 16 - 1], 0x80);
+	assert_int_equal(narrow[16 * 16], 0);
+
 	video_frame_free(&in);
 	video_frame_free(&out);
 	video_frame_free(&padded);

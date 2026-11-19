@@ -39,6 +39,13 @@ static void round_trip_test(void **state)
 	assert_memory_equal(buf, "ld", 2);
 	assert_int_equal(serializer_seek(&in, -1, SERIALIZE_SEEK_START), -1);
 	assert_int_equal(s_write(&in, "x", 1), 0);
+
+	/* serialize() reads from a serializer without a write function */
+	assert_int_equal(serializer_seek(&in, 0, SERIALIZE_SEEK_START), 0);
+	memset(buf, 0, sizeof(buf));
+	assert_int_equal(serialize(&in, buf, 5), 5);
+	assert_string_equal(buf, "Jello");
+	assert_int_equal(serialize(NULL, buf, 5), 0);
 	file_input_serializer_free(&in);
 
 	os_unlink("plain.bin");
