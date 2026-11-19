@@ -337,7 +337,7 @@ obs_property_t *obs_properties_get(obs_properties_t *props, const char *name)
 
 obs_properties_t *obs_properties_get_parent(obs_properties_t *props)
 {
-	return props->parent ? props->parent->parent : NULL;
+	return (props && props->parent) ? props->parent->parent : NULL;
 }
 
 void obs_properties_remove_by_name(obs_properties_t *props, const char *name)
