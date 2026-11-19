@@ -12,7 +12,6 @@
 !/plugins
 !/shared
 !/test
-!.cirrus.xml
 !.clang-format
 !.editorconfig
 !.gersemirc
@@ -29,8 +28,7 @@
 !COMMITMENT
 !CONTRIBUTING.md
 !CODESTYLE.md
-!COPYING
-!INSTALL
+!LICENSE
 !README.rst
 
 # Exclude lock files

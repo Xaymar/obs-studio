@@ -79,5 +79,5 @@ Licence and attribution
 Knurbs is based on OBS Studio, copyright the OBS Project and its
 contributors (see ``AUTHORS``). Like OBS Studio, it is distributed under the
 GNU General Public License v2 (or any later version); see the accompanying
-``COPYING`` file for details. Bundled third-party code under ``deps/`` and
+``LICENSE`` file for details. Bundled third-party code under ``deps/`` and
 elsewhere keeps its own licence.
