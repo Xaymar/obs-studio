@@ -47,6 +47,9 @@ void os_process_args_add_argf(struct os_process_args *args, const char *format, 
 
 	va_start(va_args, format);
 	dstr_vprintf(&tmp, format, va_args);
+	/* an empty result leaves tmp.array NULL, which would terminate argv early */
+	if (!tmp.array)
+		tmp.array = bstrdup("");
 	da_insert(args->arguments, args->arguments.num - 1, &tmp.array);
 	va_end(va_args);
 }
