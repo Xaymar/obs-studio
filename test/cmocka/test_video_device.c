@@ -211,7 +211,7 @@ static void migrate_dshow_custom(void **state)
 	assert_string_equal(obs_data_get_string(s, VD_DEVICE_ID), "Cam#3A Pro#22 1:\\\\?\\usb#vid");
 	assert_string_equal(obs_data_get_string(s, VD_DEVICE_NAME), "Cam: Pro# 1");
 	assert_string_equal(obs_data_get_string(s, VD_RESOLUTION), "1920x1080");
-	assert_string_equal(obs_data_get_string(s, VD_FRAME_RATE), "10000000/166666");
+	assert_string_equal(obs_data_get_string(s, VD_FRAME_RATE), "60/1");
 	assert_string_equal(obs_data_get_string(s, VD_PIXEL_FORMAT), "YU12"); /* I420 */
 	assert_string_equal(obs_data_get_string(s, VD_COLOR_SPACE), "709");
 	assert_string_equal(obs_data_get_string(s, VD_COLOR_RANGE), "full");
@@ -266,6 +266,23 @@ static void migrate_dshow_preferred_and_matching(void **state)
 	vd_migrate_dshow(NULL, "dshow_input", s);
 	assert_false(obs_data_has_user_value(s, VD_PIXEL_FORMAT));
 	obs_data_release(s);
+
+	/* Intervals near a listed rate become that rate; others stay exact. */
+	static const struct {
+		long long interval;
+		const char *rate;
+	} rates[] = {{166833, "60000/1001"}, {166834, "60000/1001"}, {333333, "30/1"}, {400000, "25/1"},
+		     {123456, "10000000/123456"}};
+	for (size_t i = 0; i < sizeof(rates) / sizeof(rates[0]); i++) {
+		s = obs_data_create();
+		obs_data_set_string(s, "video_device_id", "Cam:path");
+		obs_data_set_int(s, "res_type", 1);
+		obs_data_set_string(s, "resolution", "640x480");
+		obs_data_set_int(s, "frame_interval", rates[i].interval);
+		vd_migrate_dshow(NULL, "dshow_input", s);
+		assert_string_equal(obs_data_get_string(s, VD_FRAME_RATE), rates[i].rate);
+		obs_data_release(s);
+	}
 
 	/* Each saved format maps to its FourCC. */
 	static const struct {

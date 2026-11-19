@@ -312,7 +312,13 @@ void vd_migrate_dshow(void *param, const char *old_id, obs_data_t *s)
 		if (interval == DSHOW_FPS_MATCHING) {
 			obs_data_set_string(s, VD_FRAME_RATE, VD_FRAME_RATE_MATCH);
 		} else if (interval > DSHOW_FPS_HIGHEST) {
-			set_fps(s, 10000000, interval);
+			/* As the listed rate, so the list shows it selected. */
+			const struct vd_dshow_frame_rate *rate = vd_dshow_find_frame_rate(interval);
+			if (rate) {
+				set_fps(s, rate->num, rate->den);
+			} else {
+				set_fps(s, 10000000, interval);
+			}
 		}
 
 		/* The DShow::VideoFormat number; Any and unknown ones mean
