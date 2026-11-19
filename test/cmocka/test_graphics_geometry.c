@@ -7,12 +7,14 @@
 
 #include <math.h>
 
+#include <graphics/axisang.h>
 #include <graphics/bounds.h>
 #include <graphics/math-defs.h>
 #include <graphics/math-extra.h>
 #include <graphics/matrix3.h>
 #include <graphics/matrix4.h>
 #include <graphics/plane.h>
+#include <graphics/quat.h>
 #include <graphics/vec2.h>
 #include <graphics/vec3.h>
 
@@ -43,18 +45,45 @@ static void plane_test(void **state)
 	assert_true(plane_coplanar(&p, &flipped, 1e-4f));
 	assert_false(plane_coplanar(&p, &q, 1e-4f));
 
-	/* moving the plane by a translation of 2 along z */
+	/* Regression: plane_transform() translated the normal and moved the plane the wrong way: translating z = 1 by 2
+	 * along z gave distance -1 instead of 3 */
 	struct matrix4 m;
 	matrix4_identity(&m);
 	m.t.z = 2.0f;
-	/* plane_transform() also translates the normal, so only its length is checked (see known-bugs.md) */
 	plane_transform(&q, &p, &m);
 	assert_near(vec3_len(&q.dir), 1.0f);
+	assert_near(q.dir.z * q.dist, 3.0f);
+
+	/* any rotation and translation: points on the plane end up on the transformed plane */
+	struct axisang aa;
+	axisang_set(&aa, 0.6f, 0.0f, 0.8f, 0.7f);
+	struct quat rot;
+	quat_from_axisang(&rot, &aa);
+	struct vec3 offset;
+	vec3_set(&offset, 3.0f, -1.0f, 2.0f);
+	matrix4_identity(&m);
+	matrix4_rotate(&m, &m, &rot);
+	matrix4_translate3v(&m, &m, &offset);
 	struct matrix3 m3;
-	matrix3_identity(&m3);
-	m3.t.z = 2.0f;
+	matrix3_from_matrix4(&m3, &m);
+	struct vec3 on_plane[3] = {a, b, c};
+
+	plane_transform(&q, &p, &m);
+	assert_near(vec3_len(&q.dir), 1.0f);
+	for (size_t i = 0; i < 3; i++) {
+		struct vec3 moved;
+		vec3_transform(&moved, &on_plane[i], &m);
+		assert_near(vec3_plane_dist(&moved, &q), 0.0f);
+	}
+
+	/* plane_transform3x4() moves the plane like vec3_transform3x4() moves points */
 	plane_transform3x4(&q, &p, &m3);
 	assert_near(vec3_len(&q.dir), 1.0f);
+	for (size_t i = 0; i < 3; i++) {
+		struct vec3 moved;
+		vec3_transform3x4(&moved, &on_plane[i], &m3);
+		assert_near(vec3_plane_dist(&moved, &q), 0.0f);
+	}
 
 	/* rays and lines against z = 1 */
 	struct plane z1;
