@@ -18,7 +18,7 @@ static inline uint64_t leb128(const uint8_t *buf, size_t size, size_t *len)
 			break;
 		(*len)++;
 		leb128_byte = buf[i];
-		value |= (leb128_byte & 0x7f) << (i * 7);
+		value |= (uint64_t)(leb128_byte & 0x7f) << (i * 7);
 		if (!(leb128_byte & 0x80))
 			break;
 	}
