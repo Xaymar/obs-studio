@@ -9,8 +9,15 @@
 /* Backends are added here per platform, in Auto preference order, as they
  * are ported from the old per-platform plugins. */
 
+#ifdef HAVE_V4L2
+extern const struct vd_backend vd_v4l2_backend;
+#endif
+
 const struct vd_backend *const vd_backends[] = {
-	NULL, /* keeps the array non-empty while no backend is ported yet */
+#ifdef HAVE_V4L2
+	&vd_v4l2_backend,
+#endif
+	NULL, /* terminator, and keeps the array non-empty */
 };
 
 const size_t vd_num_backends = sizeof(vd_backends) / sizeof(vd_backends[0]) - 1;

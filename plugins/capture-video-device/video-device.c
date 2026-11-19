@@ -141,9 +141,7 @@ static void vd_get_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_string(settings, VD_BACKEND, VD_BACKEND_AUTO);
 	obs_data_set_default_string(settings, VD_RESOLUTION, "");
-	obs_data_set_default_int(settings, VD_FPS_NUM, 0);
-	obs_data_set_default_int(settings, VD_FPS_DEN, 0);
-	obs_data_set_default_bool(settings, VD_FPS_MATCH_OUTPUT, false);
+	obs_data_set_default_string(settings, VD_FRAME_RATE, "");
 	obs_data_set_default_string(settings, VD_PIXEL_FORMAT, "");
 	obs_data_set_default_string(settings, VD_COLOR_SPACE, VD_AUTO);
 	obs_data_set_default_string(settings, VD_COLOR_RANGE, VD_AUTO);

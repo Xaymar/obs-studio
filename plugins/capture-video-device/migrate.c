@@ -109,8 +109,9 @@ static void set_fps(obs_data_t *s, long long num, long long den)
 	if (num <= 0 || den <= 0) {
 		return;
 	}
-	obs_data_set_int(s, VD_FPS_NUM, num);
-	obs_data_set_int(s, VD_FPS_DEN, den);
+	char buf[48];
+	snprintf(buf, sizeof(buf), "%lld/%lld", num, den);
+	obs_data_set_string(s, VD_FRAME_RATE, buf);
 }
 
 /* "default"/"709"/"2100PQ"... and "partial"/"full" as used by DirectShow and
@@ -250,7 +251,7 @@ void vd_migrate_dshow(void *param, const char *old_id, obs_data_t *s)
 		/* frame_interval is in 100ns units. */
 		long long interval = obs_data_get_int(s, "frame_interval");
 		if (interval == DSHOW_FPS_MATCHING) {
-			obs_data_set_bool(s, VD_FPS_MATCH_OUTPUT, true);
+			obs_data_set_string(s, VD_FRAME_RATE, VD_FRAME_RATE_MATCH);
 		} else if (interval > DSHOW_FPS_HIGHEST) {
 			set_fps(s, 10000000, interval);
 		}

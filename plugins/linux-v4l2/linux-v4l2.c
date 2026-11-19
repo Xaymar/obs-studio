@@ -21,17 +21,16 @@ OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("linux-v4l2", "en-US")
 MODULE_EXPORT const char *obs_module_description(void)
 {
-	return "Video4Linux2(V4L2) sources/virtual camera";
+	return "Video4Linux2(V4L2) virtual camera";
 }
 
-extern struct obs_source_info v4l2_input;
 extern struct obs_output_info virtualcam_info;
 extern bool loopback_module_available();
 
 bool obs_module_load(void)
 {
-	obs_register_source(&v4l2_input);
-
+	/* Capture moved to capture-video-device (Video Capture Device, V4L2
+	 * backend); v4l2_input is an alias there. */
 	if (loopback_module_available()) {
 		obs_register_output(&virtualcam_info);
 	} else {

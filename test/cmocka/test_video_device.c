@@ -163,8 +163,7 @@ static void migrate_dshow_custom(void **state)
 	assert_string_equal(obs_data_get_string(s, VD_DEVICE_ID), "Cam#3A Pro#22 1:\\\\?\\usb#vid");
 	assert_string_equal(obs_data_get_string(s, VD_DEVICE_NAME), "Cam: Pro# 1");
 	assert_string_equal(obs_data_get_string(s, VD_RESOLUTION), "1920x1080");
-	assert_int_equal(obs_data_get_int(s, VD_FPS_NUM), 10000000);
-	assert_int_equal(obs_data_get_int(s, VD_FPS_DEN), 166666);
+	assert_string_equal(obs_data_get_string(s, VD_FRAME_RATE), "10000000/166666");
 	assert_int_equal(obs_data_get_int(s, "dshow.video_format"), 200);
 	assert_string_equal(obs_data_get_string(s, VD_COLOR_SPACE), "709");
 	assert_string_equal(obs_data_get_string(s, VD_COLOR_RANGE), "full");
@@ -201,8 +200,7 @@ static void migrate_dshow_preferred_and_matching(void **state)
 	s = json("{\"video_device_id\":\"Cam:path\",\"res_type\":1,\"resolution\":\"1280x720\","
 		 "\"frame_interval\":-1}");
 	vd_migrate_dshow(NULL, "dshow_input", s);
-	assert_true(obs_data_get_bool(s, VD_FPS_MATCH_OUTPUT));
-	assert_false(obs_data_has_user_value(s, VD_FPS_NUM));
+	assert_string_equal(obs_data_get_string(s, VD_FRAME_RATE), VD_FRAME_RATE_MATCH);
 	obs_data_release(s);
 }
 
@@ -229,8 +227,7 @@ static void migrate_v4l2_packed_formats(void **state)
 	assert_string_equal(obs_data_get_string(s, VD_DEVICE_ID), "/dev/video0");
 	assert_string_equal(obs_data_get_string(s, VD_DEVICE_BACKEND), "v4l2");
 	assert_string_equal(obs_data_get_string(s, VD_RESOLUTION), "1920x1080");
-	assert_int_equal(obs_data_get_int(s, VD_FPS_NUM), 30);
-	assert_int_equal(obs_data_get_int(s, VD_FPS_DEN), 1);
+	assert_string_equal(obs_data_get_string(s, VD_FRAME_RATE), "30/1");
 	assert_string_equal(obs_data_get_string(s, VD_PIXEL_FORMAT), "YUYV");
 	assert_string_equal(obs_data_get_string(s, VD_COLOR_RANGE), "partial");
 	assert_string_equal(obs_data_get_string(s, VD_BUFFERING), "off");
@@ -247,7 +244,7 @@ static void migrate_v4l2_packed_formats(void **state)
 	obs_data_set_int(s, "pixelformat", -1);
 	vd_migrate_v4l2(NULL, "v4l2_input", s);
 	assert_string_equal(obs_data_get_string(s, VD_RESOLUTION), "640x480");
-	assert_false(obs_data_has_user_value(s, VD_FPS_NUM));
+	assert_false(obs_data_has_user_value(s, VD_FRAME_RATE));
 	assert_false(obs_data_has_user_value(s, VD_PIXEL_FORMAT));
 	obs_data_release(s);
 }
@@ -263,8 +260,7 @@ static void migrate_pipewire_camera(void **state)
 	assert_string_equal(obs_data_get_string(s, VD_DEVICE_BACKEND), "pipewire");
 	assert_string_equal(obs_data_get_string(s, VD_DEVICE_ID), "node-42");
 	assert_string_equal(obs_data_get_string(s, VD_RESOLUTION), "1280x720");
-	assert_int_equal(obs_data_get_int(s, VD_FPS_NUM), 60);
-	assert_int_equal(obs_data_get_int(s, VD_FPS_DEN), 1);
+	assert_string_equal(obs_data_get_string(s, VD_FRAME_RATE), "60/1");
 	assert_int_equal(obs_data_get_int(s, "pipewire.pixelformat"), 7);
 	obs_data_release(s);
 }

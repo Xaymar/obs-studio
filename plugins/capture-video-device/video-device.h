@@ -34,11 +34,10 @@ extern "C" {
 
 /* "WxH", or empty for the device's preferred resolution. */
 #define VD_RESOLUTION "resolution"
-/* Frame rate as a fraction. 0/0 is the highest the device offers. */
-#define VD_FPS_NUM "fps_num"
-#define VD_FPS_DEN "fps_den"
-/* Pick the device frame rate closest to the output frame rate instead. */
-#define VD_FPS_MATCH_OUTPUT "fps_match_output"
+/* Frame rate: "num/den" (for example "30000/1001"), empty for the highest the
+ * device offers, or "match" for the device rate closest to the output. */
+#define VD_FRAME_RATE "frame_rate"
+#define VD_FRAME_RATE_MATCH "match"
 /* FourCC such as "NV12" or "MJPG", or empty for automatic. */
 #define VD_PIXEL_FORMAT "pixel_format"
 

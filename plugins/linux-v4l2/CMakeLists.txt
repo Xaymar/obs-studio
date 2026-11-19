@@ -1,14 +1,10 @@
 cmake_minimum_required(VERSION 3.28...3.30)
 
 option(ENABLE_V4L2 "Build OBS with v4l2 support" ON)
-option(ENABLE_UDEV "Build linux-v4l2 with UDEV support" ON)
 
 if(NOT ENABLE_V4L2)
   return()
 endif()
-
-find_package(Libv4l2 REQUIRED)
-find_package(FFmpeg 8.0 REQUIRED COMPONENTS avcodec avutil avformat)
 
 if(OS_FREEBSD OR OS_OPENBSD)
   set(CMAKE_REQUIRED_INCLUDES "/usr/local/include")
@@ -24,22 +20,9 @@ endif()
 add_library(linux-v4l2 MODULE)
 add_library(OBS::v4l2 ALIAS linux-v4l2)
 
-target_sources(
-  linux-v4l2
-  PRIVATE linux-v4l2.c v4l2-controls.c v4l2-decoder.c v4l2-helpers.c v4l2-input.c v4l2-output.c
-)
+# Capture lives in capture-video-device now; this module is the virtual camera.
+target_sources(linux-v4l2 PRIVATE linux-v4l2.c v4l2-output.c)
 
-target_link_libraries(
-  linux-v4l2
-  PRIVATE OBS::libobs Libv4l2::Libv4l2 FFmpeg::avcodec FFmpeg::avformat FFmpeg::avutil
-)
-
-if(ENABLE_UDEV)
-  find_package(Libudev REQUIRED)
-  target_sources(linux-v4l2 PRIVATE v4l2-udev.c)
-
-  target_link_libraries(linux-v4l2 PRIVATE Libudev::Libudev)
-  target_compile_definitions(linux-v4l2 PRIVATE HAVE_UDEV)
-endif()
+target_link_libraries(linux-v4l2 PRIVATE OBS::libobs)
 
 set_target_properties_obs(linux-v4l2 PROPERTIES FOLDER plugins PREFIX "")
