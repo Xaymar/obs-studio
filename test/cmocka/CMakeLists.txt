@@ -441,6 +441,7 @@ foreach(
     test_obs_output
     test_obs_audio
     test_obs_hotkey
+    test_obs_canvas
 )
   obs_add_core_test(${test})
 endforeach()
