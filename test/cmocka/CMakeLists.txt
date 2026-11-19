@@ -2,25 +2,36 @@ project(obs-cmocka)
 
 find_package(CMocka CONFIG REQUIRED)
 
+# obs.dll and the obs-deps runtime libraries are not next to the test executables on Windows
+set(_obs_runtime_env "")
+if(OS_WINDOWS)
+  list(APPEND _obs_runtime_env "PATH=path_list_prepend:${OBS_OUTPUT_DIR}/$<CONFIG>/${OBS_EXECUTABLE_DESTINATION}")
+  foreach(prefix IN LISTS CMAKE_PREFIX_PATH)
+    if(EXISTS "${prefix}/bin")
+      list(APPEND _obs_runtime_env "PATH=path_list_prepend:${prefix}/bin")
+    endif()
+  endforeach()
+endif()
+
 # Serializer test
 add_executable(test_serializer test_serializer.c)
 target_include_directories(test_serializer PRIVATE ${CMOCKA_INCLUDE_DIR})
 target_link_libraries(test_serializer PRIVATE OBS::libobs cmocka::cmocka)
-add_test(test_serializer test_serializer)
+add_test(NAME test_serializer COMMAND test_serializer)
 
 # darray test
 add_executable(test_darray test_darray.c)
 target_include_directories(test_darray PRIVATE ${CMOCKA_INCLUDE_DIR})
 target_link_libraries(test_darray PRIVATE OBS::libobs cmocka::cmocka)
 
-add_test(test_darray test_darray)
+add_test(NAME test_darray COMMAND test_darray)
 
 # bitstream test
 add_executable(test_bitstream test_bitstream.c)
 target_include_directories(test_bitstream PRIVATE ${CMOCKA_INCLUDE_DIR})
 target_link_libraries(test_bitstream PRIVATE OBS::libobs cmocka::cmocka)
 
-add_test(test_bitstream test_bitstream)
+add_test(NAME test_bitstream COMMAND test_bitstream)
 
 # Vulkan backend export test
 if(ENABLE_VULKAN)
@@ -244,18 +255,18 @@ add_executable(test_os_path test_os_path.c)
 target_include_directories(test_os_path PRIVATE ${CMOCKA_INCLUDE_DIR})
 target_link_libraries(test_os_path PRIVATE OBS::libobs cmocka::cmocka)
 
-add_test(test_os_path test_os_path)
+add_test(NAME test_os_path COMMAND test_os_path)
 
-# Tests that start libobs: run from the rundir so libobs finds its data files (../../data/libobs), with obs.dll and
-# the obs-deps runtime libraries on PATH
+set_tests_properties(
+  test_serializer
+  test_darray
+  test_bitstream
+  test_os_path
+  PROPERTIES ENVIRONMENT_MODIFICATION "${_obs_runtime_env}"
+)
+
+# Tests that start libobs: run from the rundir so libobs finds its data files (../../data/libobs)
 if(TARGET libobs-null)
-  set(_obs_runtime_env "PATH=path_list_prepend:${OBS_OUTPUT_DIR}/$<CONFIG>/${OBS_EXECUTABLE_DESTINATION}")
-  foreach(prefix IN LISTS CMAKE_PREFIX_PATH)
-    if(EXISTS "${prefix}/bin")
-      list(APPEND _obs_runtime_env "PATH=path_list_prepend:${prefix}/bin")
-    endif()
-  endforeach()
-
   # Canvas weak reference regression test
   add_executable(test_obs_canvas_weak test_obs_canvas_weak.c)
   target_include_directories(test_obs_canvas_weak PRIVATE ${CMOCKA_INCLUDE_DIR})
