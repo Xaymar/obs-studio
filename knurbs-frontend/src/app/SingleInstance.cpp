@@ -19,7 +19,7 @@ QString SingleInstance::serverName() const
 {
 	// Unique per lock file, and so per user and per portable install.
 	const QByteArray hash = QCryptographicHash::hash(lock_.fileName().toUtf8(), QCryptographicHash::Sha1).toHex();
-	return QStringLiteral("knurbs-") + QString::fromLatin1(hash.left(16));
+	return QStringLiteral("com.xaymar.knurbs.instance.") + QString::fromLatin1(hash.left(16));
 }
 
 bool SingleInstance::acquire(const QStringList &arguments)

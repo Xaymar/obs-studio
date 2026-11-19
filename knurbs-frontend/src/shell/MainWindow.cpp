@@ -31,7 +31,8 @@ MainWindow::MainWindow(Core &core) : QMainWindow(nullptr), core_(core)
 	preview->setObjectName(QStringLiteral("preview"));
 	preview->setAlignment(Qt::AlignCenter);
 	auto *previewDock = new ads::CDockWidget(tr("Preview"));
-	previewDock->setObjectName(QStringLiteral("previewDock"));
+	// Dock ids are stored in the saved layout; ours use reverse-DNS ids.
+	previewDock->setObjectName(QStringLiteral("com.xaymar.knurbs.dock.preview"));
 	previewDock->setWidget(preview);
 	previewDock->setFeature(ads::CDockWidget::DockWidgetClosable, false);
 	dockManager_->setCentralWidget(previewDock);

@@ -58,6 +58,8 @@ void set_application_attributes()
 	QCoreApplication::setOrganizationDomain(QStringLiteral("xaymar.com"));
 	QCoreApplication::setApplicationName(QStringLiteral("knurbs"));
 	QCoreApplication::setApplicationVersion(QStringLiteral("0.0.0"));
+	// Reverse-DNS id; on Wayland this is the app_id compositors match against.
+	QGuiApplication::setDesktopFileName(QStringLiteral("com.xaymar.knurbs"));
 }
 
 } // namespace knurbs::bootstrap
