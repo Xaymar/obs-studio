@@ -342,3 +342,15 @@ foreach(
 )
   obs_add_unit_test(${test})
 endforeach()
+
+# media-io/
+foreach(
+  test
+  IN
+  ITEMS
+    test_media_format_conversion
+    test_media_video_frame
+    test_media_video_formats
+)
+  obs_add_unit_test(${test})
+endforeach()
