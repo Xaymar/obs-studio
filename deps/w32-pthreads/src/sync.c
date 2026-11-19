@@ -12,25 +12,34 @@
 /* ---------------------------------------------------------------------------
  * pthread_once
  *
- * pthread_once_t keeps its old layout { int done; void *lock; int; int; }.
- * PTHREAD_ONCE_INIT zero-fills it, and a zeroed pointer-sized field is a
- * valid INIT_ONCE_STATIC_INIT, so `lock` holds the native INIT_ONCE.
+ * pthread_once_t keeps its old layout { int done; void *lock; int; int; },
+ * which PTHREAD_ONCE_INIT zero-fills. `done` is set once the routine has
+ * finished and `reserved1` marks a routine in progress. INIT_ONCE cannot be
+ * used directly: if the routine is cancelled, POSIX requires the once
+ * control to go back to its initial state so another caller runs it, and an
+ * abandoned INIT_ONCE would block everyone else forever.
+ *
+ * All once controls share one lock and condition variable for the slow path,
+ * which only runs until each control has completed.
  * ------------------------------------------------------------------------ */
 
-typedef char ptw_once_lock_fits[sizeof(((pthread_once_t *)0)->lock) >= sizeof(INIT_ONCE) ? 1 : -1];
+static SRWLOCK once_lock = SRWLOCK_INIT;
+static CONDITION_VARIABLE once_cv = CONDITION_VARIABLE_INIT;
 
-static BOOL CALLBACK once_cb(PINIT_ONCE once, PVOID param, PVOID *ctx)
+static void PTW32_CDECL once_cancel_cleanup(void *arg)
 {
-	void(PTW32_CDECL * init_routine)(void) = (void(PTW32_CDECL *)(void))param;
+	pthread_once_t *once_control = (pthread_once_t *)arg;
 
-	(void)once;
-	(void)ctx;
-	init_routine();
-	return TRUE;
+	AcquireSRWLockExclusive(&once_lock);
+	once_control->reserved1 = 0;
+	ReleaseSRWLockExclusive(&once_lock);
+	WakeAllConditionVariable(&once_cv);
 }
 
 int PTW32_CDECL pthread_once(pthread_once_t *once_control, void(PTW32_CDECL *init_routine)(void))
 {
+	ptw32_cleanup_t cleanup;
+
 	if (!once_control || !init_routine) {
 		return EINVAL;
 	}
@@ -39,11 +48,26 @@ int PTW32_CDECL pthread_once(pthread_once_t *once_control, void(PTW32_CDECL *ini
 		return 0;
 	}
 
-	if (!InitOnceExecuteOnce((PINIT_ONCE)&once_control->lock, once_cb, (PVOID)init_routine, NULL)) {
-		return EINVAL;
+	AcquireSRWLockExclusive(&once_lock);
+	while (!once_control->done && once_control->reserved1) {
+		SleepConditionVariableSRW(&once_cv, &once_lock, INFINITE, 0);
 	}
+	if (once_control->done) {
+		ReleaseSRWLockExclusive(&once_lock);
+		return 0;
+	}
+	once_control->reserved1 = 1;
+	ReleaseSRWLockExclusive(&once_lock);
 
+	ptw32_push_cleanup(&cleanup, once_cancel_cleanup, once_control);
+	init_routine();
+	(void)ptw32_pop_cleanup(0);
+
+	AcquireSRWLockExclusive(&once_lock);
 	InterlockedExchange((LONG volatile *)&once_control->done, PTW32_TRUE);
+	once_control->reserved1 = 0;
+	ReleaseSRWLockExclusive(&once_lock);
+	WakeAllConditionVariable(&once_cv);
 	return 0;
 }
 
@@ -187,7 +211,10 @@ int PTW32_CDECL pthread_spin_unlock(pthread_spinlock_t *lock)
 	if (s == PTHREAD_SPINLOCK_INITIALIZER) {
 		return EPERM;
 	}
-	return InterlockedExchange(&s->locked, 0) == 1 ? 0 : EPERM;
+	/* Spin locks have no owner; pthreads-win32 let any thread unlock
+	 * them and returned 0 even when already unlocked. */
+	InterlockedExchange(&s->locked, 0);
+	return 0;
 }
 
 /* ---------------------------------------------------------------------------
@@ -292,6 +319,13 @@ static int sem_fail(int err)
 	return -1;
 }
 
+/*
+ * `value` follows pthreads-win32: when positive it is the count, when
+ * negative its magnitude is the number of blocked waiters. The kernel
+ * semaphore only carries the units handed directly to blocked waiters.
+ * `lock` keeps the two consistent.
+ */
+
 int __cdecl sem_init(sem_t *sem, int pshared, unsigned int value)
 {
 	struct sem_t_ *s;
@@ -311,11 +345,12 @@ int __cdecl sem_init(sem_t *sem, int pshared, unsigned int value)
 		return sem_fail(ENOMEM);
 	}
 
-	s->sem = CreateSemaphoreW(NULL, (LONG)value, SEM_VALUE_MAX, NULL);
+	s->sem = CreateSemaphoreW(NULL, 0, SEM_VALUE_MAX, NULL);
 	if (!s->sem) {
 		free(s);
 		return sem_fail(ENOSPC);
 	}
+	InitializeSRWLock(&s->lock);
 	s->value = (LONG)value;
 	*sem = s;
 	return 0;
@@ -329,15 +364,58 @@ int __cdecl sem_destroy(sem_t *sem)
 		return sem_fail(EINVAL);
 	}
 	s = *sem;
+
+	AcquireSRWLockExclusive(&s->lock);
+	if (s->value < 0) {
+		ReleaseSRWLockExclusive(&s->lock);
+		return sem_fail(EBUSY);
+	}
 	*sem = NULL;
+	ReleaseSRWLockExclusive(&s->lock);
+
 	CloseHandle(s->sem);
 	free(s);
 	return 0;
 }
 
+/* Gives up a wait that timed out or was cancelled. Returns TRUE if a post
+ * had already handed this waiter a unit, which it then keeps. */
+static BOOL sem_abandon_wait(struct sem_t_ *s)
+{
+	BOOL got_unit = FALSE;
+
+	AcquireSRWLockExclusive(&s->lock);
+	if (s->value < 0) {
+		s->value++; /* still counted as blocked: just leave */
+	} else {
+		/* A post released a unit for us after we stopped waiting. */
+		WaitForSingleObject(s->sem, INFINITE);
+		got_unit = TRUE;
+	}
+	ReleaseSRWLockExclusive(&s->lock);
+	return got_unit;
+}
+
+static void PTW32_CDECL sem_cancel_cleanup(void *arg)
+{
+	struct sem_t_ *s = (struct sem_t_ *)arg;
+
+	/* Cancelled: hand back a unit we may have been given. */
+	if (sem_abandon_wait(s)) {
+		AcquireSRWLockExclusive(&s->lock);
+		if (++s->value <= 0) {
+			ReleaseSemaphore(s->sem, 1, NULL);
+		}
+		ReleaseSRWLockExclusive(&s->lock);
+	}
+}
+
 static int sem_wait_ms(sem_t *sem, DWORD ms)
 {
 	struct sem_t_ *s;
+	ptw32_cleanup_t cleanup;
+	ptw_thread *self;
+	LONG v;
 	int r;
 
 	if (!sem || !*sem) {
@@ -345,12 +423,31 @@ static int sem_wait_ms(sem_t *sem, DWORD ms)
 	}
 	s = *sem;
 
-	r = ptw_cancelable_wait(s->sem, ms); /* cancellation point */
-	if (r != 0) {
-		return sem_fail(r);
+	self = ptw_self();
+	ptw_testcancel(self); /* cancellation point */
+
+	AcquireSRWLockExclusive(&s->lock);
+	v = --s->value;
+	ReleaseSRWLockExclusive(&s->lock);
+	if (v >= 0) {
+		return 0;
 	}
-	InterlockedDecrement(&s->value);
-	return 0;
+
+	if (ms == 0) {
+		return sem_abandon_wait(s) ? 0 : sem_fail(ETIMEDOUT);
+	}
+
+	ptw32_push_cleanup(&cleanup, sem_cancel_cleanup, s);
+	r = ptw_cancelable_wait(s->sem, ms);
+	(void)ptw32_pop_cleanup(0);
+
+	if (r == 0) {
+		return 0;
+	}
+	if (sem_abandon_wait(s)) {
+		return 0; /* a unit arrived as the wait ended */
+	}
+	return sem_fail(r);
 }
 
 int __cdecl sem_wait(sem_t *sem)
@@ -360,49 +457,57 @@ int __cdecl sem_wait(sem_t *sem)
 
 int __cdecl sem_timedwait(sem_t *sem, const struct timespec *abstime)
 {
-	if (!abstime) {
-		return sem_fail(EINVAL);
-	}
+	/* pthreads-win32 treats a NULL deadline as "wait forever". */
 	return sem_wait_ms(sem, ptw_abstime_to_ms(abstime));
 }
 
 int __cdecl sem_trywait(sem_t *sem)
 {
 	struct sem_t_ *s;
-	DWORD status;
+	int r = 0;
 
 	if (!sem || !*sem) {
 		return sem_fail(EINVAL);
 	}
 	s = *sem;
 
-	status = WaitForSingleObject(s->sem, 0);
-	if (status == WAIT_OBJECT_0) {
-		InterlockedDecrement(&s->value);
-		return 0;
+	AcquireSRWLockExclusive(&s->lock);
+	if (s->value > 0) {
+		s->value--;
+	} else {
+		r = EAGAIN;
 	}
-	return sem_fail(status == WAIT_TIMEOUT ? EAGAIN : EINVAL);
+	ReleaseSRWLockExclusive(&s->lock);
+	return r ? sem_fail(r) : 0;
 }
 
 int __cdecl sem_post_multiple(sem_t *sem, int count)
 {
 	struct sem_t_ *s;
+	LONG waiters;
+	int r = 0;
 
 	if (!sem || !*sem || count <= 0) {
 		return sem_fail(EINVAL);
 	}
 	s = *sem;
 
-	if (ptw_load_long_acquire(&s->value) > SEM_VALUE_MAX - count) {
-		return sem_fail(ERANGE);
+	AcquireSRWLockExclusive(&s->lock);
+	if (s->value > SEM_VALUE_MAX - count) {
+		r = ERANGE;
+	} else {
+		waiters = s->value < 0 ? -s->value : 0;
+		if (waiters > count) {
+			waiters = count;
+		}
+		if (waiters > 0 && !ReleaseSemaphore(s->sem, waiters, NULL)) {
+			r = EINVAL;
+		} else {
+			s->value += count;
+		}
 	}
-
-	InterlockedExchangeAdd(&s->value, count);
-	if (!ReleaseSemaphore(s->sem, count, NULL)) {
-		InterlockedExchangeAdd(&s->value, -count);
-		return sem_fail(GetLastError() == ERROR_TOO_MANY_POSTS ? ERANGE : EINVAL);
-	}
-	return 0;
+	ReleaseSRWLockExclusive(&s->lock);
+	return r ? sem_fail(r) : 0;
 }
 
 int __cdecl sem_post(sem_t *sem)
@@ -412,13 +517,16 @@ int __cdecl sem_post(sem_t *sem)
 
 int __cdecl sem_getvalue(sem_t *sem, int *sval)
 {
-	LONG v;
+	struct sem_t_ *s;
 
 	if (!sem || !*sem || !sval) {
 		return sem_fail(EINVAL);
 	}
-	v = ptw_load_long_acquire(&(*sem)->value);
-	*sval = v < 0 ? 0 : (int)v;
+	s = *sem;
+
+	AcquireSRWLockShared(&s->lock);
+	*sval = (int)s->value;
+	ReleaseSRWLockShared(&s->lock);
 	return 0;
 }
 

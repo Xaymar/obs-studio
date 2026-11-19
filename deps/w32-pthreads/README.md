@@ -26,7 +26,7 @@ native reimplementation of the same library:
   PTHREAD_MUTEX_ROBUST)` returns `ENOTSUP`.
 - **Timed locks** (`pthread_mutex_timedlock`, `pthread_rwlock_timed*lock`)
   poll, because `SRWLOCK` has no timed acquire. They are rarely used.
-- **`sem_getvalue`** never reports a negative value (number of waiters).
+- **`sem_getvalue`** reports a negative value when threads are blocked (minus the number of waiters), matching pthreads-win32.
 - **Process-shared objects** return `ENOSYS`, as before.
 
 Kept on purpose, because existing code depends on it: locking a zeroed or

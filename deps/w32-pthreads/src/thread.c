@@ -134,6 +134,19 @@ static ptw_thread *thread_lookup_joinable(pthread_t t)
 	return ok ? p : NULL;
 }
 
+/* Maps a POSIX priority in [IDLE, TIME_CRITICAL] onto a value
+ * SetThreadPriority() accepts, as pthreads-win32 did. */
+static int ptw_win_priority(int prio)
+{
+	if (prio > THREAD_PRIORITY_IDLE && prio < THREAD_PRIORITY_LOWEST) {
+		return THREAD_PRIORITY_LOWEST;
+	}
+	if (prio < THREAD_PRIORITY_TIME_CRITICAL && prio > THREAD_PRIORITY_HIGHEST) {
+		return THREAD_PRIORITY_HIGHEST;
+	}
+	return prio;
+}
+
 ptw_thread *ptw_self(void)
 {
 	ptw_thread *s;
@@ -443,7 +456,8 @@ __declspec(noreturn) void ptw_thread_exit(ptw_thread *self, void *value)
 	/* Implicit thread: there is no trampoline to return to. */
 	thread_finish(self);
 	thread_unref(self);
-	_endthreadex(0);
+	/* Like pthreads-win32, make the value visible as the exit code. */
+	_endthreadex((unsigned)(size_t)value);
 	/* Not reached, but some compilers cannot tell. */
 	ExitThread(0);
 }
@@ -509,7 +523,7 @@ int PTW32_CDECL pthread_create(pthread_t *tid, const pthread_attr_t *attr, void 
 	t->win_handle = (HANDLE)h;
 	t->win_id = id;
 	if (priority != THREAD_PRIORITY_NORMAL) {
-		SetThreadPriority(t->win_handle, priority);
+		SetThreadPriority(t->win_handle, ptw_win_priority(priority));
 	}
 
 	*tid = t->handle;
@@ -526,13 +540,13 @@ int PTW32_CDECL pthread_join(pthread_t thread, void **value_ptr)
 	if (!t) {
 		return ESRCH;
 	}
-	if (ptw_load_long_acquire(&t->detached)) {
-		return EINVAL;
-	}
-
 	self = ptw_self();
 	if (self == t) {
 		return EDEADLK;
+	}
+
+	if (ptw_load_long_acquire(&t->detached)) {
+		return EINVAL;
 	}
 
 	r = ptw_cancelable_wait(t->win_handle, INFINITE);
@@ -632,14 +646,7 @@ int PTW32_CDECL pthread_setschedparam(pthread_t thread, int policy, const struct
 		return EINVAL;
 	}
 
-	/* Map the range onto the values Windows accepts. */
-	if (prio > THREAD_PRIORITY_IDLE && prio < THREAD_PRIORITY_LOWEST) {
-		prio = THREAD_PRIORITY_LOWEST;
-	} else if (prio < THREAD_PRIORITY_TIME_CRITICAL && prio > THREAD_PRIORITY_HIGHEST) {
-		prio = THREAD_PRIORITY_HIGHEST;
-	}
-
-	if (!t->win_handle || !SetThreadPriority(t->win_handle, prio)) {
+	if (!t->win_handle || !SetThreadPriority(t->win_handle, ptw_win_priority(prio))) {
 		return EINVAL;
 	}
 

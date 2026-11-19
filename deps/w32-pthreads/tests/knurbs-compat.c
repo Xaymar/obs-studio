@@ -76,8 +76,6 @@ static void test_mutex_basics(void)
 
 	memset(&zeroed, 0, sizeof(zeroed));
 	CHECK("lock on zeroed mutex returns EINVAL", pthread_mutex_lock(&zeroed) == EINVAL);
-	CHECK("unlock on zeroed mutex returns EINVAL", pthread_mutex_unlock(&zeroed) == EINVAL);
-	CHECK("destroy on zeroed mutex returns EINVAL", pthread_mutex_destroy(&zeroed) == EINVAL);
 
 	CHECK("static initializer lock", pthread_mutex_lock(&st) == 0);
 	CHECK("static initializer unlock", pthread_mutex_unlock(&st) == 0);
@@ -877,6 +875,17 @@ static void test_sched(void)
 	CHECK("delay_np waited about 50ms", el >= 45.0 && el < 1000.0);
 }
 
+/* Last on purpose: pthreads-win32 crashes here (it dereferences the NULL
+ * handle), and the native build returns EINVAL instead. */
+static void test_zeroed_unlock_destroy(void)
+{
+	pthread_mutex_t zeroed;
+
+	memset(&zeroed, 0, sizeof(zeroed));
+	CHECK("unlock on zeroed mutex returns EINVAL", pthread_mutex_unlock(&zeroed) == EINVAL);
+	CHECK("destroy on zeroed mutex returns EINVAL", pthread_mutex_destroy(&zeroed) == EINVAL);
+}
+
 int main(void)
 {
 	setvbuf(stdout, NULL, _IONBF, 0);
@@ -901,6 +910,7 @@ int main(void)
 	test_sem();
 	test_barrier_spin();
 	test_sched();
+	test_zeroed_unlock_destroy();
 
 	printf("%s: %d failed check(s)\n", failures ? "FAILED" : "OK", failures);
 	return failures;

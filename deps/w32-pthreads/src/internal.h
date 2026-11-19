@@ -195,7 +195,8 @@ int ptw_mutex_resolve(pthread_mutex_t *mutex, pthread_mutex_t *out);
 
 struct pthread_cond_t_ {
 	CONDITION_VARIABLE cv;
-	volatile LONG waiters;
+	volatile LONG waiters; /* threads inside pthread_cond_(timed)wait */
+	volatile LONG wakeups; /* signals not yet taken by a waiter */
 };
 
 struct pthread_condattr_t_ {
@@ -245,7 +246,8 @@ struct pthread_key_t_ {
 
 struct sem_t_ {
 	HANDLE sem;
-	volatile LONG value;
+	SRWLOCK lock;
+	LONG value; /* count, or -(number of blocked waiters) */
 };
 
 /* Lazily-initialized static objects share one guard. */

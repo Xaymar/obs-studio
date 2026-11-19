@@ -102,15 +102,54 @@ int PTW32_CDECL pthread_cond_destroy(pthread_cond_t *cond)
 	return 0;
 }
 
+/* Takes one wakeup token, if any is available. */
+static BOOL take_token(struct pthread_cond_t_ *c)
+{
+	for (;;) {
+		LONG k = ptw_load_long_acquire(&c->wakeups);
+		if (k <= 0) {
+			return FALSE;
+		}
+		if (InterlockedCompareExchange(&c->wakeups, k - 1, k) == k) {
+			return TRUE;
+		}
+	}
+}
+
+/* Tokens beyond the number of waiters belong to nobody (POSIX drops
+ * signals that find no waiter), so drop them. */
+static void clamp_tokens(struct pthread_cond_t_ *c)
+{
+	for (;;) {
+		LONG w = ptw_load_long_acquire(&c->waiters);
+		LONG k = ptw_load_long_acquire(&c->wakeups);
+		if (w < 0) {
+			w = 0;
+		}
+		if (k <= w) {
+			return;
+		}
+		if (InterlockedCompareExchange(&c->wakeups, w, k) == k) {
+			return;
+		}
+	}
+}
+
+static BOOL cancel_requested(ptw_thread *self)
+{
+	return self && self->cancel_state == PTHREAD_CANCEL_ENABLE && self->state == PTW_THREAD_RUNNING &&
+	       ptw_load_long_acquire(&self->cancel_pending);
+}
+
 int PTW32_CDECL pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex, const struct timespec *abstime)
 {
 	struct pthread_cond_t_ *c;
 	struct pthread_mutex_t_ *m;
 	pthread_mutex_t mh;
 	ptw_thread *self;
-	DWORD tid, ms, err = 0;
+	DWORD tid, ms;
 	LONG depth;
-	BOOL ok;
+	BOOL cancelled = FALSE;
 	int r;
 
 	r = cond_get(cond, &c);
@@ -143,18 +182,54 @@ int PTW32_CDECL pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mu
 	m->owner = 0;
 	m->depth = 0;
 
+	/* CONDITION_VARIABLE may wake spuriously, and pthread_cancel() wakes
+	 * every waiter to reach its target. Signals hand out tokens, and only
+	 * a waiter that takes one returns success; the others go back to
+	 * sleep. This keeps the "one signal wakes one waiter" behavior that
+	 * pthreads-win32 had and existing code relies on. */
 	InterlockedIncrement(&c->waiters);
 	ptw_set_waiting_cv(self, &c->cv);
-	if (self && self->cancel_state == PTHREAD_CANCEL_ENABLE && ptw_load_long_acquire(&self->cancel_pending)) {
-		ok = TRUE; /* acted on by ptw_testcancel() below */
-	} else {
+	for (;;) {
+		BOOL ok;
+		DWORD err = 0;
+
+		if (cancel_requested(self)) {
+			cancelled = TRUE;
+			break;
+		}
+
 		ok = SleepConditionVariableSRW(&c->cv, &m->lock, ms, 0);
 		if (!ok) {
 			err = GetLastError();
 		}
+
+		if (take_token(c)) {
+			r = 0;
+			break;
+		}
+		if (!ok && err != ERROR_TIMEOUT) {
+			r = EINVAL;
+			break;
+		}
+		if (cancel_requested(self)) {
+			cancelled = TRUE;
+			break;
+		}
+		ms = ptw_abstime_to_ms(abstime);
+		if (ms == 0) {
+			r = ETIMEDOUT;
+			break;
+		}
 	}
 	ptw_set_waiting_cv(self, NULL);
 	InterlockedDecrement(&c->waiters);
+	clamp_tokens(c);
+
+	/* A cancelled waiter may have been the one a signal was meant for;
+	 * pass it on so the signal is not lost. */
+	if (cancelled && ptw_load_long_acquire(&c->wakeups) > 0) {
+		WakeConditionVariable(&c->cv);
+	}
 
 	m->owner = tid;
 	m->depth = depth;
@@ -162,11 +237,7 @@ int PTW32_CDECL pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mu
 	/* Cancellation point: the mutex is held again, as POSIX requires for
 	 * cleanup handlers. */
 	ptw_testcancel(self);
-
-	if (!ok) {
-		return err == ERROR_TIMEOUT ? ETIMEDOUT : EINVAL;
-	}
-	return 0;
+	return r;
 }
 
 int PTW32_CDECL pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
@@ -182,6 +253,17 @@ int PTW32_CDECL pthread_cond_signal(pthread_cond_t *cond)
 	if (r != 0) {
 		return r;
 	}
+
+	for (;;) {
+		LONG w = ptw_load_long_acquire(&c->waiters);
+		LONG k = ptw_load_long_acquire(&c->wakeups);
+		if (k >= w) {
+			return 0; /* nobody left to wake */
+		}
+		if (InterlockedCompareExchange(&c->wakeups, k + 1, k) == k) {
+			break;
+		}
+	}
 	WakeConditionVariable(&c->cv);
 	return 0;
 }
@@ -193,6 +275,17 @@ int PTW32_CDECL pthread_cond_broadcast(pthread_cond_t *cond)
 
 	if (r != 0) {
 		return r;
+	}
+
+	for (;;) {
+		LONG w = ptw_load_long_acquire(&c->waiters);
+		LONG k = ptw_load_long_acquire(&c->wakeups);
+		if (k >= w) {
+			return 0;
+		}
+		if (InterlockedCompareExchange(&c->wakeups, w, k) == k) {
+			break;
+		}
 	}
 	WakeAllConditionVariable(&c->cv);
 	return 0;
