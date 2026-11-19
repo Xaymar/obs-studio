@@ -42,6 +42,7 @@ add_subdirectory(test/test-obs-mem)
 
 if(ENABLE_UNIT_TESTS)
   enable_testing()
+  add_subdirectory(test/null-graphics)
   add_subdirectory(test/cmocka)
 endif()
 
