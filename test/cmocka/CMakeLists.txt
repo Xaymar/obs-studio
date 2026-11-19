@@ -333,6 +333,9 @@ foreach(
     test_util_cf_parser
     test_util_config_file
     test_util_text_lookup
+    test_util_array_serializer
+    test_util_file_serializer
+    test_util_buffered_file_serializer
 )
   obs_add_unit_test(${test})
 endforeach()
