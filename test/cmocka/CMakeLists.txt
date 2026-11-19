@@ -392,6 +392,7 @@ foreach(
   ITEMS
     test_graphics_graphics
     test_graphics_effect
+    test_graphics_image_file
 )
   obs_add_graphics_test(${test})
 endforeach()
