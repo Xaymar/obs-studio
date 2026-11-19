@@ -801,6 +801,10 @@ void obs_source_destroy(struct obs_source *source)
 			obs_context_data_remove_name(&source->context, &obs->data.sources_mutex,
 						     &obs->data.public_sources);
 		}
+	} else if (source->canvas) {
+		/* private scenes are not in their canvas, but hold a weak reference to it */
+		obs_weak_canvas_release(source->canvas);
+		source->canvas = NULL;
 	}
 
 	source_profiler_remove_source(source);
