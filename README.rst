@@ -1,79 +1,83 @@
-OBS Studio <https://obsproject.com>
-===================================
+Knurbs
+======
 
-.. image:: https://github.com/obsproject/obs-studio/actions/workflows/push.yaml/badge.svg?branch=master
-   :alt: OBS Studio Build Status - GitHub Actions
-   :target: https://github.com/obsproject/obs-studio/actions/workflows/push.yaml?query=branch%3Amaster
+Knurbs is a fork of `OBS Studio <https://github.com/obsproject/obs-studio>`_
+for capturing, compositing, encoding, recording and streaming video. It
+focuses on three things:
 
-.. image:: https://badges.crowdin.net/obs-studio/localized.svg
-   :alt: OBS Studio Translation Project Progress
-   :target: https://crowdin.com/project/obs-studio
+- **Stability**: fix the common pitfalls in how libobs works, and back every
+  fix with a regression test.
+- **Performance**: fewer copies, fewer locks, less work per frame.
+- **Unification across platforms**: the same features, behaving the same
+  way, on every supported platform.
 
-.. image:: https://img.shields.io/discord/348973006581923840.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2
-   :alt: OBS Studio Discord Server
-   :target: https://obsproject.com/discord
+Knurbs is not OBS Studio
+------------------------
 
-What is OBS Studio?
--------------------
+Knurbs is an independent project. It is not OBS Studio, is not made by or
+affiliated with the OBS Project, and is not supported by it. Please do not
+report Knurbs issues to the OBS Project.
 
-OBS Studio is software designed for capturing, compositing, encoding,
-recording, and streaming video content, efficiently.
+For now, Knurbs is **not compatible** with anything built for OBS Studio:
+plugins, scripts, themes, profiles, scene collections and other setups are
+not expected to work, and this will likely stay that way for months. Knurbs
+is under heavy development and not ready for production use.
 
-It's distributed under the GNU General Public License v2 (or any later
-version) - see the accompanying COPYING file for more details.
+Direction
+---------
 
-Quick Links
------------
+These are goals, not promises, and none of them has a date:
 
-- Website: https://obsproject.com
+- **Vulkan-only graphics.** The D3D11 and OpenGL backends are to be replaced
+  by a single Vulkan backend, so every platform renders the same way.
+- **Wayland only on Linux.** X11 support is retired. Screen capture goes
+  through PipeWire; video devices through the PipeWire camera portal and
+  V4L2.
+- **Unified capture sources.** One source per capture job (display, window,
+  video device, ...) with per-platform backends behind it, instead of a
+  different source on every platform.
+- **A new Qt 6 frontend.** A new application shell built with Qt Widgets,
+  developed alongside the old frontend until it reaches parity. Features
+  live in plugins wherever possible, so alternatives can be swapped in.
+- **A libobs test suite.** Broad test coverage of libobs, so bugs are found
+  and stay fixed.
+- **A cleaner API.** The C API is to be renamed to a ``knurbs_`` prefix and
+  every object made reference counted. Installed headers already live under
+  ``<prefix>/include/knurbs/``.
+- **Legacy OBS plugins, later.** Plugins built for OBS Studio may run again
+  one day by isolating them in their own process (see
+  `datapath <https://github.com/Xaymar/datapath>`_), rather than through
+  source or binary compatibility.
 
-- Help/Documentation/Guides: https://github.com/obsproject/obs-studio/wiki
+Naming
+------
 
-- Forums: https://obsproject.com/forum/
+Knurbs' own plugins and source types use a ``knurbs`` prefix and descriptive
+names. Identifiers such as plugin IDs, source type IDs and setting names are
+lowercase and use only ``-`` or ``.`` as separators (no uppercase, no ``_``),
+so they never need Shift to type. C identifiers are the only exception.
+Where a source replaces an OBS one, the old OBS ID is registered as an alias
+and its settings are migrated.
 
-- Build Instructions: https://github.com/obsproject/obs-studio/wiki/Install-Instructions
+Building
+--------
 
-- Developer/API Documentation: https://obsproject.com/docs
-
-- Donating/backing/sponsoring: https://obsproject.com/contribute
-
-- Bug Tracker: https://github.com/obsproject/obs-studio/issues
+Build instructions for Knurbs have not been written yet. The project uses
+CMake; the presets in ``CMakePresets.json`` are the starting point.
 
 Contributing
 ------------
 
-- If you would like to help fund or sponsor the project, you can do so
-  via `Patreon <https://www.patreon.com/obsproject>`_, `OpenCollective
-  <https://opencollective.com/obsproject>`_, or `PayPal
-  <https://www.paypal.me/obsproject>`_.  See our `contribute page
-  <https://obsproject.com/contribute>`_ for more information.
+Issues and pull requests go to
+`Xaymar/knurbs <https://github.com/Xaymar/knurbs>`_, against the ``root``
+branch. Code follows the existing style (see ``CODESTYLE.md`` and
+``.clang-format``). Bug fixes come in their own commit with a regression test.
 
-- If you wish to contribute code to the project, please make sure to
-  read the coding and commit guidelines:
-  https://github.com/obsproject/obs-studio/blob/master/CONTRIBUTING.md
-  
-- Code for the project follows the code style guidelines, located
-  here: https://github.com/obsproject/obs-studio/blob/master/CODESTYLE.md
+Licence and attribution
+-----------------------
 
-- Developer/API documentation can be found here:
-  https://obsproject.com/docs
-
-- If you wish to contribute translations, do not submit pull requests.
-  Instead, please use Crowdin.  For more information read this page:
-  https://obsproject.com/wiki/How-To-Contribute-Translations-For-OBS
-
-- Contributors to OBS Studio and related repositories are expected to
-  follow our Code of Conduct, which can be read here:
-  https://github.com/obsproject/obs-studio/blob/master/COC.rst
-
-- Other ways to contribute are by helping people out with support on
-  our forums or in our community chat.  Please limit support to topics
-  you fully understand -- bad advice is worse than no advice.  When it
-  comes to something that you don't fully know or understand, please
-  defer to the official help or official channels.
-
-
-SAST Tools
-----------
-
-`PVS-Studio <https://pvs-studio.com/pvs-studio/?utm_source=website&utm_medium=github&utm_campaign=open_source>`_ - static analyzer for C, C++, C#, and Java code.
+Knurbs is based on OBS Studio, copyright the OBS Project and its
+contributors (see ``AUTHORS``). Like OBS Studio, it is distributed under the
+GNU General Public License v2 (or any later version); see the accompanying
+``COPYING`` file for details. Bundled third-party code under ``deps/`` and
+elsewhere keeps its own licence.
