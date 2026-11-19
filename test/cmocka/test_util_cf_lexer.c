@@ -124,6 +124,16 @@ static void literal_test(void **state)
 	assert_string_equal(str, "\a\b\f\n\r\t\vAB");
 	bfree(str);
 
+	/* Regression: octal escapes were decoded from the second digit, and "\0" followed by digits was a lone NUL */
+	str = cf_literal_to_str("\"\\101\\7\\0123\\08\"", 0);
+	assert_memory_equal(str, "A\a\n3\0" "8", 7);
+	bfree(str);
+
+	/* hex escapes take at most two digits */
+	str = cf_literal_to_str("\"\\x41BC\\x4g\\xz\"", 0);
+	assert_string_equal(str, "ABC\x04gz");
+	bfree(str);
+
 	str = cf_literal_to_str("\"abc\"xyz", 5);
 	assert_string_equal(str, "abc");
 	bfree(str);

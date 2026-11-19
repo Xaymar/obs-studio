@@ -37,9 +37,6 @@ static inline void cf_convert_from_escape_literal(char **p_dst, const char **p_s
 	case '\\':
 		*(dst++) = '\\';
 		break;
-	case '0':
-		*(dst++) = '\0';
-		break;
 	case 'a':
 		*(dst++) = '\a';
 		break;
@@ -62,22 +59,40 @@ static inline void cf_convert_from_escape_literal(char **p_dst, const char **p_s
 		*(dst++) = '\v';
 		break;
 
-	/* hex */
-	case 'X':
-	case 'x':
-		*(dst++) = (char)strtoul(src, NULL, 16);
-		src += 2;
+	/* octal: up to three digits, so "\0" alone is NUL */
+	case '0':
+	case '1':
+	case '2':
+	case '3':
+	case '4':
+	case '5':
+	case '6':
+	case '7': {
+		unsigned int val = 0;
+		src--;
+		for (int i = 0; i < 3 && *src >= '0' && *src <= '7'; i++)
+			val = val * 8 + (unsigned int)(*(src++) - '0');
+		*(dst++) = (char)val;
 		break;
+	}
 
-	/* oct */
+	/* hex: up to two digits */
+	case 'X':
+	case 'x': {
+		unsigned int val = 0;
+		int i = 0;
+		for (; i < 2 && isxdigit((unsigned char)*src); i++, src++)
+			val = val * 16 + (unsigned int)(isdigit((unsigned char)*src) ? *src - '0'
+										: tolower((unsigned char)*src) - 'a' + 10);
+		if (i)
+			*(dst++) = (char)val;
+		break;
+	}
+
 	default:
-		if (isdigit(*src)) {
-			*(dst++) = (char)strtoul(src, NULL, 8);
-			src += 3;
-		}
-
 		/* case 'u':
 		case 'U': */
+		break;
 	}
 
 	*p_dst = dst;
