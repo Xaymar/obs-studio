@@ -126,6 +126,7 @@ struct fake_output {
 	obs_output_t *output;
 	bool encoded;
 	long long raw_video, raw_audio, video_packets, audio_packets, keyframes;
+	volatile long long captioned_packets;
 	int starts, stops;
 	bool fail_start;
 };
@@ -183,6 +184,9 @@ static void fake_encoded_packet(void *data, struct encoder_packet *packet)
 	if (!packet)
 		return;
 	if (packet->type == OBS_ENCODER_VIDEO) {
+		/* the fake encoder's packets are 8 bytes; captions add an SEI NAL */
+		if (packet->size > 8)
+			fo->captioned_packets++;
 		fo->video_packets++;
 		if (packet->keyframe)
 			fo->keyframes++;
@@ -795,6 +799,56 @@ static void gpu_encode_test(void **state)
 	_putenv("NULL_GRAPHICS_YUV_TEXTURES=");
 }
 
+/* captions are inserted into the H.264 packets as SEI NAL units */
+static void captions_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+	start();
+
+	obs_source_t *src = obs_source_create("fake_input", "src", NULL, NULL);
+	obs_set_output_source(0, src);
+	obs_output_t *out = obs_output_create("fake_encoded_output", "enc", NULL, NULL);
+	obs_encoder_t *venc = obs_video_encoder_create("fake_video_enc", "venc", NULL, NULL);
+	obs_encoder_t *aenc = obs_audio_encoder_create("fake_audio_enc", "aenc", NULL, 0, NULL);
+	obs_encoder_set_video(venc, obs_get_video());
+	obs_encoder_set_audio(aenc, obs_get_audio());
+	obs_output_set_video_encoder(out, venc);
+	obs_output_set_audio_encoder(out, aenc, 0);
+	obs_data_t *ss = obs_data_create();
+	obs_data_set_string(ss, "server", "fake://server");
+	obs_service_t *service = obs_service_create("fake_service", "svc", ss, NULL);
+	obs_data_release(ss);
+	obs_output_set_service(out, service);
+
+	assert_true(obs_output_start(out));
+	struct fake_output *fo = fake_output_of(out);
+	assert_true(wait_for(&fo->video_packets, 3));
+
+	/* text, split into lines, with a display duration */
+	obs_output_output_caption_text2(out, "Hello captions, this line is long enough to be split in two parts", 0.2);
+	assert_true(wait_for(&fo->captioned_packets, 1));
+	obs_output_output_caption_text1(out, "short");
+	long long before = fo->captioned_packets;
+	assert_true(wait_for(&fo->captioned_packets, before + 1));
+
+	/* raw CEA-708 data */
+	static const uint8_t cea[] = {0xfc, 0x94, 0x2c, 0xfc, 0x94, 0x2c};
+	struct obs_source_cea_708 captions = {.data = cea, .packets = 2, .timestamp = os_gettime_ns()};
+	before = fo->captioned_packets;
+	obs_output_caption(out, &captions);
+	assert_true(wait_for(&fo->captioned_packets, before + 1));
+
+	obs_output_stop(out);
+	assert_true(wait_inactive(out));
+	obs_output_release(out);
+	obs_encoder_release(venc);
+	obs_encoder_release(aenc);
+	obs_service_release(service);
+	obs_set_output_source(0, NULL);
+	obs_source_release(src);
+	core_stop();
+}
+
 static long long packet_callbacks;
 static void on_packet(obs_output_t *output, struct encoder_packet *pkt, struct encoder_packet_time *pkt_time,
 		      void *param)
@@ -1352,7 +1406,7 @@ int main(void)
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(raw_output_test),     cmocka_unit_test(encoder_test),
 		cmocka_unit_test(encoded_output_test), cmocka_unit_test(delay_reconnect_test),
-		cmocka_unit_test(service_test), cmocka_unit_test(service_extra_test), cmocka_unit_test(object_hotkeys_test), cmocka_unit_test(gpu_encode_test),        cmocka_unit_test(null_test),
+		cmocka_unit_test(service_test), cmocka_unit_test(service_extra_test), cmocka_unit_test(object_hotkeys_test), cmocka_unit_test(captions_test), cmocka_unit_test(gpu_encode_test),        cmocka_unit_test(null_test),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);
