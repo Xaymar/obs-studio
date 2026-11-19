@@ -143,8 +143,10 @@ static obs_canvas_t *obs_canvas_create_internal(const char *name, const char *uu
 	struct obs_canvas *canvas = bzalloc(sizeof(struct obs_canvas));
 	canvas->flags = flags;
 
-	if (!obs_context_data_init(&canvas->context, OBS_OBJ_TYPE_CANVAS, NULL, name, uuid, NULL, private))
+	if (!obs_context_data_init(&canvas->context, OBS_OBJ_TYPE_CANVAS, NULL, name, uuid, NULL, private)) {
+		bfree(canvas);
 		return NULL;
+	}
 
 	if (!signal_handler_add_array(canvas->context.signals, canvas_signals)) {
 		obs_context_data_free(&canvas->context);
