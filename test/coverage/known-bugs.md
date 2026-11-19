@@ -52,3 +52,16 @@ their own commits with a regression test and are not listed here.
 | graphics/shader-parser.c | Array initializers (`uniform float v[3] = {1, 2, 3};`) and `bool` defaults (`uniform bool b = false;`) are rejected ("Expected 'numeric value'", "Invalid type 'bool' used for assignment"). |
 | graphics/shader-parser.c | `shader_sampler_convert()` reads `BorderColor` with `strtol(value + 1, ...)`: it skips the first character, so `0xff00ff00` becomes 0, and `strtol()` clamps colors above 0x7fffffff (alpha >= 0x80) on Windows, where `long` is 32 bits. |
 | graphics/graphics-ffmpeg.c | EXIF orientation is ignored: it is read from the "Orientation" frame metadata, which the bundled FFmpeg no longer sets (it exports a display matrix instead), so rotated JPEGs load unrotated. |
+
+## Core objects: fixes that change behaviour
+
+Fixed while writing the core object tests. These fixes change behaviour that plugins might rely on.
+
+| Area | Change | Commit |
+| --- | --- | --- |
+| callback/decl.c | A declaration with a missing ',' (`void f(int a b)`) used to be accepted and now fails. `signal_handler_add()` returns false, `proc_handler_add()` adds nothing, and a source, output, encoder or service type whose signal list has such a declaration fails to create. libobs' `audio_sync` and vlc-video's `get_metadata` had one; both are fixed. | `4d56fd267` |
+| obs-source.c | `obs_source_filter_add()` refuses a source that is not a filter (it used to add inputs, scenes or transitions to the chain). | `3d46d4d78` |
+| obs.c | `obs_shutdown()` stops the threads and destroys the remaining objects before freeing types and unloading modules, so a module's `obs_module_unload()` now runs after them instead of before. | `66803a870` |
+| obs-data.c | `obs_data_item_remove()` drops the data's reference as well as the caller's, so the item is destroyed (it used to leak). | `75e67c897` |
+
+Open, not fixed yet: `obs_get_video_sdr_white_level()` returns 0 until `obs_set_video_levels()` is called once video is up (the frontend always calls it).
