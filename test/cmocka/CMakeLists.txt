@@ -445,3 +445,14 @@ foreach(
 )
   obs_add_core_test(${test})
 endforeach()
+
+# fake module for test_obs_module
+add_library(fake-module MODULE fake-module/fake-module.c)
+target_link_libraries(fake-module PRIVATE OBS::libobs)
+set_target_properties(fake-module PROPERTIES FOLDER "Tests and Examples" PREFIX "")
+obs_add_core_test(test_obs_module)
+target_compile_definitions(
+  test_obs_module
+  PRIVATE FAKE_MODULE_PATH="$<TARGET_FILE:fake-module>" FAKE_MODULE_DATA="${CMAKE_CURRENT_SOURCE_DIR}/fake-module/data"
+)
+add_dependencies(test_obs_module fake-module)
