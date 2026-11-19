@@ -1228,7 +1228,9 @@ static inline void cf_preprocess_unwrap_define(struct cf_preprocessor *pp, cf_to
 
 	macro_params_free(&new_params);
 
-	cur_token++;
+	/* a macro call left open at the end of the file stops on the end token; never step past it */
+	if (cur_token->type != CFTOKEN_NONE)
+		cur_token++;
 	*p_cur_token = cur_token;
 }
 

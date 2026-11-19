@@ -155,7 +155,7 @@ static void define_test(void **state)
 	assert_no_errors(&r);
 	pp_result_free(&r);
 
-	/* malformed directives. Not here: a function-like macro used without '(' ("M 2") crashes the preprocessor */
+	/* malformed directives */
 	const char *bad[] = {
 		"#define\n",
 		"#define 5\n",
@@ -188,7 +188,21 @@ static void define_test(void **state)
 	assert_string_equal(r.text, "[ f ( 1 , 2 ) | 3 ]");
 	pp_result_free(&r);
 
-	/* Not tested: a macro call left open at end of file ("M(1, 2") crashes the preprocessor */
+	/* Regression: a macro call left open at end of file stepped past the end token, so the output ended in
+	 * freed memory instead of a CFTOKEN_NONE terminator */
+	assert_true(preprocess(&r, "#define M(a) a\nM(1, 2", NULL));
+	assert_true(has_error(&r, "Unexpected end of file"));
+	const struct cf_token *tok = cf_preprocessor_get_tokens(&r.pp);
+	size_t count = 0;
+	while (tok[count].type != CFTOKEN_NONE)
+		count++;
+	assert_int_equal(count + 1, r.pp.tokens.num);
+	pp_result_free(&r);
+
+	/* a function-like macro used without '(' is reported, not expanded */
+	assert_true(preprocess(&r, "#define M(a, b) a b\nM 2\n", NULL));
+	assert_true(has_error(&r, "Expected '('"));
+	pp_result_free(&r);
 }
 
 static void conditional_test(void **state)
