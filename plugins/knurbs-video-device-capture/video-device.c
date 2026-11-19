@@ -172,12 +172,65 @@ static void detach_backend(struct video_device *vd)
 	vd->backend_data = NULL;
 }
 
+static bool should_suspend(const struct video_device *vd)
+{
+	return vd->deactivate_when_hidden && !obs_source_showing(vd->source);
+}
+
+/* Lets go of the device: the backend's own hide, or else the backend is
+ * destroyed and created again on resume. */
+static void suspend(struct video_device *vd)
+{
+	if (vd->released || vd->paused || !vd->backend || !vd->backend_data) {
+		return;
+	}
+	if (vd->backend->hide) {
+		vd->backend->hide(vd->backend_data);
+		vd->paused = true;
+	} else {
+		detach_backend(vd);
+		vd->released = true;
+	}
+}
+
+static void resume(struct video_device *vd)
+{
+	if (vd->released) {
+		obs_data_t *settings = obs_source_get_settings(vd->source);
+		vd->released = false;
+		attach_backend(vd, settings);
+		obs_data_release(settings);
+		return;
+	}
+	if (vd->paused) {
+		vd->paused = false;
+		if (vd->backend && vd->backend_data && vd->backend->show) {
+			vd->backend->show(vd->backend_data);
+		}
+	}
+}
+
 static void *vd_create(obs_data_t *settings, obs_source_t *source)
 {
 	struct video_device *vd = bzalloc(sizeof(*vd));
 	vd->source = source;
 	vd->deactivate_when_hidden = obs_data_get_bool(settings, VD_DEACTIVATE_WHEN_HIDDEN);
+
+	/* A source starts out hidden. With "deactivate when not showing" on,
+	 * don't open the device until it shows: a backend without its own hide
+	 * isn't created at all, one with it is created paused. */
+	if (should_suspend(vd)) {
+		const struct vd_backend *backend = choose_backend(settings);
+		if (backend && !backend->hide) {
+			vd->released = true;
+			return vd;
+		}
+	}
+
 	attach_backend(vd, settings);
+	if (should_suspend(vd)) {
+		suspend(vd);
+	}
 	return vd;
 }
 
@@ -194,7 +247,11 @@ static void vd_update(void *data, obs_data_t *settings)
 
 	vd->deactivate_when_hidden = obs_data_get_bool(settings, VD_DEACTIVATE_WHEN_HIDDEN);
 	if (vd->released) {
-		/* Applied when the source shows again. */
+		/* Applied when the source shows again, or now if the option
+		 * was just turned off. */
+		if (!vd->deactivate_when_hidden) {
+			resume(vd);
+		}
 		return;
 	}
 
@@ -202,11 +259,21 @@ static void vd_update(void *data, obs_data_t *settings)
 	if (choose_backend(settings) != vd->backend) {
 		detach_backend(vd);
 		attach_backend(vd, settings);
+		if (should_suspend(vd)) {
+			suspend(vd);
+		}
 		return;
 	}
 
 	if (vd->backend && vd->backend_data && vd->backend->update) {
 		vd->backend->update(vd->backend_data, settings);
+	}
+
+	/* The option was turned on while hidden, or off while paused. */
+	if (should_suspend(vd)) {
+		suspend(vd);
+	} else if (!vd->deactivate_when_hidden) {
+		resume(vd);
 	}
 }
 
@@ -228,34 +295,14 @@ static void vd_deactivate(void *data)
 
 static void vd_show(void *data)
 {
-	struct video_device *vd = data;
-	if (vd->released) {
-		obs_data_t *settings = obs_source_get_settings(vd->source);
-		vd->released = false;
-		attach_backend(vd, settings);
-		obs_data_release(settings);
-		return;
-	}
-	if (vd->paused) {
-		vd->paused = false;
-		if (vd->backend && vd->backend_data && vd->backend->show) {
-			vd->backend->show(vd->backend_data);
-		}
-	}
+	resume(data);
 }
 
 static void vd_hide(void *data)
 {
 	struct video_device *vd = data;
-	if (!vd->deactivate_when_hidden || !vd->backend || !vd->backend_data) {
-		return;
-	}
-	if (vd->backend->hide) {
-		vd->backend->hide(vd->backend_data);
-		vd->paused = true;
-	} else {
-		detach_backend(vd);
-		vd->released = true;
+	if (vd->deactivate_when_hidden) {
+		suspend(vd);
 	}
 }
 

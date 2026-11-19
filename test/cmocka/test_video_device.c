@@ -30,6 +30,8 @@ struct fake_state {
 	int creates;
 	int destroys;
 	int updates;
+	int hides;
+	int shows;
 	char last_device[64];
 	bool available;
 };
@@ -102,8 +104,35 @@ static const struct vd_backend v4l2_backend = {
 	.update = fake_b_update,
 };
 
-const struct vd_backend *const vd_backends[] = {&fake_a_backend, &fake_b_backend, &v4l2_backend, NULL};
-const size_t vd_num_backends = 3;
+/* A backend that pauses on hide instead of being destroyed. It shares
+ * fake_b's state. */
+static void pausable_hide(void *data)
+{
+	struct fake_instance *f = data;
+	f->state->hides++;
+}
+
+static void pausable_show(void *data)
+{
+	struct fake_instance *f = data;
+	f->state->shows++;
+}
+
+static const struct vd_backend pausable_backend = {
+	.name = "pausable",
+	.display_name = "backend.pausable",
+	.available = fake_b_available,
+	.enum_devices = fake_b_enum,
+	.create = fake_b_create,
+	.destroy = fake_b_destroy,
+	.update = fake_b_update,
+	.show = pausable_show,
+	.hide = pausable_hide,
+};
+
+const struct vd_backend *const vd_backends[] = {&fake_a_backend, &fake_b_backend, &v4l2_backend, &pausable_backend,
+						NULL};
+const size_t vd_num_backends = 4;
 
 /* ------------------------------------------------------------------------- */
 /* Fixture                                                                   */
@@ -505,6 +534,79 @@ static void deactivate_when_hidden_releases_backend(void **state)
 	obs_data_release(s);
 }
 
+/* Sources start out hidden. With the option on, the device isn't opened
+ * until the source shows. */
+static void created_hidden_waits_for_show(void **state)
+{
+	UNUSED_PARAMETER(state);
+	obs_data_t *s = obs_data_create();
+	obs_data_set_string(s, VD_BACKEND, "fake_a");
+	obs_data_set_bool(s, VD_DEACTIVATE_WHEN_HIDDEN, true);
+
+	obs_source_t *src = obs_source_create(VIDEO_DEVICE_SOURCE_ID, "h", s, NULL);
+	void *data = obs_obj_get_data(src);
+	assert_int_equal(fake_a_state.creates, 0);
+
+	video_device_capture_info.show(data);
+	assert_int_equal(fake_a_state.creates, 1);
+	video_device_capture_info.hide(data);
+	assert_int_equal(fake_a_state.destroys, 1);
+
+	obs_source_release(src);
+	obs_wait_for_destroy_queue();
+	assert_int_equal(fake_a_state.destroys, 1);
+	obs_data_release(s);
+}
+
+static void created_hidden_pauses(void **state)
+{
+	UNUSED_PARAMETER(state);
+	obs_data_t *s = obs_data_create();
+	obs_data_set_string(s, VD_BACKEND, "pausable");
+	obs_data_set_bool(s, VD_DEACTIVATE_WHEN_HIDDEN, true);
+
+	obs_source_t *src = obs_source_create(VIDEO_DEVICE_SOURCE_ID, "h", s, NULL);
+	void *data = obs_obj_get_data(src);
+	assert_int_equal(fake_b_state.creates, 1);
+	assert_int_equal(fake_b_state.hides, 1);
+
+	/* Hiding again doesn't hide twice; showing resumes once. */
+	video_device_capture_info.hide(data);
+	assert_int_equal(fake_b_state.hides, 1);
+	video_device_capture_info.show(data);
+	video_device_capture_info.show(data);
+	assert_int_equal(fake_b_state.shows, 1);
+	assert_int_equal(fake_b_state.destroys, 0);
+
+	obs_source_release(src);
+	obs_data_release(s);
+}
+
+/* Turning the option on while hidden lets go of the device right away, and
+ * turning it off again takes it back. */
+static void toggling_while_hidden(void **state)
+{
+	UNUSED_PARAMETER(state);
+	obs_data_t *s = obs_data_create();
+	obs_data_set_string(s, VD_BACKEND, "fake_a");
+
+	obs_source_t *src = obs_source_create(VIDEO_DEVICE_SOURCE_ID, "h", s, NULL);
+	assert_int_equal(fake_a_state.creates, 1);
+
+	obs_data_set_bool(s, VD_DEACTIVATE_WHEN_HIDDEN, true);
+	apply_update(src, s);
+	assert_int_equal(fake_a_state.destroys, 1);
+
+	obs_data_set_bool(s, VD_DEACTIVATE_WHEN_HIDDEN, false);
+	apply_update(src, s);
+	assert_int_equal(fake_a_state.creates, 2);
+
+	obs_source_release(src);
+	obs_wait_for_destroy_queue();
+	assert_int_equal(fake_a_state.destroys, 2);
+	obs_data_release(s);
+}
+
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
@@ -520,6 +622,9 @@ int main(void)
 		cmocka_unit_test_setup_teardown(explicit_backend_and_switching, setup, teardown),
 		cmocka_unit_test_setup_teardown(missing_device_stays_listed, setup, teardown),
 		cmocka_unit_test_setup_teardown(deactivate_when_hidden_releases_backend, setup, teardown),
+		cmocka_unit_test_setup_teardown(created_hidden_waits_for_show, setup, teardown),
+		cmocka_unit_test_setup_teardown(created_hidden_pauses, setup, teardown),
+		cmocka_unit_test_setup_teardown(toggling_while_hidden, setup, teardown),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }
