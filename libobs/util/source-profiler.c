@@ -488,7 +488,8 @@ static void task_delete_source(void *key)
 		source_samples_destroy(smp);
 	}
 
-	pthread_rwlock_rdlock(&hm_rwlock);
+	/* a write lock: readers in source_profiler_fill_result() must not see the entry being freed */
+	pthread_rwlock_wrlock(&hm_rwlock);
 	struct profiler_entry *ent = NULL;
 	HASH_FIND_PTR(hm_entries, &key, ent);
 	if (ent) {
