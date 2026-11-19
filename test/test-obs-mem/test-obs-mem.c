@@ -366,6 +366,29 @@ static void test_source_weak_basic(void)
 	obs_weak_source_release(w);
 }
 
+static void test_canvas_weak_basic(void)
+{
+	obs_canvas_t *canvas = obs_canvas_create_private("weak", NULL, 0);
+	obs_canvas_t *other = obs_canvas_create_private("other", NULL, 0);
+	assert(canvas && other);
+
+	obs_weak_canvas_t *w = obs_canvas_get_weak_canvas(canvas);
+	assert(obs_weak_canvas_references_canvas(w, canvas));
+	assert(!obs_weak_canvas_references_canvas(w, other));
+	assert(!obs_weak_canvas_references_canvas(w, NULL));
+	assert(!obs_weak_canvas_references_canvas(NULL, canvas));
+
+	obs_canvas_t *strong = obs_weak_canvas_get_canvas(w);
+	assert(strong == canvas);
+	obs_canvas_release(strong);
+
+	obs_canvas_release(other);
+	obs_canvas_release(canvas);
+	obs_wait_for_destroy_queue(); /* no-op without video; expiry happens on the last release */
+	assert(obs_weak_canvas_get_canvas(w) == NULL);
+	obs_weak_canvas_release(w);
+}
+
 static void test_sceneitem_survives_remove(void)
 {
 	obs_scene_t *a = obs_scene_create_private("a");
@@ -623,6 +646,7 @@ static void test_context_objects(void)
 	assert(obs_startup("en-US", NULL, NULL));
 	test_source_weak_in_destroy_signal();
 	test_source_weak_basic();
+	test_canvas_weak_basic();
 	test_sceneitem_survives_remove();
 	test_fader_release_in_callback();
 	test_fader_destroy_detaches();
