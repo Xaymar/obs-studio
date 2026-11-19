@@ -125,6 +125,13 @@ obs_canvas_t *obs_weak_canvas_get_canvas(obs_weak_canvas_t *weak)
 
 /*** Creation / Destruction ***/
 
+/* The embedded view is torn down with its canvas and must never be freed on its own, even if a
+ * plugin drops its last ref through obs_mem_release. */
+static void embedded_view_destroy(void *obj)
+{
+	UNUSED_PARAMETER(obj);
+}
+
 static obs_canvas_t *obs_canvas_create_internal(const char *name, const char *uuid, struct obs_video_info *ovi,
 						uint32_t flags, bool private)
 {
@@ -146,7 +153,7 @@ static obs_canvas_t *obs_canvas_create_internal(const char *name, const char *uu
 		return NULL;
 	}
 
-	obs_mem_init(&canvas->view, NULL); /* embedded: never released, freed with the canvas */
+	obs_mem_init(&canvas->view, embedded_view_destroy);
 	obs_view_init(&canvas->view, flags & ACTIVATE ? MAIN_VIEW : AUX_VIEW);
 	obs_context_init_control(&canvas->context, canvas, (obs_destroy_cb)obs_canvas_destroy);
 

@@ -846,7 +846,10 @@ Displays
 
 .. function:: void obs_display_destroy(obs_display_t *display)
 
-   Destroys a display context.
+   Releases the creator's reference to a display context. Unless another
+   reference was taken with :c:func:`obs_mem_acquire`, the display is
+   destroyed before this returns; called from one of its own draw
+   callbacks, it is destroyed once the callback returns.
 
 ---------------------
 
@@ -903,7 +906,9 @@ Views
 
 .. function:: void obs_view_destroy(obs_view_t *view)
 
-   Destroys a view context.
+   Releases the creator's reference to a view context. Unless another
+   reference was taken with :c:func:`obs_mem_acquire`, the view is
+   destroyed before this returns.
 
 ---------------------
 

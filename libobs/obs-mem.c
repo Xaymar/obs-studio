@@ -76,6 +76,8 @@ void *obs_mem_get_ref(void *obj)
 /*
  * Marks the object's weak block dead and waits for in-flight upgrades; returns the block, if any.
  * Unless forced, an existing block stays attached and the marker is only installed when none exists.
+ * Both release and finalize run it: release so no upgrade succeeds during the destroy callback, finalize
+ * to detach the block for the object's own weak ref and because a forced destroy never goes through release.
  */
 static struct obs_mem_weak *mark_dead(struct obs_mem_header *hdr, bool force_dying)
 {

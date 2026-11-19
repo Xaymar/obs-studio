@@ -13,6 +13,26 @@ destroyed when its count reaches 0.
 The last :c:func:`obs_mem_release` may happen on any thread, including from
 inside a callback of the object itself.
 
+These functions work on any refcounted ``obs_*`` object: sources, outputs,
+encoders, services, canvases, scenes, scene items, :c:type:`obs_data_t`,
+:c:type:`obs_data_array_t`, missing files, displays, views, faders,
+volmeters, properties and encoder groups.
+
+- For displays, views, faders, volmeters, properties, missing files and
+  encoder groups, the type's ``*_destroy`` function releases the creator's
+  reference. The object is only freed once every other reference taken with
+  :c:func:`obs_mem_acquire` or :c:func:`obs_mem_get_ref` has been released
+  too. :c:func:`obs_fader_destroy` and :c:func:`obs_volmeter_destroy` also
+  detach the object from its source, for every holder: once they return, no
+  further callbacks of that fader or volmeter run. :c:func:`obs_display_destroy`
+  still frees the display on the calling thread when nobody else holds it.
+- :c:func:`obs_mem_release` does not perform the checks of the typed release
+  functions. For example :c:func:`obs_source_release` does nothing once libobs
+  has shut down, while :c:func:`obs_mem_release` always releases.
+- Do not use :c:func:`obs_mem_get_weak` on an :c:type:`obs_data_item_t`: an
+  item reallocates itself when its value changes, which would leave the weak
+  reference pointing at freed memory.
+
 
 Structures
 ----------
@@ -20,7 +40,9 @@ Structures
 .. struct:: obs_mem_header
 
    Header that must be the first member of every refcounted object. It is
-   32 bytes in size and 32-byte aligned. The members are private.
+   32 bytes in size, a multiple of 16, and has no alignment requirement
+   beyond that of a pointer, so it also works in memory returned by
+   :c:func:`brealloc`. The members are private.
 
 
 Strong Reference Functions
@@ -81,7 +103,10 @@ Weak Reference Functions
    Gets a new weak reference to the object. Repeated calls return the same
    pointer with one more reference each. Release it with
    :c:func:`obs_mem_weak_release`. If the object is already being destroyed,
-   the returned weak reference is expired.
+   the returned weak reference is expired, and each call may return a
+   different pointer.
+
+   Must not be used on an :c:type:`obs_data_item_t`.
 
    :return: A weak reference, or NULL if *obj* is NULL
 
