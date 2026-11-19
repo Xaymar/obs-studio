@@ -31,6 +31,14 @@ FetchContent_MakeAvailable(qtads)
 # windows, although Knurbs runs on Wayland only. Dropping that needs a patch
 # to ADS.
 if(TARGET qt6advanceddocking)
+  # ADS includes <qpa/qplatformnativeinterface.h>. Since Qt 6.10, private
+  # headers are only on the include path through the *Private targets, and
+  # ADS links only Core, Gui and Widgets.
+  find_package(Qt6 REQUIRED COMPONENTS GuiPrivate)
+  target_link_libraries(qt6advanceddocking PRIVATE Qt6::GuiPrivate)
+  # Third-party code: don't fail the build on its warnings (deprecations and
+  # [[nodiscard]] in newer Qt releases).
+  set_target_properties(qt6advanceddocking PROPERTIES COMPILE_WARNING_AS_ERROR OFF)
   add_library(Knurbs::qtads ALIAS qt6advanceddocking)
 else()
   message(FATAL_ERROR "Qt Advanced Docking System target not found after fetching ${KNURBS_QTADS_VERSION}")
