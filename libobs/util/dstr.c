@@ -501,7 +501,7 @@ void dstr_insert_ch(struct dstr *dst, const size_t idx, const char ch)
 	}
 
 	dstr_ensure_capacity(dst, (++dst->len + 1));
-	memmove(dst->array + idx + 1, dst->array + idx, dst->len - idx + 1);
+	memmove(dst->array + idx + 1, dst->array + idx, dst->len - idx);
 	dst->array[idx] = ch;
 }
 

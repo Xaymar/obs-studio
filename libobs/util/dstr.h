@@ -282,7 +282,7 @@ static inline const char *dstr_find_i(const struct dstr *str, const char *find)
 
 static inline const char *dstr_find(const struct dstr *str, const char *find)
 {
-	return strstr(str->array, find);
+	return str->array ? strstr(str->array, find) : NULL;
 }
 
 static inline int dstr_cmp(const struct dstr *str1, const char *str2)
