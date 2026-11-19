@@ -28,6 +28,7 @@ still open, with the reason.
 | util/profiler.c | **Fixed** in `435b31de3`. The actual cause: profiler_free() destroyed the static root mutex, and the next profiler call (in the next test) crashed; profiler_free() itself was fine. Originally listed as: `profiler_free()` crashes (access violation) after `profiler_start()`, a snapshot and `profiler_stop()`. |
 | util/profiler.c | Not a bug (explained): a call made while the profiler is stopped turns profiling off for that thread until `profile_reenable_thread()`, and the test made one before `profiler_start()`. Originally listed as: A snapshot reports fewer root calls than were made in `test_util_profiler`; not investigated yet. |
 | util/profiler.c | **Fixed** in `a4c6474e5`: `profiler_snapshot_filter_roots(NULL, ...)` crashes, unlike every other snapshot accessor. |
+| util/task.c | **Fixed** in `b782f6ba3`: `os_task_queue_inside(NULL)` dereferences NULL, unlike every other `os_task_queue_*` function. |
 | obs.c | **Fixed** in `ebdce7c8d`: `obs_get_video_info()` (and so `os_generate_formatted_filename()`) dereferences `obs` and crashes before `obs_startup()`. |
 | obs.c | **Fixed** in `686380e63`: `obs_get_video_sdr_white_level()` and `obs_get_video_hdr_nominal_peak_level()` return 0 once video is up until `obs_set_video_levels()` is called (the frontend always calls it), so every SDR/HDR multiplier divided by 0. They now start at the 300 and 1000 nits reported before video is up. |
 
