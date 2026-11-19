@@ -26,11 +26,13 @@ native reimplementation of the same library:
   PTHREAD_MUTEX_ROBUST)` returns `ENOTSUP`.
 - **Timed locks** (`pthread_mutex_timedlock`, `pthread_rwlock_timed*lock`)
   poll, because `SRWLOCK` has no timed acquire. They are rarely used.
-- **`sem_getvalue`** reports a negative value when threads are blocked (minus the number of waiters), matching pthreads-win32.
+- **`sem_getvalue`** reports a negative value when threads are blocked
+  (minus the number of waiters), matching pthreads-win32.
 - **Process-shared objects** return `ENOSYS`, as before.
 
 Kept on purpose, because existing code depends on it: locking a zeroed or
-destroyed mutex returns `EINVAL` instead of crashing, a normal mutex may be
+destroyed mutex returns `EINVAL` instead of crashing (pthreads-win32 crashed
+when unlocking one), a normal mutex may be
 unlocked by a thread other than its owner, and unlocking an unlocked normal
 mutex is a no-op.
 
@@ -41,6 +43,14 @@ mutex is a no-op.
 performance numbers. Six suite tests (`condvar2`, `condvar2_1`, `condvar3_1`,
 `condvar3_2`, `context1`, `sizes`) inspect pthreads-win32 internals and do not
 apply to this implementation.
+
+With MSVC (`/W3 /WX`) on Windows 10, the expected remaining suite failures are:
+
+- `cancel3`, `cancel5`, `cancel6a`, `cleanup1`, `exception1`: they rely on
+  asynchronous cancellation.
+- `robust1` to `robust5`: robust mutexes are not supported.
+- `loadfree`, `exit1`, `openmp1`: they also fail with pthreads-win32 (the
+  DLL name, a test harness timeout, and OpenMP not being enabled).
 
 ## License
 
