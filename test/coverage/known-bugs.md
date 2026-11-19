@@ -37,6 +37,7 @@ still open, with the reason.
 | obs-service.c | **Fixed** in `bed0899ab`: `obs_service_get_supported_video_codecs(NULL)` and `obs_service_get_supported_audio_codecs(NULL)` crash; every other service getter checks the service. |
 | obs-encoder.c | **Fixed** in `cf549e547`: An encoder destroyed after an encode error leaks its paired encoder array and weak reference: they are released only in `obs_encoder_shutdown()`, which the error path skips. |
 | obs-module.c | **Fixed** in `ac24f6a61`: A source a module registers but that is rejected is still added to the module's source list, so `obs_source_get_module()` and `obs_source_load_state()` report a source that does not exist. |
+| obs-hotkey.c | **Fixed** in `2a2670793`: `obs_hotkeys_save_encoder/output/service/source(NULL)` crash; the load and register functions check the object. |
 | obs-video-gpu-encode.c | **Fixed** in `7b96f0216`: An encode error in a texture encoder hangs the GPU encode thread for good: `full_stop()` runs on that thread and waits for it to go idle (and joins it for the last encoder), so its encoders and textures are never freed. |
 | obs-service.c | **Fixed** in `bc440c43f`, **behaviour change**: `obs_service_create()` never applies the type's `get_defaults`, unlike outputs and encoders, so unset keys read as 0 or "". |
 
