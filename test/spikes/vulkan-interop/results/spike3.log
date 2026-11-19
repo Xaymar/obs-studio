@@ -1,0 +1,195 @@
+### SPIKE_FILTER=sanity R8
+NVENC: header API 13.1, driver max 13.1
+CUDA: cuInit 0, driver API version 13050
+validation layer: ENABLED (VK_LAYER_KHRONOS_validation + sync)
+
+================================================================
+GPU: NVIDIA GeForce RTX 4070 Laptop GPU (vendor 0x10de device 0x2860)
+  driver: NVIDIA / 621.01, Vulkan API 1.4.357, driverVersion 0x9b404000
+  deviceUUID c2e714dee283fe1b198cf1a4f1dcf9c7, LUID valid 1
+  CUDA device 0 matches the Vulkan deviceUUID
+  -- sanity R8 image -> UINT8 CUarray
+     PASS: allocation 2211840 bytes, UINT8x1 1920x1080 array readback: 0 bad luma bytes
+  -- (B) NV12 VkBuffer -> CUdeviceptr -> NVENC CUDADEVICEPTR
+     PASS: 112388 bytes H.264, decoded 8 frames, worst PSNR Y 98.7 dB / UV 64.3 dB vs pattern
+
+skipping AMD Radeon 780M Graphics (not NVIDIA)
+
+===== RESULTS =====
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | sanity R8 image -> UINT8 CUarray                 | vvl_err=0 | allocation 2211840 bytes, UINT8x1 1920x1080 array readback: 0 bad luma bytes
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 buffer -> CUDADEVICEPTR                     | vvl_err=0 | 112388 bytes H.264, decoded 8 frames, worst PSNR Y 98.7 dB / UV 64.3 dB vs pattern
+### SPIKE_FILTER=sanity NV12
+NVENC: header API 13.1, driver max 13.1
+CUDA: cuInit 0, driver API version 13050
+validation layer: ENABLED (VK_LAYER_KHRONOS_validation + sync)
+
+================================================================
+GPU: NVIDIA GeForce RTX 4070 Laptop GPU (vendor 0x10de device 0x2860)
+  driver: NVIDIA / 621.01, Vulkan API 1.4.357, driverVersion 0x9b404000
+  deviceUUID c2e714dee283fe1b198cf1a4f1dcf9c7, LUID valid 1
+  CUDA device 0 matches the Vulkan deviceUUID
+  -- sanity NV12 image luma -> UINT8 CUarray
+     FAIL: allocation 3473408 bytes, UINT8x1 1920x1080 array readback: 2056704 bad luma bytes
+  -- (B) NV12 VkBuffer -> CUdeviceptr -> NVENC CUDADEVICEPTR
+     PASS: 112388 bytes H.264, decoded 8 frames, worst PSNR Y 98.7 dB / UV 64.3 dB vs pattern
+
+skipping AMD Radeon 780M Graphics (not NVIDIA)
+
+===== RESULTS =====
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | sanity NV12 image luma -> UINT8 CUarray          | vvl_err=0 | allocation 3473408 bytes, UINT8x1 1920x1080 array readback: 2056704 bad luma bytes
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 buffer -> CUDADEVICEPTR                     | vvl_err=0 | 112388 bytes H.264, decoded 8 frames, worst PSNR Y 98.7 dB / UV 64.3 dB vs pattern
+### SPIKE_FILTER=CUDAARRAY mut+ext_ca
+NVENC: header API 13.1, driver max 13.1
+CUDA: cuInit 0, driver API version 13050
+validation layer: ENABLED (VK_LAYER_KHRONOS_validation + sync)
+
+================================================================
+GPU: NVIDIA GeForce RTX 4070 Laptop GPU (vendor 0x10de device 0x2860)
+  driver: NVIDIA / 621.01, Vulkan API 1.4.357, driverVersion 0x9b404000
+  deviceUUID c2e714dee283fe1b198cf1a4f1dcf9c7, LUID valid 1
+  CUDA device 0 matches the Vulkan deviceUUID
+  -- (A) NV12 image -> CUDAARRAY mut+ext_ca+td+s
+     NV12 OPAQUE_WIN32 export props: VK_SUCCESS, EXPORTABLE IMPORTABLE 
+     image allocation 3473408 bytes (NV12 payload 3110400)
+     [ch3 flags 0x120: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x100: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x20: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x0: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x2: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x102: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch1 flags 0x100: map CUDA_ERROR_INVALID_VALUE] 
+     [ch1 flags 0x0: map CUDA_ERROR_INVALID_VALUE] 
+     using the first registrable (content NOT matching) descriptor
+     FAIL: exception: CUDA view of the image does not match what Vulkan wrote; not encoding (set SPIKE3_ENCODE_MISMATCH=1 to encode anyway). [ch3 flags 0x120: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x100: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x20: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x0: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x2: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x102: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch1 flags 0x100: map CUDA_ERROR_INVALID_VALUE] [ch1 flags 0x0: map CUDA_ERROR_INVALID_VALUE] 
+  -- (B) NV12 VkBuffer -> CUdeviceptr -> NVENC CUDADEVICEPTR
+     PASS: 112388 bytes H.264, decoded 8 frames, worst PSNR Y 98.7 dB / UV 64.3 dB vs pattern
+
+skipping AMD Radeon 780M Graphics (not NVIDIA)
+
+===== RESULTS =====
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 image -> CUDAARRAY mut+ext_ca+td+s          | vvl_err=0 | exception: CUDA view of the image does not match what Vulkan wrote; not encoding (set SPIKE3_ENCODE_MISMATCH=1 to encode anyway). [ch3 flags 0x120: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x100: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x20: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x0: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x2: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x102: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch1 flags 0x100: map CUDA_ERROR_INVALID_VALUE] [ch1 flags 0x0: map CUDA_ERROR_INVALID_VALUE] 
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 buffer -> CUDADEVICEPTR                     | vvl_err=0 | 112388 bytes H.264, decoded 8 frames, worst PSNR Y 98.7 dB / UV 64.3 dB vs pattern
+### SPIKE_FILTER=CUDAARRAY plain_td+s
+NVENC: header API 13.1, driver max 13.1
+CUDA: cuInit 0, driver API version 13050
+validation layer: ENABLED (VK_LAYER_KHRONOS_validation + sync)
+
+================================================================
+GPU: NVIDIA GeForce RTX 4070 Laptop GPU (vendor 0x10de device 0x2860)
+  driver: NVIDIA / 621.01, Vulkan API 1.4.357, driverVersion 0x9b404000
+  deviceUUID c2e714dee283fe1b198cf1a4f1dcf9c7, LUID valid 1
+  CUDA device 0 matches the Vulkan deviceUUID
+  -- (A) NV12 image -> CUDAARRAY plain_td+s
+     NV12 OPAQUE_WIN32 export props: VK_SUCCESS, EXPORTABLE IMPORTABLE 
+     image allocation 3473408 bytes (NV12 payload 3110400)
+     [ch3 flags 0x120: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x100: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x20: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x0: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x2: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x102: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch1 flags 0x100: map CUDA_ERROR_INVALID_VALUE] 
+     [ch1 flags 0x0: map CUDA_ERROR_INVALID_VALUE] 
+     using the first registrable (content NOT matching) descriptor
+     FAIL: exception: CUDA view of the image does not match what Vulkan wrote; not encoding (set SPIKE3_ENCODE_MISMATCH=1 to encode anyway). [ch3 flags 0x120: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x100: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x20: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x0: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x2: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x102: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch1 flags 0x100: map CUDA_ERROR_INVALID_VALUE] [ch1 flags 0x0: map CUDA_ERROR_INVALID_VALUE] 
+  -- (B) NV12 VkBuffer -> CUdeviceptr -> NVENC CUDADEVICEPTR
+     PASS: 112388 bytes H.264, decoded 8 frames, worst PSNR Y 98.7 dB / UV 64.3 dB vs pattern
+
+skipping AMD Radeon 780M Graphics (not NVIDIA)
+
+===== RESULTS =====
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 image -> CUDAARRAY plain_td+s               | vvl_err=0 | exception: CUDA view of the image does not match what Vulkan wrote; not encoding (set SPIKE3_ENCODE_MISMATCH=1 to encode anyway). [ch3 flags 0x120: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x100: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x20: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x0: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x2: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x102: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch1 flags 0x100: map CUDA_ERROR_INVALID_VALUE] [ch1 flags 0x0: map CUDA_ERROR_INVALID_VALUE] 
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 buffer -> CUDADEVICEPTR                     | vvl_err=0 | 112388 bytes H.264, decoded 8 frames, worst PSNR Y 98.7 dB / UV 64.3 dB vs pattern
+### SPIKE_FILTER=CUDAARRAY plain_td
+NVENC: header API 13.1, driver max 13.1
+CUDA: cuInit 0, driver API version 13050
+validation layer: ENABLED (VK_LAYER_KHRONOS_validation + sync)
+
+================================================================
+GPU: NVIDIA GeForce RTX 4070 Laptop GPU (vendor 0x10de device 0x2860)
+  driver: NVIDIA / 621.01, Vulkan API 1.4.357, driverVersion 0x9b404000
+  deviceUUID c2e714dee283fe1b198cf1a4f1dcf9c7, LUID valid 1
+  CUDA device 0 matches the Vulkan deviceUUID
+  -- (A) NV12 image -> CUDAARRAY plain_td+s
+     NV12 OPAQUE_WIN32 export props: VK_SUCCESS, EXPORTABLE IMPORTABLE 
+     image allocation 3473408 bytes (NV12 payload 3110400)
+     [ch3 flags 0x120: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x100: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x20: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x0: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x2: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x102: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch1 flags 0x100: map CUDA_ERROR_INVALID_VALUE] 
+     [ch1 flags 0x0: map CUDA_ERROR_INVALID_VALUE] 
+     using the first registrable (content NOT matching) descriptor
+     FAIL: exception: CUDA view of the image does not match what Vulkan wrote; not encoding (set SPIKE3_ENCODE_MISMATCH=1 to encode anyway). [ch3 flags 0x120: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x100: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x20: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x0: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x2: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x102: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch1 flags 0x100: map CUDA_ERROR_INVALID_VALUE] [ch1 flags 0x0: map CUDA_ERROR_INVALID_VALUE] 
+  -- (A) NV12 image -> CUDAARRAY plain_td
+     NV12 OPAQUE_WIN32 export props: VK_SUCCESS, EXPORTABLE IMPORTABLE 
+     image allocation 3473408 bytes (NV12 payload 3110400)
+     [ch3 flags 0x120: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x100: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x20: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x0: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x2: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x102: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch1 flags 0x100: map CUDA_ERROR_INVALID_VALUE] 
+     [ch1 flags 0x0: map CUDA_ERROR_INVALID_VALUE] 
+     using the first registrable (content NOT matching) descriptor
+     FAIL: exception: CUDA view of the image does not match what Vulkan wrote; not encoding (set SPIKE3_ENCODE_MISMATCH=1 to encode anyway). [ch3 flags 0x120: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x100: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x20: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x0: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x2: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x102: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch1 flags 0x100: map CUDA_ERROR_INVALID_VALUE] [ch1 flags 0x0: map CUDA_ERROR_INVALID_VALUE] 
+  -- (B) NV12 VkBuffer -> CUdeviceptr -> NVENC CUDADEVICEPTR
+     PASS: 112388 bytes H.264, decoded 8 frames, worst PSNR Y 98.7 dB / UV 64.3 dB vs pattern
+
+skipping AMD Radeon 780M Graphics (not NVIDIA)
+
+===== RESULTS =====
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 image -> CUDAARRAY plain_td+s               | vvl_err=0 | exception: CUDA view of the image does not match what Vulkan wrote; not encoding (set SPIKE3_ENCODE_MISMATCH=1 to encode anyway). [ch3 flags 0x120: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x100: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x20: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x0: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x2: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x102: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch1 flags 0x100: map CUDA_ERROR_INVALID_VALUE] [ch1 flags 0x0: map CUDA_ERROR_INVALID_VALUE] 
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 image -> CUDAARRAY plain_td                 | vvl_err=0 | exception: CUDA view of the image does not match what Vulkan wrote; not encoding (set SPIKE3_ENCODE_MISMATCH=1 to encode anyway). [ch3 flags 0x120: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x100: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x20: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x0: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x2: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x102: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch1 flags 0x100: map CUDA_ERROR_INVALID_VALUE] [ch1 flags 0x0: map CUDA_ERROR_INVALID_VALUE] 
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 buffer -> CUDADEVICEPTR                     | vvl_err=0 | 112388 bytes H.264, decoded 8 frames, worst PSNR Y 98.7 dB / UV 64.3 dB vs pattern
+### SPIKE_FILTER=CUDAARRAY mut+ext_storage
+NVENC: header API 13.1, driver max 13.1
+CUDA: cuInit 0, driver API version 13050
+validation layer: ENABLED (VK_LAYER_KHRONOS_validation + sync)
+
+================================================================
+GPU: NVIDIA GeForce RTX 4070 Laptop GPU (vendor 0x10de device 0x2860)
+  driver: NVIDIA / 621.01, Vulkan API 1.4.357, driverVersion 0x9b404000
+  deviceUUID c2e714dee283fe1b198cf1a4f1dcf9c7, LUID valid 1
+  CUDA device 0 matches the Vulkan deviceUUID
+  -- (A) NV12 image -> CUDAARRAY mut+ext_storage+td
+     NV12 OPAQUE_WIN32 export props: VK_SUCCESS, EXPORTABLE IMPORTABLE 
+     image allocation 3473408 bytes (NV12 payload 3110400)
+     [ch3 flags 0x120: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x100: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x20: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x0: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x2: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch3 flags 0x102: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] 
+     [ch1 flags 0x100: map CUDA_ERROR_INVALID_VALUE] 
+     [ch1 flags 0x0: map CUDA_ERROR_INVALID_VALUE] 
+     using the first registrable (content NOT matching) descriptor
+     FAIL: exception: CUDA view of the image does not match what Vulkan wrote; not encoding (set SPIKE3_ENCODE_MISMATCH=1 to encode anyway). [ch3 flags 0x120: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x100: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x20: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x0: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x2: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x102: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch1 flags 0x100: map CUDA_ERROR_INVALID_VALUE] [ch1 flags 0x0: map CUDA_ERROR_INVALID_VALUE] 
+  -- (B) NV12 VkBuffer -> CUdeviceptr -> NVENC CUDADEVICEPTR
+     PASS: 112388 bytes H.264, decoded 8 frames, worst PSNR Y 98.7 dB / UV 64.3 dB vs pattern
+
+skipping AMD Radeon 780M Graphics (not NVIDIA)
+
+===== RESULTS =====
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 image -> CUDAARRAY mut+ext_storage+td       | vvl_err=0 | exception: CUDA view of the image does not match what Vulkan wrote; not encoding (set SPIKE3_ENCODE_MISMATCH=1 to encode anyway). [ch3 flags 0x120: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x100: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x20: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x0: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x2: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch3 flags 0x102: map OK, CUDA readback: 2023424 bad Y, 804604 bad UV bytes, nvEncRegisterResource 0] [ch1 flags 0x100: map CUDA_ERROR_INVALID_VALUE] [ch1 flags 0x0: map CUDA_ERROR_INVALID_VALUE] 
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 buffer -> CUDADEVICEPTR                     | vvl_err=0 | 112388 bytes H.264, decoded 8 frames, worst PSNR Y 98.7 dB / UV 64.3 dB vs pattern
+### SPIKE_FILTER=CUDADEVICEPTR
+NVENC: header API 13.1, driver max 13.1
+CUDA: cuInit 0, driver API version 13050
+validation layer: ENABLED (VK_LAYER_KHRONOS_validation + sync)
+
+================================================================
+GPU: NVIDIA GeForce RTX 4070 Laptop GPU (vendor 0x10de device 0x2860)
+  driver: NVIDIA / 621.01, Vulkan API 1.4.357, driverVersion 0x9b404000
+  deviceUUID c2e714dee283fe1b198cf1a4f1dcf9c7, LUID valid 1
+  CUDA device 0 matches the Vulkan deviceUUID
+  -- (B) NV12 VkBuffer -> CUdeviceptr -> NVENC CUDADEVICEPTR
+     PASS: 112388 bytes H.264, decoded 8 frames, worst PSNR Y 98.7 dB / UV 64.3 dB vs pattern
+
+skipping AMD Radeon 780M Graphics (not NVIDIA)
+
+===== RESULTS =====
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 buffer -> CUDADEVICEPTR                     | vvl_err=0 | 112388 bytes H.264, decoded 8 frames, worst PSNR Y 98.7 dB / UV 64.3 dB vs pattern

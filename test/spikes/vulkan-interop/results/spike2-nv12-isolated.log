@@ -1,0 +1,87 @@
+### filter: NV12 MISC_SHARED (KMT) 128x64 RT
+validation layer: ENABLED (VK_LAYER_KHRONOS_validation + sync)
+
+================================================================
+GPU: NVIDIA GeForce RTX 4070 Laptop GPU (vendor 0x10de device 0x2860)
+  driver: NVIDIA / 621.01, Vulkan API 1.4.357, driverVersion 0x9b404000
+  deviceUUID c2e714dee283fe1b198cf1a4f1dcf9c7, LUID valid 1
+  VK_KHR_win32_keyed_mutex: yes
+  D3D11 device on DXGI adapter "NVIDIA GeForce RTX 4070 Laptop GPU" (LUID matched)
+  -- NV12 MISC_SHARED (KMT) 128x64 RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 131072 typeBits 0x3, dedicated prefers 1 requires 1
+     UV row0 got: 0 0 0 0 0 0 0 0 0 0 0 0 
+     UV row0 exp: 30 255 32 252 34 249 36 246 38 243 40 240 
+     Y plane bad texels: 0
+     FAIL: memType 1, 4096 bad texels first UV(0,0).0 got 0 exp 30
+
+===== RESULTS =====
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 MISC_SHARED (KMT) 128x64 RT                 | vvl_err=0 | memType 1, 4096 bad texels first UV(0,0).0 got 0 exp 30
+### filter: NV12 MISC_SHARED (KMT) 1920x1080
+validation layer: ENABLED (VK_LAYER_KHRONOS_validation + sync)
+
+================================================================
+GPU: NVIDIA GeForce RTX 4070 Laptop GPU (vendor 0x10de device 0x2860)
+  driver: NVIDIA / 621.01, Vulkan API 1.4.357, driverVersion 0x9b404000
+  deviceUUID c2e714dee283fe1b198cf1a4f1dcf9c7, LUID valid 1
+  VK_KHR_win32_keyed_mutex: yes
+  D3D11 device on DXGI adapter "NVIDIA GeForce RTX 4070 Laptop GPU" (LUID matched)
+  -- NV12 MISC_SHARED (KMT) 1920x1080
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 3473408 typeBits 0x3, dedicated prefers 1 requires 1
+     UV row0 got: 222 191 224 188 226 185 228 182 230 179 232 176 
+     UV row0 exp: 30 255 32 252 34 249 36 246 38 243 40 240 
+     Y plane bad texels: 0
+     FAIL: memType 1, 1008319 bad texels first UV(0,0).0 got 222 exp 30
+  -- NV12 MISC_SHARED (KMT) 1920x1080 RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 3473408 typeBits 0x3, dedicated prefers 1 requires 1
+     UV row0 got: 222 191 224 188 226 185 228 182 230 179 232 176 
+     UV row0 exp: 30 255 32 252 34 249 36 246 38 243 40 240 
+     Y plane bad texels: 0
+     FAIL: memType 1, 1008305 bad texels first UV(0,0).0 got 222 exp 30
+  -- NV12 MISC_SHARED (KMT) 1920x1080 mut+ext
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 3473408 typeBits 0x3, dedicated prefers 1 requires 1
+     UV row0 got: 222 191 224 188 226 185 228 182 230 179 232 176 
+     UV row0 exp: 30 255 32 252 34 249 36 246 38 243 40 240 
+     Y plane bad texels: 0
+     FAIL: memType 1, 1008319 bad texels first UV(0,0).0 got 222 exp 30
+  -- NV12 MISC_SHARED (KMT) 1920x1080 mut+ext RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 3473408 typeBits 0x3, dedicated prefers 1 requires 1
+     UV row0 got: 222 191 224 188 226 185 228 182 230 179 232 176 
+     UV row0 exp: 30 255 32 252 34 249 36 246 38 243 40 240 
+     Y plane bad texels: 0
+     FAIL: memType 1, 1008280 bad texels first UV(0,0).0 got 222 exp 30
+
+===== RESULTS =====
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 MISC_SHARED (KMT) 1920x1080                 | vvl_err=0 | memType 1, 1008319 bad texels first UV(0,0).0 got 222 exp 30
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 MISC_SHARED (KMT) 1920x1080 RT              | vvl_err=0 | memType 1, 1008305 bad texels first UV(0,0).0 got 222 exp 30
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 MISC_SHARED (KMT) 1920x1080 mut+ext         | vvl_err=0 | memType 1, 1008319 bad texels first UV(0,0).0 got 222 exp 30
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 MISC_SHARED (KMT) 1920x1080 mut+ext RT      | vvl_err=0 | memType 1, 1008280 bad texels first UV(0,0).0 got 222 exp 30
+### filter: NV12 SHARED_NTHANDLE (NT) 1920x1080 RT
+validation layer: ENABLED (VK_LAYER_KHRONOS_validation + sync)
+
+================================================================
+GPU: NVIDIA GeForce RTX 4070 Laptop GPU (vendor 0x10de device 0x2860)
+  driver: NVIDIA / 621.01, Vulkan API 1.4.357, driverVersion 0x9b404000
+  deviceUUID c2e714dee283fe1b198cf1a4f1dcf9c7, LUID valid 1
+  VK_KHR_win32_keyed_mutex: yes
+  D3D11 device on DXGI adapter "NVIDIA GeForce RTX 4070 Laptop GPU" (LUID matched)
+  -- NV12 SHARED_NTHANDLE (NT) 1920x1080 RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 3473408 typeBits 0x3, dedicated prefers 1 requires 1
+     UV row0 got: 222 191 224 188 226 185 228 182 230 179 232 176 
+     UV row0 exp: 30 255 32 252 34 249 36 246 38 243 40 240 
+     Y plane bad texels: 0
+     FAIL: memType 1, 1008319 bad texels first UV(0,0).0 got 222 exp 30
+
+===== RESULTS =====
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 SHARED_NTHANDLE (NT) 1920x1080 RT           | vvl_err=0 | memType 1, 1008319 bad texels first UV(0,0).0 got 222 exp 30

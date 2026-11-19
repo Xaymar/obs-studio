@@ -1,0 +1,294 @@
+﻿validation layer: ENABLED (VK_LAYER_KHRONOS_validation + sync)
+
+================================================================
+GPU: NVIDIA GeForce RTX 4070 Laptop GPU (vendor 0x10de device 0x2860)
+  driver: NVIDIA / 621.01, Vulkan API 1.4.357, driverVersion 0x9b404000
+  deviceUUID c2e714dee283fe1b198cf1a4f1dcf9c7, LUID valid 1
+  VK_KHR_win32_keyed_mutex: yes
+  D3D11 device on DXGI adapter "NVIDIA GeForce RTX 4070 Laptop GPU" (LUID matched)
+  -- BGRA MISC_SHARED (KMT)
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 32768 typeBits 0x3, dedicated prefers 1 requires 1
+     PASS: memType 1, 0 bad texels
+  -- BGRA SHARED_NTHANDLE (NT)
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 32768 typeBits 0x3, dedicated prefers 1 requires 1
+     PASS: memType 1, 0 bad texels
+  -- BGRA NTHANDLE+KEYEDMUTEX (NT)
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 32768 typeBits 0x3, dedicated prefers 1 requires 1
+     PASS: memType 1, 0 bad texels; D3D11 re-acquired key 2 released by Vulkan
+  -- BGRA KEYEDMUTEX legacy (KMT)
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 32768 typeBits 0x3, dedicated prefers 1 requires 1
+     PASS: memType 1, 0 bad texels; D3D11 re-acquired key 2 released by Vulkan
+  -- NV12 SHARED_NTHANDLE (NT) 128x64
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 131072 typeBits 0x3, dedicated prefers 1 requires 1
+     UV row0 got: 205 205 205 205 205 205 205 205 205 205 205 205 
+     UV row0 exp: 30 255 32 252 34 249 36 246 38 243 40 240 
+     Y plane bad texels: 0
+     FAIL: memType 1, 4078 bad texels first UV(0,0).0 got 205 exp 30
+  -- NV12 SHARED_NTHANDLE (NT) 128x64 RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 131072 typeBits 0x3, dedicated prefers 1 requires 1
+     UV row0 got: 7 13 31 255 9 13 32 255 11 13 33 255 
+     UV row0 exp: 30 255 32 252 34 249 36 246 38 243 40 240 
+     Y plane bad texels: 0
+     FAIL: memType 1, 4087 bad texels first UV(0,0).0 got 7 exp 30
+  -- NV12 SHARED_NTHANDLE (NT) 128x64 mut+ext
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 131072 typeBits 0x3, dedicated prefers 1 requires 1
+     UV row0 got: 205 205 205 205 205 205 205 205 205 205 205 205 
+     UV row0 exp: 30 255 32 252 34 249 36 246 38 243 40 240 
+     Y plane bad texels: 0
+     FAIL: memType 1, 4078 bad texels first UV(0,0).0 got 205 exp 30
+  -- NV12 SHARED_NTHANDLE (NT) 128x64 mut+ext RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 131072 typeBits 0x3, dedicated prefers 1 requires 1
+     UV row0 got: 7 13 31 255 9 13 32 255 11 13 33 255 
+     UV row0 exp: 30 255 32 252 34 249 36 246 38 243 40 240 
+     Y plane bad texels: 0
+     FAIL: memType 1, 4087 bad texels first UV(0,0).0 got 7 exp 30
+  -- NV12 SHARED_NTHANDLE (NT) 1920x1080
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 3473408 typeBits 0x3, dedicated prefers 1 requires 1
+     UV row0 got: 222 191 224 188 226 185 228 182 230 179 232 176 
+     UV row0 exp: 30 255 32 252 34 249 36 246 38 243 40 240 
+     Y plane bad texels: 0
+     FAIL: memType 1, 1008319 bad texels first UV(0,0).0 got 222 exp 30
+  -- NV12 SHARED_NTHANDLE (NT) 1920x1080 RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 3473408 typeBits 0x3, dedicated prefers 1 requires 1
+     UV row0 got: 222 191 224 188 226 185 228 182 230 179 232 176 
+     UV row0 exp: 30 255 32 252 34 249 36 246 38 243 40 240 
+     Y plane bad texels: 0
+     FAIL: memType 1, 1008411 bad texels first UV(0,0).0 got 222 exp 30
+  -- NV12 SHARED_NTHANDLE (NT) 1920x1080 mut+ext
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 3473408 typeBits 0x3, dedicated prefers 1 requires 1
+     UV row0 got: 222 191 224 188 226 185 228 182 230 179 232 176 
+     UV row0 exp: 30 255 32 252 34 249 36 246 38 243 40 240 
+     Y plane bad texels: 0
+     FAIL: memType 1, 1008319 bad texels first UV(0,0).0 got 222 exp 30
+  -- NV12 SHARED_NTHANDLE (NT) 1920x1080 mut+ext RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 3473408 typeBits 0x3, dedicated prefers 1 requires 1
+     UV row0 got: 222 191 224 188 226 185 228 182 230 179 232 176 
+     UV row0 exp: 30 255 32 252 34 249 36 246 38 243 40 240 
+     Y plane bad texels: 0
+     FAIL: memType 1, 1008337 bad texels first UV(0,0).0 got 222 exp 30
+  -- NV12 MISC_SHARED (KMT) 128x64
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 131072 typeBits 0x3, dedicated prefers 1 requires 1
+     UV row0 got: 205 205 205 205 205 205 205 205 205 205 205 205 
+     UV row0 exp: 30 255 32 252 34 249 36 246 38 243 40 240 
+     Y plane bad texels: 0
+     FAIL: memType 1, 4078 bad texels first UV(0,0).0 got 205 exp 30
+  -- NV12 MISC_SHARED (KMT) 128x64 RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 131072 typeBits 0x3, dedicated prefers 1 requires 1
+  !! t.vkQueueSubmit(queue, 1, &si, f) -> VK_ERROR_DEVICE_LOST (-4) at C:\Users\Xaymar\Claude\knurbs-vulkan-interop-spikes\test\spikes\vulkan-interop\common\spike_common.hpp:324
+     FAIL: exception: t.vkQueueSubmit(queue, 1, &si, f)
+  -- NV12 MISC_SHARED (KMT) 128x64 mut+ext
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 131072 typeBits 0x3, dedicated prefers 1 requires 1
+  !! t.vkQueueSubmit(queue, 1, &si, f) -> VK_ERROR_DEVICE_LOST (-4) at C:\Users\Xaymar\Claude\knurbs-vulkan-interop-spikes\test\spikes\vulkan-interop\common\spike_common.hpp:324
+     FAIL: exception: t.vkQueueSubmit(queue, 1, &si, f)
+  -- NV12 MISC_SHARED (KMT) 128x64 mut+ext RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 131072 typeBits 0x3, dedicated prefers 1 requires 1
+  !! t.vkQueueSubmit(queue, 1, &si, f) -> VK_ERROR_DEVICE_LOST (-4) at C:\Users\Xaymar\Claude\knurbs-vulkan-interop-spikes\test\spikes\vulkan-interop\common\spike_common.hpp:324
+     FAIL: exception: t.vkQueueSubmit(queue, 1, &si, f)
+  -- NV12 MISC_SHARED (KMT) 1920x1080
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 3473408 typeBits 0x3, dedicated prefers 1 requires 1
+  !! t.vkQueueSubmit(queue, 1, &si, f) -> VK_ERROR_DEVICE_LOST (-4) at C:\Users\Xaymar\Claude\knurbs-vulkan-interop-spikes\test\spikes\vulkan-interop\common\spike_common.hpp:324
+     FAIL: exception: t.vkQueueSubmit(queue, 1, &si, f)
+  -- NV12 MISC_SHARED (KMT) 1920x1080 RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 3473408 typeBits 0x3, dedicated prefers 1 requires 1
+  !! t.vkQueueSubmit(queue, 1, &si, f) -> VK_ERROR_DEVICE_LOST (-4) at C:\Users\Xaymar\Claude\knurbs-vulkan-interop-spikes\test\spikes\vulkan-interop\common\spike_common.hpp:324
+     FAIL: exception: t.vkQueueSubmit(queue, 1, &si, f)
+  -- NV12 MISC_SHARED (KMT) 1920x1080 mut+ext
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 3473408 typeBits 0x3, dedicated prefers 1 requires 1
+  !! t.vkQueueSubmit(queue, 1, &si, f) -> VK_ERROR_DEVICE_LOST (-4) at C:\Users\Xaymar\Claude\knurbs-vulkan-interop-spikes\test\spikes\vulkan-interop\common\spike_common.hpp:324
+     FAIL: exception: t.vkQueueSubmit(queue, 1, &si, f)
+  -- NV12 MISC_SHARED (KMT) 1920x1080 mut+ext RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x2
+     image memReq size 3473408 typeBits 0x3, dedicated prefers 1 requires 1
+  !! t.vkQueueSubmit(queue, 1, &si, f) -> VK_ERROR_DEVICE_LOST (-4) at C:\Users\Xaymar\Claude\knurbs-vulkan-interop-spikes\test\spikes\vulkan-interop\common\spike_common.hpp:324
+     FAIL: exception: t.vkQueueSubmit(queue, 1, &si, f)
+  [VVL ERROR] vkDestroyDevice(): VkDevice 0x19bd57200d0 has 7 leaked objects that have not been destroyed.
+VkFence 0x570000000057, VkFence 0x520000000052, VkFence 0x610000000061, VkFence 0x5c000000005c, VkFence 0x480000000048, VkFence 0x660000000066, VkFence 0x4d000000004d.
+The Vulkan spec states: All child objects created on device that can be destroyed or freed must have been destroyed or freed prior to destroying device (https://docs.vulkan.org/spec/latest/chapters/devsandqueues.html#VUID-vkDestroyDevice-device-05137)
+
+================================================================
+GPU: AMD Radeon 780M Graphics (vendor 0x1002 device 0x15bf)
+  driver: AMD proprietary driver / 26.11.2 (LLPC), Vulkan API 1.4.359, driverVersion 0x008001a0
+  deviceUUID 00000000660000000000000000000000, LUID valid 1
+  VK_KHR_win32_keyed_mutex: yes
+  D3D11 device on DXGI adapter "AMD Radeon 780M Graphics" (LUID matched)
+  -- BGRA MISC_SHARED (KMT)
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 32768 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels
+  -- BGRA SHARED_NTHANDLE (NT)
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 32768 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels
+  -- BGRA NTHANDLE+KEYEDMUTEX (NT)
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 32768 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels; D3D11 re-acquired key 2 released by Vulkan
+  -- BGRA KEYEDMUTEX legacy (KMT)
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 32768 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels; D3D11 re-acquired key 2 released by Vulkan
+  -- NV12 SHARED_NTHANDLE (NT) 128x64
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 131072 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels
+  -- NV12 SHARED_NTHANDLE (NT) 128x64 RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 131072 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels
+  -- NV12 SHARED_NTHANDLE (NT) 128x64 mut+ext
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 131072 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels
+  -- NV12 SHARED_NTHANDLE (NT) 128x64 mut+ext RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 131072 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels
+  -- NV12 SHARED_NTHANDLE (NT) 1920x1080
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 3932160 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels
+  -- NV12 SHARED_NTHANDLE (NT) 1920x1080 RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 3932160 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels
+  -- NV12 SHARED_NTHANDLE (NT) 1920x1080 mut+ext
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 3932160 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels
+  -- NV12 SHARED_NTHANDLE (NT) 1920x1080 mut+ext RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x8
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 3932160 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels
+  -- NV12 MISC_SHARED (KMT) 128x64
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 131072 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels
+  -- NV12 MISC_SHARED (KMT) 128x64 RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 131072 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels
+  -- NV12 MISC_SHARED (KMT) 128x64 mut+ext
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 131072 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels
+  -- NV12 MISC_SHARED (KMT) 128x64 mut+ext RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 131072 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels
+  -- NV12 MISC_SHARED (KMT) 1920x1080
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 3932160 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels
+  -- NV12 MISC_SHARED (KMT) 1920x1080 RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 3932160 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels
+  -- NV12 MISC_SHARED (KMT) 1920x1080 mut+ext
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 3932160 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels
+  -- NV12 MISC_SHARED (KMT) 1920x1080 mut+ext RT
+     external image format props: VK_SUCCESS, features: DEDICATED_ONLY IMPORTABLE , compatibleHandleTypes 0x10
+     vkGetMemoryWin32HandlePropertiesKHR memoryTypeBits 0x1111
+     image memReq size 3932160 typeBits 0x1, dedicated prefers 1 requires 1
+     PASS: memType 0, 0 bad texels
+
+===== RESULTS =====
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | BGRA MISC_SHARED (KMT)                           | vvl_err=0 | memType 1, 0 bad texels
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | BGRA SHARED_NTHANDLE (NT)                        | vvl_err=0 | memType 1, 0 bad texels
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | BGRA NTHANDLE+KEYEDMUTEX (NT)                    | vvl_err=0 | memType 1, 0 bad texels; D3D11 re-acquired key 2 released by Vulkan
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | BGRA KEYEDMUTEX legacy (KMT)                     | vvl_err=0 | memType 1, 0 bad texels; D3D11 re-acquired key 2 released by Vulkan
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 SHARED_NTHANDLE (NT) 128x64                 | vvl_err=0 | memType 1, 4078 bad texels first UV(0,0).0 got 205 exp 30
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 SHARED_NTHANDLE (NT) 128x64 RT              | vvl_err=0 | memType 1, 4087 bad texels first UV(0,0).0 got 7 exp 30
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 SHARED_NTHANDLE (NT) 128x64 mut+ext         | vvl_err=0 | memType 1, 4078 bad texels first UV(0,0).0 got 205 exp 30
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 SHARED_NTHANDLE (NT) 128x64 mut+ext RT      | vvl_err=0 | memType 1, 4087 bad texels first UV(0,0).0 got 7 exp 30
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 SHARED_NTHANDLE (NT) 1920x1080              | vvl_err=0 | memType 1, 1008319 bad texels first UV(0,0).0 got 222 exp 30
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 SHARED_NTHANDLE (NT) 1920x1080 RT           | vvl_err=0 | memType 1, 1008411 bad texels first UV(0,0).0 got 222 exp 30
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 SHARED_NTHANDLE (NT) 1920x1080 mut+ext      | vvl_err=0 | memType 1, 1008319 bad texels first UV(0,0).0 got 222 exp 30
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 SHARED_NTHANDLE (NT) 1920x1080 mut+ext RT   | vvl_err=0 | memType 1, 1008337 bad texels first UV(0,0).0 got 222 exp 30
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 MISC_SHARED (KMT) 128x64                    | vvl_err=0 | memType 1, 4078 bad texels first UV(0,0).0 got 205 exp 30
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 MISC_SHARED (KMT) 128x64 RT                 | vvl_err=0 | exception: t.vkQueueSubmit(queue, 1, &si, f)
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 MISC_SHARED (KMT) 128x64 mut+ext            | vvl_err=0 | exception: t.vkQueueSubmit(queue, 1, &si, f)
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 MISC_SHARED (KMT) 128x64 mut+ext RT         | vvl_err=0 | exception: t.vkQueueSubmit(queue, 1, &si, f)
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 MISC_SHARED (KMT) 1920x1080                 | vvl_err=0 | exception: t.vkQueueSubmit(queue, 1, &si, f)
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 MISC_SHARED (KMT) 1920x1080 RT              | vvl_err=0 | exception: t.vkQueueSubmit(queue, 1, &si, f)
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 MISC_SHARED (KMT) 1920x1080 mut+ext         | vvl_err=0 | exception: t.vkQueueSubmit(queue, 1, &si, f)
+FAIL | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 MISC_SHARED (KMT) 1920x1080 mut+ext RT      | vvl_err=0 | exception: t.vkQueueSubmit(queue, 1, &si, f)
+PASS | AMD Radeon 780M Graphics   | BGRA MISC_SHARED (KMT)                           | vvl_err=0 | memType 0, 0 bad texels
+PASS | AMD Radeon 780M Graphics   | BGRA SHARED_NTHANDLE (NT)                        | vvl_err=0 | memType 0, 0 bad texels
+PASS | AMD Radeon 780M Graphics   | BGRA NTHANDLE+KEYEDMUTEX (NT)                    | vvl_err=0 | memType 0, 0 bad texels; D3D11 re-acquired key 2 released by Vulkan
+PASS | AMD Radeon 780M Graphics   | BGRA KEYEDMUTEX legacy (KMT)                     | vvl_err=0 | memType 0, 0 bad texels; D3D11 re-acquired key 2 released by Vulkan
+PASS | AMD Radeon 780M Graphics   | NV12 SHARED_NTHANDLE (NT) 128x64                 | vvl_err=0 | memType 0, 0 bad texels
+PASS | AMD Radeon 780M Graphics   | NV12 SHARED_NTHANDLE (NT) 128x64 RT              | vvl_err=0 | memType 0, 0 bad texels
+PASS | AMD Radeon 780M Graphics   | NV12 SHARED_NTHANDLE (NT) 128x64 mut+ext         | vvl_err=0 | memType 0, 0 bad texels
+PASS | AMD Radeon 780M Graphics   | NV12 SHARED_NTHANDLE (NT) 128x64 mut+ext RT      | vvl_err=0 | memType 0, 0 bad texels
+PASS | AMD Radeon 780M Graphics   | NV12 SHARED_NTHANDLE (NT) 1920x1080              | vvl_err=0 | memType 0, 0 bad texels
+PASS | AMD Radeon 780M Graphics   | NV12 SHARED_NTHANDLE (NT) 1920x1080 RT           | vvl_err=0 | memType 0, 0 bad texels
+PASS | AMD Radeon 780M Graphics   | NV12 SHARED_NTHANDLE (NT) 1920x1080 mut+ext      | vvl_err=0 | memType 0, 0 bad texels
+PASS | AMD Radeon 780M Graphics   | NV12 SHARED_NTHANDLE (NT) 1920x1080 mut+ext RT   | vvl_err=0 | memType 0, 0 bad texels
+PASS | AMD Radeon 780M Graphics   | NV12 MISC_SHARED (KMT) 128x64                    | vvl_err=0 | memType 0, 0 bad texels
+PASS | AMD Radeon 780M Graphics   | NV12 MISC_SHARED (KMT) 128x64 RT                 | vvl_err=0 | memType 0, 0 bad texels
+PASS | AMD Radeon 780M Graphics   | NV12 MISC_SHARED (KMT) 128x64 mut+ext            | vvl_err=0 | memType 0, 0 bad texels
+PASS | AMD Radeon 780M Graphics   | NV12 MISC_SHARED (KMT) 128x64 mut+ext RT         | vvl_err=0 | memType 0, 0 bad texels
+PASS | AMD Radeon 780M Graphics   | NV12 MISC_SHARED (KMT) 1920x1080                 | vvl_err=0 | memType 0, 0 bad texels
+PASS | AMD Radeon 780M Graphics   | NV12 MISC_SHARED (KMT) 1920x1080 RT              | vvl_err=0 | memType 0, 0 bad texels
+PASS | AMD Radeon 780M Graphics   | NV12 MISC_SHARED (KMT) 1920x1080 mut+ext         | vvl_err=0 | memType 0, 0 bad texels
+PASS | AMD Radeon 780M Graphics   | NV12 MISC_SHARED (KMT) 1920x1080 mut+ext RT      | vvl_err=0 | memType 0, 0 bad texels

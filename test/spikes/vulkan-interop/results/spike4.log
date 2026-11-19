@@ -1,0 +1,102 @@
+### AMF-own VkDevice, told layout GENERAL : exit 
+AMF runtime 1.5.3.0, headers 1.5.3.0
+validation layer: ENABLED (VK_LAYER_KHRONOS_validation + sync)
+
+skipping NVIDIA GeForce RTX 4070 Laptop GPU (not AMD)
+
+================================================================
+GPU: AMD Radeon 780M Graphics (vendor 0x1002 device 0x15bf)
+  driver: AMD proprietary driver / 26.11.2 (LLPC), Vulkan API 1.4.359, driverVersion 0x008001a0
+  deviceUUID 00000000660000000000000000000000, LUID valid 1
+  -- AMF-own VkDevice, told layout GENERAL
+  !! ctx1->InitVulkan(nullptr) -> AMF_RESULT 1 at line 150
+     FAIL: exception: ctx1->InitVulkan(nullptr) -> AMF_RESULT 1
+
+===== RESULTS =====
+FAIL | AMD Radeon 780M Graphics   | AMF-own VkDevice, told layout GENERAL            | vvl_err=0 | exception: ctx1->InitVulkan(nullptr) -> AMF_RESULT 1
+2026-11-19 22:55:14.275     5070 [AMFDeviceVulkanImpl] Warning: Vulkan extension VK_AMD_device_coherent_memory not present. Some AMF features may be restricted.
+
+2026-11-19 22:55:14.357     5070 [AMFDeviceVulkanImpl]   Error: C:\constructicon\builds\gfx\six\26.20\drivers\amf\stable\runtime\src\core\DeviceVulkanImpl.cpp(741):AMF_ERROR 1 : AMF_FAIL: LoadFunctionsTable() failed: It may be wrong Vulkan driver version
+
+2026-11-19 22:55:14.357     5070 [AMFContextImpl]   Error: C:\constructicon\builds\gfx\six\26.20\drivers\amf\stable\runtime\src\core\ContextImpl.cpp(1084):AMF_ERROR 1 : AMF_FAIL: pDeviceVulkan->Init(pVulkanDevice)
+
+--- AMF trace errors:
+2026-11-19 22:55:14.357     5070 [AMFDeviceVulkanImpl]   Error: C:\constructicon\builds\gfx\six\26.20\drivers\amf\stable\runtime\src\core\DeviceVulkanImpl.cpp(741):AMF_ERROR 1 : AMF_FAIL: LoadFunctionsTable() failed: It may be wrong Vulkan driver version
+2026-11-19 22:55:14.357     5070 [AMFContextImpl]   Error: C:\constructicon\builds\gfx\six\26.20\drivers\amf\stable\runtime\src\core\ContextImpl.cpp(1084):AMF_ERROR 1 : AMF_FAIL: pDeviceVulkan->Init(pVulkanDevice)
+### AMF-own VkDevice, told layout UNDEFINED : exit 
+AMF runtime 1.5.3.0, headers 1.5.3.0
+validation layer: ENABLED (VK_LAYER_KHRONOS_validation + sync)
+
+skipping NVIDIA GeForce RTX 4070 Laptop GPU (not AMD)
+
+================================================================
+GPU: AMD Radeon 780M Graphics (vendor 0x1002 device 0x15bf)
+  driver: AMD proprietary driver / 26.11.2 (LLPC), Vulkan API 1.4.359, driverVersion 0x008001a0
+  deviceUUID 00000000660000000000000000000000, LUID valid 1
+  -- AMF-own VkDevice, told layout UNDEFINED
+  !! ctx1->InitVulkan(nullptr) -> AMF_RESULT 1 at line 150
+     FAIL: exception: ctx1->InitVulkan(nullptr) -> AMF_RESULT 1
+
+===== RESULTS =====
+FAIL | AMD Radeon 780M Graphics   | AMF-own VkDevice, told layout UNDEFINED          | vvl_err=0 | exception: ctx1->InitVulkan(nullptr) -> AMF_RESULT 1
+2026-11-19 22:55:14.815     3B28 [AMFDeviceVulkanImpl] Warning: Vulkan extension VK_AMD_device_coherent_memory not present. Some AMF features may be restricted.
+
+2026-11-19 22:55:14.873     3B28 [AMFDeviceVulkanImpl]   Error: C:\constructicon\builds\gfx\six\26.20\drivers\amf\stable\runtime\src\core\DeviceVulkanImpl.cpp(741):AMF_ERROR 1 : AMF_FAIL: LoadFunctionsTable() failed: It may be wrong Vulkan driver version
+
+2026-11-19 22:55:14.873     3B28 [AMFContextImpl]   Error: C:\constructicon\builds\gfx\six\26.20\drivers\amf\stable\runtime\src\core\ContextImpl.cpp(1084):AMF_ERROR 1 : AMF_FAIL: pDeviceVulkan->Init(pVulkanDevice)
+
+--- AMF trace errors:
+2026-11-19 22:55:14.873     3B28 [AMFDeviceVulkanImpl]   Error: C:\constructicon\builds\gfx\six\26.20\drivers\amf\stable\runtime\src\core\DeviceVulkanImpl.cpp(741):AMF_ERROR 1 : AMF_FAIL: LoadFunctionsTable() failed: It may be wrong Vulkan driver version
+2026-11-19 22:55:14.873     3B28 [AMFContextImpl]   Error: C:\constructicon\builds\gfx\six\26.20\drivers\amf\stable\runtime\src\core\ContextImpl.cpp(1084):AMF_ERROR 1 : AMF_FAIL: pDeviceVulkan->Init(pVulkanDevice)
+### app-created AMF VkDevice, told layout GENERAL : exit 
+AMF runtime 1.5.3.0, headers 1.5.3.0
+validation layer: ENABLED (VK_LAYER_KHRONOS_validation + sync)
+
+skipping NVIDIA GeForce RTX 4070 Laptop GPU (not AMD)
+
+================================================================
+GPU: AMD Radeon 780M Graphics (vendor 0x1002 device 0x15bf)
+  driver: AMD proprietary driver / 26.11.2 (LLPC), Vulkan API 1.4.359, driverVersion 0x008001a0
+  deviceUUID 00000000660000000000000000000000, LUID valid 1
+  -- app-created AMF VkDevice, told layout GENERAL
+     AMF GetVulkanDeviceExtensions: VK_KHR_swapchain VK_KHR_synchronization2 VK_KHR_external_memory_win32 VK_AMD_device_coherent_memory VK_KHR_timeline_semaphore VK_KHR_external_semaphore_win32 VK_KHR_video_queue VK_KHR_video_decode_queue VK_KHR_video_decode_h264 VK_KHR_video_decode_h265 VK_KHR_video_decode_av1 
+     AMF VkDevice 000001D06B072960 (instance 000001CFE3281820, our instance) on "AMD Radeon 780M Graphics", UUID 00000000660000000000000000000000 -> same GPU as renderer
+     VK_KHR_external_memory_win32 entry points on the AMF device: present
+     memReq renderer 3932160 (bits 0x1) / AMF device 3932160 (bits 0x11)
+     CreateSurfaceFromVulkanNative OK: format 1, 1920x1080, memory type 10
+  [VVL ERROR] vkGetMemoryWin32HandleKHR(): pGetWin32HandleInfo->memory pNext chain does not contain an instance of VkExportMemoryAllocateInfo.
+pNext chain: VkMemoryAllocateInfo::pNext -> [VkImportMemoryWin32HandleInfoKHR] -> [VkMemoryDedicatedAllocateInfo].
+The Vulkan spec states: handleType must have been included in VkExportMemoryAllocateInfo::handleTypes when memory was created (https://docs.vulkan.org/spec/latest/chapters/memory.html#VUID-VkMemoryGetWin32HandleInfoKHR-handleType-00662)
+     PASS: AMF dev ext_mem_win32 on; 190797 bytes H.264, decoded 8 frames, worst PSNR Y 99.0 dB / UV 64.3 dB vs pattern
+
+===== RESULTS =====
+PASS | AMD Radeon 780M Graphics   | app-created AMF VkDevice, told layout GENERAL    | vvl_err=1 | AMF dev ext_mem_win32 on; 190797 bytes H.264, decoded 8 frames, worst PSNR Y 99.0 dB / UV 64.3 dB vs pattern
+2026-11-19 22:55:15.422     3314 [AMFEncoderCoreImpl] Warning: GetProperty(PreAnalysis) not found
+
+--- AMF trace errors:
+### app-created AMF VkDevice, told layout UNDEFINED : exit 
+AMF runtime 1.5.3.0, headers 1.5.3.0
+validation layer: ENABLED (VK_LAYER_KHRONOS_validation + sync)
+
+skipping NVIDIA GeForce RTX 4070 Laptop GPU (not AMD)
+
+================================================================
+GPU: AMD Radeon 780M Graphics (vendor 0x1002 device 0x15bf)
+  driver: AMD proprietary driver / 26.11.2 (LLPC), Vulkan API 1.4.359, driverVersion 0x008001a0
+  deviceUUID 00000000660000000000000000000000, LUID valid 1
+  -- app-created AMF VkDevice, told layout UNDEFINED
+     AMF GetVulkanDeviceExtensions: VK_KHR_swapchain VK_KHR_synchronization2 VK_KHR_external_memory_win32 VK_AMD_device_coherent_memory VK_KHR_timeline_semaphore VK_KHR_external_semaphore_win32 VK_KHR_video_queue VK_KHR_video_decode_queue VK_KHR_video_decode_h264 VK_KHR_video_decode_h265 VK_KHR_video_decode_av1 
+     AMF VkDevice 0000020BD4B2C230 (instance 0000020B4C561840, our instance) on "AMD Radeon 780M Graphics", UUID 00000000660000000000000000000000 -> same GPU as renderer
+     VK_KHR_external_memory_win32 entry points on the AMF device: present
+     memReq renderer 3932160 (bits 0x1) / AMF device 3932160 (bits 0x11)
+     CreateSurfaceFromVulkanNative OK: format 1, 1920x1080, memory type 10
+  [VVL ERROR] vkGetMemoryWin32HandleKHR(): pGetWin32HandleInfo->memory pNext chain does not contain an instance of VkExportMemoryAllocateInfo.
+pNext chain: VkMemoryAllocateInfo::pNext -> [VkImportMemoryWin32HandleInfoKHR] -> [VkMemoryDedicatedAllocateInfo].
+The Vulkan spec states: handleType must have been included in VkExportMemoryAllocateInfo::handleTypes when memory was created (https://docs.vulkan.org/spec/latest/chapters/memory.html#VUID-VkMemoryGetWin32HandleInfoKHR-handleType-00662)
+     PASS: AMF dev ext_mem_win32 on; 190797 bytes H.264, decoded 8 frames, worst PSNR Y 99.0 dB / UV 64.3 dB vs pattern
+
+===== RESULTS =====
+PASS | AMD Radeon 780M Graphics   | app-created AMF VkDevice, told layout UNDEFINED  | vvl_err=1 | AMF dev ext_mem_win32 on; 190797 bytes H.264, decoded 8 frames, worst PSNR Y 99.0 dB / UV 64.3 dB vs pattern
+2026-11-19 22:55:16.401      2D8 [AMFEncoderCoreImpl] Warning: GetProperty(PreAnalysis) not found
+
+--- AMF trace errors:

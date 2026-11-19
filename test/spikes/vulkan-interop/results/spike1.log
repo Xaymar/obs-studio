@@ -1,0 +1,81 @@
+﻿validation layer: ENABLED (VK_LAYER_KHRONOS_validation + sync)
+
+================================================================
+GPU: NVIDIA GeForce RTX 4070 Laptop GPU (vendor 0x10de device 0x2860)
+  driver: NVIDIA / 621.01, Vulkan API 1.4.357, driverVersion 0x9b404000
+  deviceUUID c2e714dee283fe1b198cf1a4f1dcf9c7, LUID valid 1
+  NV12 (G8_B8R8_2PLANE_420) optimalTilingFeatures: SAMPLED TRANSFER_SRC TRANSFER_DST DISJOINT MIDPOINT_CHROMA COSITED_CHROMA YCBCR_LINEAR 
+  NV12 (G8_B8R8_2PLANE_420) linearTilingFeatures:  SAMPLED TRANSFER_SRC TRANSFER_DST DISJOINT MIDPOINT_CHROMA COSITED_CHROMA YCBCR_LINEAR 
+    plane view format 9 optimal: SAMPLED STORAGE COLOR_ATTACHMENT TRANSFER_SRC TRANSFER_DST 
+    plane view format 16 optimal: SAMPLED STORAGE COLOR_ATTACHMENT TRANSFER_SRC TRANSFER_DST 
+    vkGetPhysicalDeviceImageFormatProperties2(MUTABLE|EXTENDED_USAGE, COLOR_ATTACHMENT|TRANSFER_SRC|SAMPLED) -> VK_SUCCESS, maxExtent 32768x32768
+  P010 (G10X6_B10X6R10X6_2PLANE_420_3PACK16) optimalTilingFeatures: SAMPLED TRANSFER_SRC TRANSFER_DST DISJOINT MIDPOINT_CHROMA COSITED_CHROMA YCBCR_LINEAR 
+  P010 (G10X6_B10X6R10X6_2PLANE_420_3PACK16) linearTilingFeatures:  SAMPLED TRANSFER_SRC TRANSFER_DST DISJOINT MIDPOINT_CHROMA COSITED_CHROMA YCBCR_LINEAR 
+    plane view format 70 optimal: SAMPLED STORAGE COLOR_ATTACHMENT TRANSFER_SRC TRANSFER_DST 
+    plane view format 77 optimal: SAMPLED STORAGE COLOR_ATTACHMENT TRANSFER_SRC TRANSFER_DST 
+    vkGetPhysicalDeviceImageFormatProperties2(MUTABLE|EXTENDED_USAGE, COLOR_ATTACHMENT|TRANSFER_SRC|SAMPLED) -> VK_SUCCESS, maxExtent 32768x32768
+  -- NV12 clear +formatlist
+     PASS: 0 bad texels; 0 differ only in the 6 padding LSBs
+  -- NV12 clear no-formatlist
+     PASS: 0 bad texels; 0 differ only in the 6 padding LSBs
+  -- NV12 draw +formatlist
+     PASS: 0 bad texels; 0 differ only in the 6 padding LSBs
+  -- NV12 draw no-formatlist
+     PASS: 0 bad texels; 0 differ only in the 6 padding LSBs
+  -- P010 clear +formatlist
+     PASS: 0 bad texels; 0 differ only in the 6 padding LSBs
+  -- P010 clear no-formatlist
+     PASS: 0 bad texels; 0 differ only in the 6 padding LSBs
+  -- P010 draw +formatlist
+     PASS: 0 bad texels; 0 differ only in the 6 padding LSBs
+  -- P010 draw no-formatlist
+     PASS: 0 bad texels; 0 differ only in the 6 padding LSBs
+
+================================================================
+GPU: AMD Radeon 780M Graphics (vendor 0x1002 device 0x15bf)
+  driver: AMD proprietary driver / 26.11.2 (LLPC), Vulkan API 1.4.359, driverVersion 0x008001a0
+  deviceUUID 00000000660000000000000000000000, LUID valid 1
+  NV12 (G8_B8R8_2PLANE_420) optimalTilingFeatures: SAMPLED TRANSFER_SRC TRANSFER_DST MIDPOINT_CHROMA COSITED_CHROMA YCBCR_LINEAR 
+  NV12 (G8_B8R8_2PLANE_420) linearTilingFeatures:  SAMPLED TRANSFER_SRC TRANSFER_DST MIDPOINT_CHROMA COSITED_CHROMA YCBCR_LINEAR 
+    plane view format 9 optimal: SAMPLED STORAGE COLOR_ATTACHMENT TRANSFER_SRC TRANSFER_DST 
+    plane view format 16 optimal: SAMPLED STORAGE COLOR_ATTACHMENT TRANSFER_SRC TRANSFER_DST 
+    vkGetPhysicalDeviceImageFormatProperties2(MUTABLE|EXTENDED_USAGE, COLOR_ATTACHMENT|TRANSFER_SRC|SAMPLED) -> VK_SUCCESS, maxExtent 16384x16384
+  P010 (G10X6_B10X6R10X6_2PLANE_420_3PACK16) optimalTilingFeatures: SAMPLED TRANSFER_SRC TRANSFER_DST MIDPOINT_CHROMA COSITED_CHROMA YCBCR_LINEAR 
+  P010 (G10X6_B10X6R10X6_2PLANE_420_3PACK16) linearTilingFeatures:  SAMPLED TRANSFER_SRC TRANSFER_DST MIDPOINT_CHROMA COSITED_CHROMA YCBCR_LINEAR 
+    plane view format 70 optimal: SAMPLED STORAGE COLOR_ATTACHMENT TRANSFER_SRC TRANSFER_DST 
+    plane view format 77 optimal: SAMPLED STORAGE COLOR_ATTACHMENT TRANSFER_SRC TRANSFER_DST 
+    vkGetPhysicalDeviceImageFormatProperties2(MUTABLE|EXTENDED_USAGE, COLOR_ATTACHMENT|TRANSFER_SRC|SAMPLED) -> VK_SUCCESS, maxExtent 16384x16384
+  -- NV12 clear +formatlist
+     PASS: 0 bad texels; 0 differ only in the 6 padding LSBs
+  -- NV12 clear no-formatlist
+     PASS: 0 bad texels; 0 differ only in the 6 padding LSBs
+  -- NV12 draw +formatlist
+     PASS: 0 bad texels; 0 differ only in the 6 padding LSBs
+  -- NV12 draw no-formatlist
+     PASS: 0 bad texels; 0 differ only in the 6 padding LSBs
+  -- P010 clear +formatlist
+     PASS: 0 bad texels; 0 differ only in the 6 padding LSBs
+  -- P010 clear no-formatlist
+     PASS: 0 bad texels; 0 differ only in the 6 padding LSBs
+  -- P010 draw +formatlist
+     PASS: 0 bad texels; 0 differ only in the 6 padding LSBs
+  -- P010 draw no-formatlist
+     PASS: 0 bad texels; 0 differ only in the 6 padding LSBs
+
+===== RESULTS =====
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 clear +formatlist                           | vvl_err=0 | 0 bad texels; 0 differ only in the 6 padding LSBs
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 clear no-formatlist                         | vvl_err=0 | 0 bad texels; 0 differ only in the 6 padding LSBs
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 draw +formatlist                            | vvl_err=0 | 0 bad texels; 0 differ only in the 6 padding LSBs
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | NV12 draw no-formatlist                          | vvl_err=0 | 0 bad texels; 0 differ only in the 6 padding LSBs
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | P010 clear +formatlist                           | vvl_err=0 | 0 bad texels; 0 differ only in the 6 padding LSBs
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | P010 clear no-formatlist                         | vvl_err=0 | 0 bad texels; 0 differ only in the 6 padding LSBs
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | P010 draw +formatlist                            | vvl_err=0 | 0 bad texels; 0 differ only in the 6 padding LSBs
+PASS | NVIDIA GeForce RTX 4070 Laptop GPU | P010 draw no-formatlist                          | vvl_err=0 | 0 bad texels; 0 differ only in the 6 padding LSBs
+PASS | AMD Radeon 780M Graphics   | NV12 clear +formatlist                           | vvl_err=0 | 0 bad texels; 0 differ only in the 6 padding LSBs
+PASS | AMD Radeon 780M Graphics   | NV12 clear no-formatlist                         | vvl_err=0 | 0 bad texels; 0 differ only in the 6 padding LSBs
+PASS | AMD Radeon 780M Graphics   | NV12 draw +formatlist                            | vvl_err=0 | 0 bad texels; 0 differ only in the 6 padding LSBs
+PASS | AMD Radeon 780M Graphics   | NV12 draw no-formatlist                          | vvl_err=0 | 0 bad texels; 0 differ only in the 6 padding LSBs
+PASS | AMD Radeon 780M Graphics   | P010 clear +formatlist                           | vvl_err=0 | 0 bad texels; 0 differ only in the 6 padding LSBs
+PASS | AMD Radeon 780M Graphics   | P010 clear no-formatlist                         | vvl_err=0 | 0 bad texels; 0 differ only in the 6 padding LSBs
+PASS | AMD Radeon 780M Graphics   | P010 draw +formatlist                            | vvl_err=0 | 0 bad texels; 0 differ only in the 6 padding LSBs
+PASS | AMD Radeon 780M Graphics   | P010 draw no-formatlist                          | vvl_err=0 | 0 bad texels; 0 differ only in the 6 padding LSBs
