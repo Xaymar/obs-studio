@@ -378,7 +378,9 @@ void dstr_ncopy(struct dstr *dst, const char *array, const size_t len)
 	if (!len)
 		return;
 
-	dst->array = bmemdup(array, len + 1);
+	/* array need not be terminated after len */
+	dst->array = bmalloc(len + 1);
+	memcpy(dst->array, array, len);
 	dst->len = len;
 	dst->capacity = len + 1;
 

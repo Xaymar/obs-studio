@@ -11,6 +11,7 @@
 
 #ifdef _MSC_VER
 #include <crtdbg.h>
+#include <windows.h>
 #endif
 
 static void check_heap(void)
@@ -466,6 +467,29 @@ static void convert_test(void **state)
 	assert_null(str.array);
 }
 
+/* Regression: dstr_ncopy() read len + 1 bytes, one past a string that ends at a guard page */
+static void ncopy_guard_page_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+	char *pages = VirtualAlloc(NULL, si.dwPageSize * 2, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	assert_non_null(pages);
+	DWORD old;
+	assert_true(VirtualProtect(pages + si.dwPageSize, si.dwPageSize, PAGE_NOACCESS, &old));
+
+	char *abc = pages + si.dwPageSize - 3;
+	memcpy(abc, "abc", 3);
+
+	struct dstr str = {0};
+	dstr_ncopy(&str, abc, 3);
+	assert_string_equal(str.array, "abc");
+	dstr_free(&str);
+
+	VirtualFree(pages, 0, MEM_RELEASE);
+}
+
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
@@ -475,7 +499,7 @@ int main(void)
 		cmocka_unit_test(insert_remove_test), cmocka_unit_test(insert_ch_capacity_test),
 		cmocka_unit_test(printf_test),        cmocka_unit_test(replace_test),
 		cmocka_unit_test(substr_test),        cmocka_unit_test(query_test),
-		cmocka_unit_test(convert_test),
+		cmocka_unit_test(convert_test),       cmocka_unit_test(ncopy_guard_page_test),
 	};
 
 	int ret = cmocka_run_group_tests(tests, NULL, NULL);
