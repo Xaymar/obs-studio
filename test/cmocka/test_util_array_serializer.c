@@ -23,8 +23,8 @@ static void write_seek_test(void **state)
 	assert_int_equal(serializer_seek(&s, 1, SERIALIZE_SEEK_START), 1);
 	s_write(&s, "XY", 2);
 	assert_memory_equal(data.bytes.array, "aXYdef", 6);
-	/* get_pos reports the array size, not the write position */
-	assert_int_equal(serializer_get_pos(&s), 6);
+	/* Regression: get_pos reported the array size, not the write position */
+	assert_int_equal(serializer_get_pos(&s), 3);
 
 	/* overwrite across the end grows the array */
 	assert_int_equal(serializer_seek(&s, 1, SERIALIZE_SEEK_CURRENT), 4);
@@ -34,6 +34,7 @@ static void write_seek_test(void **state)
 
 	/* SEEK_END counts backwards from the end */
 	assert_int_equal(serializer_seek(&s, 2, SERIALIZE_SEEK_END), 6);
+	assert_int_equal(serializer_get_pos(&s), 6);
 	s_write(&s, "!", 1);
 	assert_memory_equal(data.bytes.array, "aXYd12!4", 8);
 

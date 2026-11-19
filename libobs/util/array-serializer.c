@@ -42,7 +42,7 @@ static size_t array_output_write(void *param, const void *data, size_t size)
 static int64_t array_output_get_pos(void *param)
 {
 	struct array_output_data *data = param;
-	return (int64_t)data->bytes.num;
+	return (int64_t)data->cur_pos;
 }
 
 static int64_t array_output_seek(void *param, int64_t offset, enum serialize_seek_type seek_type)
