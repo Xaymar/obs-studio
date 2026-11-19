@@ -57,13 +57,14 @@ void norm_to_polar(struct vec2 *dst, const struct vec3 *norm)
 	dst->y = asinf(norm->y);
 }
 
+/* the inverse of norm_to_polar(): polar->x is the yaw around y (from +z toward +x), polar->y the pitch */
 void polar_to_norm(struct vec3 *dst, const struct vec2 *polar)
 {
-	float sinx = sinf(polar->x);
+	float cos_pitch = cosf(polar->y);
 
-	dst->x = sinx * cosf(polar->y);
-	dst->y = sinx * sinf(polar->y);
-	dst->z = cosf(polar->x);
+	dst->x = cos_pitch * sinf(polar->x);
+	dst->y = sinf(polar->y);
+	dst->z = cos_pitch * cosf(polar->x);
 }
 
 float calc_torquef(float val1, float val2, float torque, float min_adjust, float t)

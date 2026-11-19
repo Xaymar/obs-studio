@@ -244,8 +244,7 @@ static void math_extra_test(void **state)
 	cart_to_polar(&back, &cart);
 	assert_true(vec3_close(&back, &polar, 1e-4f));
 
-	/* norm_to_polar() and polar_to_norm() use different angle conventions, so they are not inverses (see
-	 * known-bugs.md); only their own definitions are checked */
+	/* Regression: norm_to_polar() and polar_to_norm() used different angle conventions and were not inverses */
 	struct vec3 norm;
 	vec3_set(&norm, 0.0f, 0.0f, 1.0f);
 	struct vec2 p2;
@@ -256,6 +255,20 @@ static void math_extra_test(void **state)
 	vec3_zero(&n2);
 	polar_to_norm(&n2, &p2);
 	assert_near(n2.z, 1.0f);
+
+	const float dirs[][3] = {{0.6f, 0.0f, 0.8f}, {0.0f, 1.0f, 0.0f}, {-0.48f, 0.6f, -0.64f}, {0.36f, -0.8f, 0.48f}};
+	for (size_t i = 0; i < sizeof(dirs) / sizeof(dirs[0]); i++) {
+		vec3_set(&norm, dirs[i][0], dirs[i][1], dirs[i][2]);
+		norm_to_polar(&p2, &norm);
+		vec3_zero(&n2);
+		polar_to_norm(&n2, &p2);
+		assert_true(vec3_close(&n2, &norm, 1e-4f));
+	}
+	/* x is the yaw around y, y the pitch */
+	vec3_set(&norm, 1.0f, 0.0f, 0.0f);
+	norm_to_polar(&p2, &norm);
+	assert_near(p2.x, M_PI / 2.0f);
+	assert_near(p2.y, 0.0f);
 
 	/* torque moves toward the target and snaps when close */
 	assert_near(calc_torquef(0.0f, 10.0f, 1.0f, 0.1f, 0.5f), 5.0f);
