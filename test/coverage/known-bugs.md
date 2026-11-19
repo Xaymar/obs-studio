@@ -46,14 +46,15 @@ still open, with the reason.
 
 | File | Bug |
 | --- | --- |
-| graphics/plane.c | `plane_transform()` transforms the normal as a point (including the translation) before normalizing it, and subtracts the transformed origin from the distance; translating the plane z = 1 by 2 along z gives distance -1 instead of 3, and any translation tilts normals that are not parallel to it. |
-| graphics/plane.c | `plane_tri_inside()` and `plane_line_inside()` return a side bitmask as `bool`: false when everything lies on the plane, true when anything is off it, the opposite of what the names say. |
-| graphics/math-extra.c | `norm_to_polar()` and `polar_to_norm()` use different angle conventions, so they are not inverses of each other. |
-| graphics/graphics.c | `gs_color4v()`, `gs_cubetexture_set_image()`, `gs_set_3d_mode()`, `gs_draw_cube_backdrop()` and `gs_get_input()` are unimplemented `/* TODO */` stubs; `gs_color4v()` silently drops immediate-mode colors. |
-| graphics/effect-parser.c | Several malformed effects leak memory on the error path: a uniform of unknown type (4 allocations), a pass calling a missing function (1), a sampler state missing ';' (2), a broken initializer (2) and a shader using undefined names (8). |
-| graphics/shader-parser.c | Array initializers (`uniform float v[3] = {1, 2, 3};`) and `bool` defaults (`uniform bool b = false;`) are rejected ("Expected 'numeric value'", "Invalid type 'bool' used for assignment"). |
-| graphics/shader-parser.c | `shader_sampler_convert()` reads `BorderColor` with `strtol(value + 1, ...)`: it skips the first character, so `0xff00ff00` becomes 0, and `strtol()` clamps colors above 0x7fffffff (alpha >= 0x80) on Windows, where `long` is 32 bits. |
-| graphics/graphics-ffmpeg.c | EXIF orientation is ignored: it is read from the "Orientation" frame metadata, which the bundled FFmpeg no longer sets (it exports a display matrix instead), so rotated JPEGs load unrotated. |
+| graphics/plane.c | **Fixed** in `c37e79238`, **behaviour change**: `plane_transform()` transforms the normal as a point (including the translation) before normalizing it, and subtracts the transformed origin from the distance; translating the plane z = 1 by 2 along z gives distance -1 instead of 3, and any translation tilts normals that are not parallel to it. `plane_transform3x4()` had the same problems. Non-uniform scale is still not handled (the normal needs the inverse transpose). |
+| graphics/plane.c | **Fixed** in `04515d185`, **behaviour change**: `plane_tri_inside()` and `plane_line_inside()` return a side bitmask as `bool`: false when everything lies on the plane, true when anything is off it, the opposite of what the names say. |
+| graphics/math-extra.c | **Fixed** in `622ef4024`, **behaviour change**: `norm_to_polar()` and `polar_to_norm()` use different angle conventions, so they are not inverses of each other. `polar_to_norm()` now uses the (yaw, pitch) convention of `norm_to_polar()`. |
+| graphics/graphics.c | **Fixed** in `7cf55011e`, **behaviour change**: `gs_color4v()` is an empty stub and silently drops immediate-mode colors. |
+| graphics/graphics.c | Open, unimplemented features rather than bugs: `gs_cubetexture_set_image()`, `gs_set_3d_mode()`, `gs_draw_cube_backdrop()` and `gs_get_input()` are `/* TODO */` stubs. There is no device export for updating a cube texture face, and nothing in the tree calls the other three; implementing them is new API work. |
+| graphics/effect-parser.c | **Fixed** in `ee5b9185b`: A pass calling a missing function leaks the call string, and a sampler state cut off by the end of the effect (or with an empty value) leaks its name and value. The other inputs listed here before (a uniform of unknown type, a broken initializer, a shader using undefined names) parse successfully; their effects stay in the graphics context's effect cache until `gs_destroy()`, which the old per-effect count reported as a leak. |
+| graphics/shader-parser.c | **Fixed** in `4b55e0353`: Array initializers (`uniform float v[3] = {1, 2, 3};`), `bool` defaults (`uniform bool b = false;`) and `intN` defaults are rejected ("Expected 'numeric value'", "Invalid type 'bool' used for assignment"). |
+| graphics/shader-parser.c | **Fixed** in `d1858d906`, **behaviour change**: `shader_sampler_convert()` reads `BorderColor` with `strtol(value + 1, ...)`: it skips the first character, so `0xff00ff00` becomes 0, and `strtol()` clamps colors above 0x7fffffff (alpha >= 0x80) on Windows, where `long` is 32 bits. |
+| graphics/graphics-ffmpeg.c | **Fixed** in `ea51c4f7e`, **behaviour change**: EXIF orientation is ignored: it is read from the "Orientation" frame metadata, which the bundled FFmpeg no longer sets (it exports a display matrix instead), so rotated JPEGs load unrotated. |
 
 ## Fixes that change behaviour
 
@@ -70,5 +71,10 @@ These fixes change behaviour that plugins might rely on.
 | util/text-lookup.c | Spaces and tabs around the name and `=` are skipped (`Key = Value` gives `Value`, not `" "`), and a CRLF line with a name but no value no longer defines it. | `dc9cc505b` |
 | util/array-serializer.c, util/buffered-file-serializer.c | `SERIALIZE_SEEK_END` adds the offset to the end like `fseek()`; a positive offset used to move back. | `723919330` |
 | media-io/video-io.c | `video_output_get_frame_rate()` and `video_output_get_frame_time()` of an encoder's frame rate divisor output give the divided rate; flv-mux's `framerate` metadata changes with it. | `1d79916d9` |
+| graphics/plane.c | `plane_transform()` and `plane_transform3x4()` give different planes for every matrix with a translation or rotation; `plane_tri_inside()` and `plane_line_inside()` return the inverted result. No callers in the tree. | `c37e79238`, `04515d185` |
+| graphics/math-extra.c | `polar_to_norm()` returns a different normal for every input except (0, 0). No callers in the tree. | `622ef4024` |
+| graphics/graphics.c | `gs_color4v()` adds the color; with fewer colors than vertices, the draw is shortened like it is for `gs_color()`. | `7cf55011e` |
+| graphics/shader-parser.c | Sampler `BorderColor` values are used as written; most used to become 0 or 0x7fffffff. | `d1858d906` |
+| graphics/graphics-ffmpeg.c | JPEGs with an EXIF orientation load rotated or mirrored as displayed, and orientations 5 to 8 swap width and height. | `ea51c4f7e` |
 
 Open, not fixed yet: `obs_get_video_sdr_white_level()` returns 0 until `obs_set_video_levels()` is called once video is up (the frontend always calls it).
