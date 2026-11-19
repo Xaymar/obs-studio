@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.28...3.30)
 
-find_package(FFmpeg 8.0 REQUIRED avcodec avutil)
-
 add_library(win-dshow MODULE)
 add_library(OBS::dshow ALIAS win-dshow)
 
@@ -13,10 +11,9 @@ if(NOT TARGET OBS::winhandle)
   add_subdirectory("${CMAKE_SOURCE_DIR}/libobs" "${CMAKE_BINARY_DIR}/libobs")
 endif()
 
-target_sources(
-  win-dshow
-  PRIVATE dshow-plugin.cpp encode-dstr.hpp ffmpeg-decode.c ffmpeg-decode.h win-dshow-encoder.cpp win-dshow.cpp
-)
+# The video capture source is the DirectShow backend of
+# knurbs-video-device-capture; only the encoders are left here.
+target_sources(win-dshow PRIVATE dshow-plugin.cpp win-dshow-encoder.cpp)
 
 configure_file(cmake/windows/obs-module.rc.in win-dshow.rc)
 target_sources(win-dshow PRIVATE win-dshow.rc)
@@ -28,8 +25,6 @@ target_link_libraries(
     OBS::w32-pthreads
     OBS::libdshowcapture
     OBS::winhandle
-    FFmpeg::avcodec
-    FFmpeg::avutil
     strmiids
     winmm
 )

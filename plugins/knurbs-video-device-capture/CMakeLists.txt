@@ -5,11 +5,39 @@ add_library(OBS::knurbs-video-device-capture ALIAS knurbs-video-device-capture)
 
 target_sources(
   knurbs-video-device-capture
-  PRIVATE backends.c migrate.c migrate.h plugin-main.c video-device.c video-device.h
+  PRIVATE backends.c backends/dshow/dshow-formats.h migrate.c migrate.h plugin-main.c video-device.c video-device.h
 )
 
 target_include_directories(knurbs-video-device-capture PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(knurbs-video-device-capture PRIVATE OBS::libobs)
+
+if(OS_WINDOWS)
+  # DirectShow, with FFmpeg decoding MJPEG/H.264/HEVC and encoded audio.
+  find_package(FFmpeg 8.0 REQUIRED COMPONENTS avcodec avutil)
+
+  if(NOT TARGET OBS::libdshowcapture)
+    add_subdirectory("${CMAKE_SOURCE_DIR}/deps/libdshowcapture" "${CMAKE_BINARY_DIR}/deps/libdshowcapture")
+  endif()
+
+  if(NOT TARGET OBS::winhandle)
+    add_subdirectory("${CMAKE_SOURCE_DIR}/libobs" "${CMAKE_BINARY_DIR}/libobs")
+  endif()
+
+  target_sources(
+    knurbs-video-device-capture
+    PRIVATE
+      backends/dshow/dshow-backend.cpp
+      backends/dshow/dshow-formats.h
+      backends/dshow/encode-dstr.hpp
+      backends/dshow/ffmpeg-decode.c
+      backends/dshow/ffmpeg-decode.h
+  )
+  target_link_libraries(
+    knurbs-video-device-capture
+    PRIVATE OBS::libdshowcapture OBS::winhandle FFmpeg::avcodec FFmpeg::avutil strmiids winmm
+  )
+  target_compile_definitions(knurbs-video-device-capture PRIVATE HAVE_DSHOW)
+endif()
 
 if(OS_LINUX OR OS_FREEBSD OR OS_OPENBSD)
   option(ENABLE_V4L2 "Build OBS with v4l2 support" ON)

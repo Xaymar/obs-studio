@@ -367,13 +367,14 @@ static void fill_devices(obs_property_t *list, const struct vd_backend *backend,
 	}
 }
 
-static void add_string_list(obs_properties_t *props, const char *key, const char *label, const char *const *values,
-			    const char *const *labels, size_t count)
+static obs_property_t *add_string_list(obs_properties_t *props, const char *key, const char *label,
+				       const char *const *values, const char *const *labels, size_t count)
 {
 	obs_property_t *p = obs_properties_add_list(props, key, label, OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	for (size_t i = 0; i < count; i++) {
 		obs_property_list_add_string(p, obs_module_text(labels[i]), values[i]);
 	}
+	return p;
 }
 
 static void add_common_properties(obs_properties_t *props, const struct vd_backend *backend)
@@ -389,7 +390,8 @@ static void add_common_properties(obs_properties_t *props, const struct vd_backe
 
 	static const char *const buf_values[] = {VD_AUTO, "on", "off"};
 	static const char *const buf_labels[] = {"auto", "buffering.on", "buffering.off"};
-	add_string_list(props, VD_BUFFERING, obs_module_text("buffering"), buf_values, buf_labels, 3);
+	obs_property_t *p = add_string_list(props, VD_BUFFERING, obs_module_text("buffering"), buf_values, buf_labels, 3);
+	obs_property_set_long_description(p, obs_module_text("buffering.tooltip"));
 
 	obs_properties_add_bool(props, VD_FLIP_VERTICAL, obs_module_text("flip-vertical"));
 	obs_properties_add_bool(props, VD_DEACTIVATE_WHEN_HIDDEN, obs_module_text("deactivate-when-hidden"));
