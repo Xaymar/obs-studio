@@ -34,6 +34,7 @@ still open, with the reason.
 | util/windows/window-helpers.c | **Fixed** in `e20f80668`: `ms_get_window_exe()` compares an uninitialized process id for a window that no longer exists. |
 | obs.c | **Fixed** in `ebdce7c8d`: `obs_get_video_info()` (and so `os_generate_formatted_filename()`) dereferences `obs` and crashes before `obs_startup()`. |
 | obs.c | **Fixed** in `686380e63`: `obs_get_video_sdr_white_level()` and `obs_get_video_hdr_nominal_peak_level()` return 0 once video is up until `obs_set_video_levels()` is called (the frontend always calls it), so every SDR/HDR multiplier divided by 0. They now start at the 300 and 1000 nits reported before video is up. |
+| obs.c | **Fixed** in `77b5adbe8`: When setting up a video mix fails part way (a texture or stage surface the device cannot create), `obs_create_video_mix()` frees it with `bfree()` and leaks the open video output and the textures created so far. |
 | obs.c, obs-video.c | **Fixed** in `cafe2319e`, **behaviour change**: Output formats without a GPU conversion (Y800, I412, I210, YA2L, ...) and YUV formats with `gpu_conversion` off are accepted, and `copy_rgbx_frame()` then copies the 4-byte RGBA texture into their smaller frames: heap corruption on every frame. `obs_reset_video()` now rejects them. |
 | obs-service.c | **Fixed** in `bed0899ab`: `obs_service_get_supported_video_codecs(NULL)` and `obs_service_get_supported_audio_codecs(NULL)` crash; every other service getter checks the service. |
 | obs-encoder.c | **Fixed** in `cf549e547`: An encoder destroyed after an encode error leaks its paired encoder array and weak reference: they are released only in `obs_encoder_shutdown()`, which the error path skips. |
@@ -58,6 +59,7 @@ still open, with the reason.
 
 | File | Bug |
 | --- | --- |
+| graphics/texture-render.c | **Fixed** in `82f0af00a`: After its render target could not be created once, a texrender stays without one: the next `gs_texrender_begin()` with the same size skips creating it and fails, until the size changes. |
 | graphics/plane.c | **Fixed** in `c37e79238`, **behaviour change**: `plane_transform()` transforms the normal as a point (including the translation) before normalizing it, and subtracts the transformed origin from the distance; translating the plane z = 1 by 2 along z gives distance -1 instead of 3, and any translation tilts normals that are not parallel to it. `plane_transform3x4()` had the same problems. Non-uniform scale is still not handled (the normal needs the inverse transpose). |
 | graphics/plane.c | **Fixed** in `04515d185`, **behaviour change**: `plane_tri_inside()` and `plane_line_inside()` return a side bitmask as `bool`: false when everything lies on the plane, true when anything is off it, the opposite of what the names say. |
 | graphics/math-extra.c | **Fixed** in `622ef4024`, **behaviour change**: `norm_to_polar()` and `polar_to_norm()` use different angle conventions, so they are not inverses of each other. `polar_to_norm()` now uses the (yaw, pitch) convention of `norm_to_polar()`. |
