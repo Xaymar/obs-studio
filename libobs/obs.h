@@ -704,6 +704,15 @@ EXPORT bool obs_enum_input_types2(size_t idx, const char **id, const char **unve
 EXPORT const char *obs_get_latest_input_type_id(const char *unversioned_id);
 
 /**
+ * Resolves a source ID through registered aliases.
+ *
+ * @return  The ID of the registered source type that id creates: id's own type
+ *          if one is registered, otherwise the type its alias chain ends at.
+ *          NULL if id is unknown or its alias chain is broken.
+ */
+EXPORT const char *obs_source_alias_resolve(const char *id);
+
+/**
  * Enumerates all available filter source types.
  *
  *   Filters are sources that are used to modify the video/audio output of

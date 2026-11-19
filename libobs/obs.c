@@ -1233,6 +1233,10 @@ static bool obs_init(const char *locale, const char *module_config_path, profile
 {
 	obs = bzalloc(sizeof(struct obs_core));
 
+	pthread_mutex_init_value(&obs->source_aliases_mutex);
+	if (pthread_mutex_init(&obs->source_aliases_mutex, NULL) != 0)
+		return false;
+
 	pthread_mutex_init_value(&obs->audio.monitoring_mutex);
 	pthread_mutex_init_value(&obs->audio.task_mutex);
 	pthread_mutex_init_value(&obs->video.task_mutex);
@@ -1401,6 +1405,8 @@ void obs_shutdown(void)
 	}
 	da_free(obs->source_types);
 
+	obs_free_source_aliases();
+
 #define FREE_REGISTERED_TYPES(structure, list)                         \
 	do {                                                           \
 		for (size_t i = 0; i < list.num; i++) {                \
@@ -1472,6 +1478,7 @@ void obs_shutdown(void)
 
 	bfree(obs->module_config_path);
 	bfree(obs->locale);
+	pthread_mutex_destroy(&obs->source_aliases_mutex);
 	bfree(obs);
 	obs = NULL;
 	bfree(cmdline_args.argv);
