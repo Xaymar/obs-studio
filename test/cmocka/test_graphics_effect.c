@@ -256,34 +256,38 @@ static const char *bad_effects[] = {
 	"",
 	"#define M(a, b) a b\nM 2\n",
 	"#define M(a) a\nuniform float x = M(1, 2",
+	"uniform unknowntype x;", /* unknown type */
+	"sampler_state s { Filter = ; };", /* empty sampler state value */
 };
+
+static int plain_setup(void **state);
+static int plain_teardown(void **state);
 
 static void malformed_test(void **state)
 {
-	UNUSED_PARAMETER(state);
-
+	/* Regression: a missing function and a sampler state missing ';' leaked on the error path. Effects that
+	 * parse are kept in the graphics context's effect cache until gs_destroy(), so each input gets its own
+	 * context and the count is taken around it. */
+	size_t leaking = 0;
 	for (size_t i = 0; i < sizeof(bad_effects) / sizeof(bad_effects[0]); i++) {
 		long before = bnum_allocs();
+		assert_int_equal(plain_setup(state), 0);
 		char *errors = NULL;
 		gs_effect_t *effect = gs_effect_create(bad_effects[i], "bad.effect", &errors);
 		/* some inputs only produce warnings; either way nothing must leak or crash */
 		gs_effect_destroy(effect);
 		bfree(errors);
-		if (bnum_allocs() != before)
+		plain_teardown(state);
+		if (bnum_allocs() != before) {
 			print_message("bad effect %zu leaked %ld allocation(s)\n", i, bnum_allocs() - before);
+			leaking++;
+		}
 	}
+	assert_int_equal(leaking, 0);
 
+	assert_int_equal(plain_setup(state), 0);
 	assert_null(gs_effect_create(NULL, "null.effect", NULL));
-}
-
-/* shortcut: a uniform of unknown type leaks four allocations (see known-bugs.md), so it runs without the leak check */
-static void unknown_type_test(void **state)
-{
-	UNUSED_PARAMETER(state);
-	char *errors = NULL;
-	gs_effect_t *effect = gs_effect_create("uniform unknowntype x;", "bad.effect", &errors);
-	gs_effect_destroy(effect);
-	bfree(errors);
+	plain_teardown(state);
 }
 
 static int plain_setup(void **state)
@@ -309,8 +313,7 @@ int main(void)
 		gs_unit_test(data_effects_test),
 		gs_unit_test(technique_test),
 		gs_unit_test(params_test),
-		cmocka_unit_test_setup_teardown(malformed_test, plain_setup, plain_teardown),
-		cmocka_unit_test_setup_teardown(unknown_type_test, plain_setup, plain_teardown),
+		cmocka_unit_test(malformed_test),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);
