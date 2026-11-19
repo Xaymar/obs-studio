@@ -25,7 +25,14 @@
 
 extern const char *get_module_extension(void);
 
-obs_module_t *loadingModule = NULL;
+/* The module whose obs_module_load is running on this thread. Thread-local so
+ * that several modules can load in parallel and each registration is still
+ * attributed to the right module. */
+#ifdef _MSC_VER
+static __declspec(thread) obs_module_t *loadingModule = NULL;
+#else
+static _Thread_local obs_module_t *loadingModule = NULL;
+#endif
 
 static inline int req_func_not_found(const char *name, const char *path)
 {
@@ -182,7 +189,6 @@ int obs_open_module(obs_module_t **module, const char *path, const char *data_pa
 	mod.file = (!mod.file) ? mod.bin_path : (mod.file + 1);
 	mod.mod_name = get_module_name(mod.file);
 	mod.data_path = bstrdup(data_path);
-	mod.next = obs->first_module;
 	mod.load_state = OBS_MODULE_ENABLED;
 
 	da_init(mod.sources);
@@ -196,8 +202,11 @@ int obs_open_module(obs_module_t **module, const char *path, const char *data_pa
 
 	obs_module_load_metadata(&mod);
 
+	pthread_mutex_lock(&obs->registration_mutex);
+	mod.next = obs->first_module;
 	*module = bmemdup(&mod, sizeof(mod));
 	obs->first_module = (*module);
+	pthread_mutex_unlock(&obs->registration_mutex);
 	mod.set_pointer(*module);
 
 	if (mod.set_locale)
@@ -216,7 +225,6 @@ bool obs_create_disabled_module(obs_module_t **module, const char *path, const c
 	mod.file = (!mod.file) ? mod.bin_path : (mod.file + 1);
 	mod.mod_name = get_module_name(mod.file);
 	mod.data_path = bstrdup(data_path);
-	mod.next = obs->first_disabled_module;
 	mod.load_state = state;
 
 	da_init(mod.sources);
@@ -226,8 +234,11 @@ bool obs_create_disabled_module(obs_module_t **module, const char *path, const c
 
 	obs_module_load_metadata(&mod);
 
+	pthread_mutex_lock(&obs->registration_mutex);
+	mod.next = obs->first_disabled_module;
 	*module = bmemdup(&mod, sizeof(mod));
 	obs->first_disabled_module = (*module);
+	pthread_mutex_unlock(&obs->registration_mutex);
 
 	return true;
 }
@@ -340,16 +351,17 @@ void obs_module_add_service(obs_module_t *module, const char *id)
 
 obs_module_t *obs_get_module(const char *name)
 {
+	pthread_mutex_lock(&obs->registration_mutex);
 	obs_module_t *module = obs->first_module;
 	while (module) {
-		if (strcmp(module->mod_name, name) == 0) {
-			return module;
-		}
+		if (strcmp(module->mod_name, name) == 0)
+			break;
 
 		module = module->next;
 	}
+	pthread_mutex_unlock(&obs->registration_mutex);
 
-	return NULL;
+	return module;
 }
 
 obs_module_t *obs_get_disabled_module(const char *name)
@@ -620,17 +632,73 @@ void obs_module_failure_info_free(struct obs_module_failure_info *mfi)
 static const char *reset_win32_symbol_paths_name = "reset_win32_symbol_paths";
 #endif
 
-void obs_post_load_modules(void)
+void obs_prepare_post_load_modules(void)
 {
 #ifdef _WIN32
 	profile_start(reset_win32_symbol_paths_name);
 	reset_win32_symbol_paths();
 	profile_end(reset_win32_symbol_paths_name);
 #endif
+}
+
+void obs_post_load_module(obs_module_t *module)
+{
+	if (!module || !module->loaded || !module->post_load)
+		return;
+
+	loadingModule = module;
+	module->post_load();
+	loadingModule = NULL;
+}
+
+void obs_post_load_modules(void)
+{
+	obs_prepare_post_load_modules();
 	for (obs_module_t *mod = obs->first_module; !!mod; mod = mod->next)
 		if (mod->post_load)
 			mod->post_load();
 }
+
+static int compare_source_info(const void *a, const void *b)
+{
+	return strcmp(((const struct obs_source_info *)a)->id, ((const struct obs_source_info *)b)->id);
+}
+
+static int compare_output_info(const void *a, const void *b)
+{
+	return strcmp(((const struct obs_output_info *)a)->id, ((const struct obs_output_info *)b)->id);
+}
+
+static int compare_encoder_info(const void *a, const void *b)
+{
+	return strcmp(((const struct obs_encoder_info *)a)->id, ((const struct obs_encoder_info *)b)->id);
+}
+
+static int compare_service_info(const void *a, const void *b)
+{
+	return strcmp(((const struct obs_service_info *)a)->id, ((const struct obs_service_info *)b)->id);
+}
+
+#define SORT_TYPES(arr, cmp) \
+	do { \
+		if ((arr).num > 1) \
+			qsort((arr).array, (arr).num, sizeof(*(arr).array), cmp); \
+	} while (false)
+
+void obs_sort_registered_types(void)
+{
+	pthread_mutex_lock(&obs->registration_mutex);
+	SORT_TYPES(obs->source_types, compare_source_info);
+	SORT_TYPES(obs->input_types, compare_source_info);
+	SORT_TYPES(obs->filter_types, compare_source_info);
+	SORT_TYPES(obs->transition_types, compare_source_info);
+	SORT_TYPES(obs->output_types, compare_output_info);
+	SORT_TYPES(obs->encoder_types, compare_encoder_info);
+	SORT_TYPES(obs->service_types, compare_service_info);
+	pthread_mutex_unlock(&obs->registration_mutex);
+}
+
+#undef SORT_TYPES
 
 static inline void make_data_dir(struct dstr *parsed_data_dir, const char *data_dir, const char *name)
 {
@@ -1032,7 +1100,7 @@ cleanup:
 #define encoder_warn(format, ...) blog(LOG_WARNING, "obs_register_encoder: " format, ##__VA_ARGS__)
 #define service_warn(format, ...) blog(LOG_WARNING, "obs_register_service: " format, ##__VA_ARGS__)
 
-void obs_register_source_s(const struct obs_source_info *info, size_t size)
+static void register_source_locked(const struct obs_source_info *info, size_t size)
 {
 	struct obs_source_info data = {0};
 	obs_source_info_array_t *array = NULL;
@@ -1137,7 +1205,14 @@ error:
 	HANDLE_ERROR(size, obs_source_info, info);
 }
 
-void obs_register_output_s(const struct obs_output_info *info, size_t size)
+void obs_register_source_s(const struct obs_source_info *info, size_t size)
+{
+	pthread_mutex_lock(&obs->registration_mutex);
+	register_source_locked(info, size);
+	pthread_mutex_unlock(&obs->registration_mutex);
+}
+
+static void register_output_locked(const struct obs_output_info *info, size_t size)
 {
 	if (find_output(info->id)) {
 		output_warn("Output id '%s' already exists!  "
@@ -1203,7 +1278,14 @@ error:
 	HANDLE_ERROR(size, obs_output_info, info);
 }
 
-void obs_register_encoder_s(const struct obs_encoder_info *info, size_t size)
+void obs_register_output_s(const struct obs_output_info *info, size_t size)
+{
+	pthread_mutex_lock(&obs->registration_mutex);
+	register_output_locked(info, size);
+	pthread_mutex_unlock(&obs->registration_mutex);
+}
+
+static void register_encoder_locked(const struct obs_encoder_info *info, size_t size)
 {
 	if (find_encoder(info->id)) {
 		encoder_warn("Encoder id '%s' already exists!  "
@@ -1245,7 +1327,14 @@ error:
 	HANDLE_ERROR(size, obs_encoder_info, info);
 }
 
-void obs_register_service_s(const struct obs_service_info *info, size_t size)
+void obs_register_encoder_s(const struct obs_encoder_info *info, size_t size)
+{
+	pthread_mutex_lock(&obs->registration_mutex);
+	register_encoder_locked(info, size);
+	pthread_mutex_unlock(&obs->registration_mutex);
+}
+
+static void register_service_locked(const struct obs_service_info *info, size_t size)
 {
 	if (find_service(info->id)) {
 		service_warn("Service id '%s' already exists!  "
@@ -1272,4 +1361,11 @@ void obs_register_service_s(const struct obs_service_info *info, size_t size)
 
 error:
 	HANDLE_ERROR(size, obs_service_info, info);
+}
+
+void obs_register_service_s(const struct obs_service_info *info, size_t size)
+{
+	pthread_mutex_lock(&obs->registration_mutex);
+	register_service_locked(info, size);
+	pthread_mutex_unlock(&obs->registration_mutex);
 }

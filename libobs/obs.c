@@ -1238,6 +1238,10 @@ static bool obs_init(const char *locale, const char *module_config_path, profile
 	pthread_mutex_init_value(&obs->video.task_mutex);
 	pthread_mutex_init_value(&obs->video.encoder_group_mutex);
 	pthread_mutex_init_value(&obs->video.mixes_mutex);
+	pthread_mutex_init_value(&obs->registration_mutex);
+
+	if (pthread_mutex_init_recursive(&obs->registration_mutex) != 0)
+		return false;
 
 	obs->name_store_owned = !store;
 	obs->name_store = store ? store : profiler_name_store_create();
@@ -1472,6 +1476,7 @@ void obs_shutdown(void)
 
 	bfree(obs->module_config_path);
 	bfree(obs->locale);
+	pthread_mutex_destroy(&obs->registration_mutex);
 	bfree(obs);
 	obs = NULL;
 	bfree(cmdline_args.argv);

@@ -601,6 +601,25 @@ OBS_DEPRECATED EXPORT void obs_load_all_modules2(struct obs_module_failure_info 
  * be called after all modules have been loaded. */
 EXPORT void obs_post_load_modules(void);
 
+/**
+ * Prepares for calling obs_post_load_module on each module. Call once after
+ * every module has been loaded and before the first obs_post_load_module.
+ */
+EXPORT void obs_prepare_post_load_modules(void);
+
+/**
+ * Calls obs_module_post_load for one module. Safe to call for different
+ * modules from different threads at the same time.
+ */
+EXPORT void obs_post_load_module(obs_module_t *module);
+
+/**
+ * Sorts every registered source, output, encoder and service type by id, so
+ * that the order no longer depends on which module finished loading first.
+ * Call once all modules have loaded, before any type is enumerated.
+ */
+EXPORT void obs_sort_registered_types(void);
+
 struct obs_module_info {
 	const char *bin_path;
 	const char *data_path;

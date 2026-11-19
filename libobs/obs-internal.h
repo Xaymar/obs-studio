@@ -551,6 +551,10 @@ struct obs_core_hotkeys {
 typedef DARRAY(struct obs_source_info) obs_source_info_array_t;
 
 struct obs_core {
+	/* Guards the module lists and the registered type arrays, so modules can be
+	 * loaded from several threads at once. Recursive. */
+	pthread_mutex_t registration_mutex;
+
 	struct obs_module *first_module;
 	struct obs_module *first_disabled_module;
 
