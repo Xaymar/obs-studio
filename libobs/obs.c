@@ -1395,6 +1395,13 @@ void obs_shutdown(void)
 
 	obs_wait_for_destroy_queue();
 
+	/* Stop the threads and destroy every object that is left before the types and modules go: their
+	 * destroy callbacks, ids and type data belong to the types and the modules that registered them. */
+	stop_video();
+	stop_audio();
+	stop_hotkeys();
+	obs_free_data();
+
 	for (size_t i = 0; i < obs->source_types.num; i++) {
 		struct obs_source_info *item = &obs->source_types.array[i];
 		if (item->type_data && item->free_type_data)
@@ -1424,10 +1431,6 @@ void obs_shutdown(void)
 	da_free(obs->filter_types);
 	da_free(obs->transition_types);
 
-	stop_video();
-	stop_audio();
-	stop_hotkeys();
-
 	module = obs->first_module;
 	while (module) {
 		struct obs_module *next = module->next;
@@ -1444,7 +1447,6 @@ void obs_shutdown(void)
 	}
 	obs->first_disabled_module = NULL;
 
-	obs_free_data();
 	obs_free_audio();
 	obs_free_video();
 	os_task_queue_destroy(obs->destruction_task_thread);
