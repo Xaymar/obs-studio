@@ -2701,9 +2701,8 @@ void obs_context_data_free(struct obs_context_data *context)
 
 void obs_context_init_control(struct obs_context_data *context, void *object, obs_destroy_cb destroy)
 {
-	context->control = bzalloc(sizeof(obs_weak_object_t));
-	context->control->object = object;
-	context->destroy = destroy;
+	UNUSED_PARAMETER(context);
+	obs_mem_init(object, destroy);
 }
 
 void obs_context_data_insert(struct obs_context_data *context, pthread_mutex_t *mutex, void *pfirst)
@@ -3408,7 +3407,7 @@ obs_object_t *obs_object_get_ref(obs_object_t *object)
 	if (!object)
 		return NULL;
 
-	return obs_weak_object_get_object(object->control);
+	return obs_mem_get_ref(object);
 }
 
 void obs_object_release(obs_object_t *object)
@@ -3422,11 +3421,7 @@ void obs_object_release(obs_object_t *object)
 	if (!object)
 		return;
 
-	obs_weak_object_t *control = object->control;
-	if (obs_ref_release(&control->ref)) {
-		object->destroy(object);
-		obs_weak_object_release(control);
-	}
+	obs_mem_release(object);
 }
 
 void obs_weak_object_addref(obs_weak_object_t *weak)
@@ -3434,7 +3429,7 @@ void obs_weak_object_addref(obs_weak_object_t *weak)
 	if (!weak)
 		return;
 
-	obs_weak_ref_addref(&weak->ref);
+	obs_mem_weak_acquire((obs_mem_weak_t *)weak);
 }
 
 void obs_weak_object_release(obs_weak_object_t *weak)
@@ -3442,8 +3437,7 @@ void obs_weak_object_release(obs_weak_object_t *weak)
 	if (!weak)
 		return;
 
-	if (obs_weak_ref_release(&weak->ref))
-		bfree(weak);
+	obs_mem_weak_release((obs_mem_weak_t *)weak);
 }
 
 obs_weak_object_t *obs_object_get_weak_object(obs_object_t *object)
@@ -3451,9 +3445,7 @@ obs_weak_object_t *obs_object_get_weak_object(obs_object_t *object)
 	if (!object)
 		return NULL;
 
-	obs_weak_object_t *weak = object->control;
-	obs_weak_object_addref(weak);
-	return weak;
+	return (obs_weak_object_t *)obs_mem_get_weak(object);
 }
 
 obs_object_t *obs_weak_object_get_object(obs_weak_object_t *weak)
@@ -3461,20 +3453,17 @@ obs_object_t *obs_weak_object_get_object(obs_weak_object_t *weak)
 	if (!weak)
 		return NULL;
 
-	if (obs_weak_ref_get_ref(&weak->ref))
-		return weak->object;
-
-	return NULL;
+	return obs_mem_weak_get_strong((obs_mem_weak_t *)weak);
 }
 
 bool obs_weak_object_expired(obs_weak_object_t *weak)
 {
-	return weak ? obs_weak_ref_expired(&weak->ref) : true;
+	return weak ? obs_mem_weak_expired((obs_mem_weak_t *)weak) : true;
 }
 
 bool obs_weak_object_references_object(obs_weak_object_t *weak, obs_object_t *object)
 {
-	return weak && object && weak->object == object;
+	return weak && object && obs_mem_weak_references((obs_mem_weak_t *)weak, object);
 }
 
 bool obs_is_output_protocol_registered(const char *protocol)

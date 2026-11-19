@@ -40,6 +40,11 @@ General Functions
 
 .. function:: void obs_properties_destroy(obs_properties_t *props)
 
+   Releases the creator's reference to a properties object. Unless another
+   reference was taken with :c:func:`obs_mem_acquire`, it is destroyed
+   before this returns; called from one of its own callbacks, it is
+   destroyed once the callback returns.
+
 ---------------------
 
 .. function:: void obs_properties_set_flags(obs_properties_t *props, uint32_t flags)

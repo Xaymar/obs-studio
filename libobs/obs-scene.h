@@ -18,6 +18,7 @@
 #pragma once
 
 #include "obs.h"
+#include "obs-mem.h"
 #include "graphics/matrix4.h"
 
 /* how obs scene! */
@@ -28,7 +29,7 @@ struct item_action {
 };
 
 struct obs_scene_item {
-	volatile long ref;
+	struct obs_mem_header hdr;
 	volatile bool removed;
 
 	bool is_group;

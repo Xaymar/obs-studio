@@ -22,8 +22,6 @@
 #define encoder_active(encoder) os_atomic_load_bool(&encoder->active)
 #define set_encoder_active(encoder, val) os_atomic_set_bool(&encoder->active, val)
 
-#define get_weak(encoder) ((obs_weak_encoder_t *)encoder->context.control)
-
 static void encoder_set_video(obs_encoder_t *encoder, video_t *video);
 
 struct obs_encoder_info *find_encoder(const char *id)
@@ -488,6 +486,7 @@ void obs_encoder_destroy(obs_encoder_t *encoder)
 		pthread_mutex_destroy(&encoder->outputs_mutex);
 		pthread_mutex_destroy(&encoder->pause.mutex);
 		pthread_mutex_destroy(&encoder->roi_mutex);
+		obs_mem_finalize(encoder);
 		obs_context_data_free(&encoder->context);
 		if (encoder->owns_info_id)
 			bfree((void *)encoder->info.id);
@@ -1976,14 +1975,7 @@ void obs_encoder_release(obs_encoder_t *encoder)
 	if (!encoder)
 		return;
 
-	obs_weak_encoder_t *control = get_weak(encoder);
-	if (obs_ref_release(&control->ref)) {
-		// The order of operations is important here since
-		// get_context_by_name in obs.c relies on weak refs
-		// being alive while the context is listed
-		obs_encoder_destroy(encoder);
-		obs_weak_encoder_release(control);
-	}
+	obs_mem_release(encoder);
 }
 
 void obs_weak_encoder_addref(obs_weak_encoder_t *weak)
@@ -1991,7 +1983,7 @@ void obs_weak_encoder_addref(obs_weak_encoder_t *weak)
 	if (!weak)
 		return;
 
-	obs_weak_ref_addref(&weak->ref);
+	obs_mem_weak_acquire((obs_mem_weak_t *)weak);
 }
 
 void obs_weak_encoder_release(obs_weak_encoder_t *weak)
@@ -1999,8 +1991,7 @@ void obs_weak_encoder_release(obs_weak_encoder_t *weak)
 	if (!weak)
 		return;
 
-	if (obs_weak_ref_release(&weak->ref))
-		bfree(weak);
+	obs_mem_weak_release((obs_mem_weak_t *)weak);
 }
 
 obs_encoder_t *obs_encoder_get_ref(obs_encoder_t *encoder)
@@ -2008,7 +1999,7 @@ obs_encoder_t *obs_encoder_get_ref(obs_encoder_t *encoder)
 	if (!encoder)
 		return NULL;
 
-	return obs_weak_encoder_get_encoder(get_weak(encoder));
+	return obs_mem_get_ref(encoder);
 }
 
 obs_weak_encoder_t *obs_encoder_get_weak_encoder(obs_encoder_t *encoder)
@@ -2016,9 +2007,7 @@ obs_weak_encoder_t *obs_encoder_get_weak_encoder(obs_encoder_t *encoder)
 	if (!encoder)
 		return NULL;
 
-	obs_weak_encoder_t *weak = get_weak(encoder);
-	obs_weak_encoder_addref(weak);
-	return weak;
+	return (obs_weak_encoder_t *)obs_mem_get_weak(encoder);
 }
 
 obs_encoder_t *obs_weak_encoder_get_encoder(obs_weak_encoder_t *weak)
@@ -2026,15 +2015,12 @@ obs_encoder_t *obs_weak_encoder_get_encoder(obs_weak_encoder_t *weak)
 	if (!weak)
 		return NULL;
 
-	if (obs_weak_ref_get_ref(&weak->ref))
-		return weak->encoder;
-
-	return NULL;
+	return obs_mem_weak_get_strong((obs_mem_weak_t *)weak);
 }
 
 bool obs_weak_encoder_references_encoder(obs_weak_encoder_t *weak, obs_encoder_t *encoder)
 {
-	return weak && encoder && weak->encoder == encoder;
+	return weak && encoder && obs_mem_weak_references((obs_mem_weak_t *)weak, encoder);
 }
 
 void *obs_encoder_get_type_data(obs_encoder_t *encoder)
@@ -2220,6 +2206,8 @@ bool obs_encoder_set_group(obs_encoder_t *encoder, obs_encoder_group_t *group)
 	return true;
 }
 
+static void obs_encoder_group_free_cb(void *obj);
+
 obs_encoder_group_t *obs_encoder_group_create()
 {
 	struct obs_encoder_group *group = bzalloc(sizeof(struct obs_encoder_group));
@@ -2230,6 +2218,7 @@ obs_encoder_group_t *obs_encoder_group_create()
 		return NULL;
 	}
 
+	obs_mem_init(group, obs_encoder_group_free_cb);
 	return group;
 }
 
@@ -2245,13 +2234,14 @@ void obs_encoder_group_actually_destroy(obs_encoder_group_t *group)
 	pthread_mutex_unlock(&group->mutex);
 	pthread_mutex_destroy(&group->mutex);
 
+	obs_mem_finalize(group);
 	bfree(group);
 }
 
-void obs_encoder_group_destroy(obs_encoder_group_t *group)
+/* With encoders still running, the free is deferred to the last encoder's stop. */
+static void obs_encoder_group_free_cb(void *obj)
 {
-	if (!group)
-		return;
+	obs_encoder_group_t *group = obj;
 
 	pthread_mutex_lock(&group->mutex);
 
@@ -2262,6 +2252,14 @@ void obs_encoder_group_destroy(obs_encoder_group_t *group)
 	}
 
 	obs_encoder_group_actually_destroy(group);
+}
+
+void obs_encoder_group_destroy(obs_encoder_group_t *group)
+{
+	if (!group)
+		return;
+
+	obs_mem_release(group);
 }
 
 bool obs_encoder_video_tex_active(const obs_encoder_t *encoder, enum video_format format)

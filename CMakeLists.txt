@@ -20,6 +20,8 @@ option(ENABLE_SCRIPTING "Enable scripting support" ON)
 option(ENABLE_HEVC "Enable HEVC encoders" ON)
 option(ENABLE_VULKAN "Enable the Vulkan graphics backend (requires the Vulkan SDK)" OFF)
 
+enable_testing()
+
 add_subdirectory(libobs)
 if(OS_WINDOWS)
   add_subdirectory(libobs-d3d11)
@@ -36,6 +38,7 @@ endif()
 add_subdirectory(plugins)
 
 add_subdirectory(test/test-input)
+add_subdirectory(test/test-obs-mem)
 
 if(ENABLE_UNIT_TESTS)
   enable_testing()

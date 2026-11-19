@@ -202,6 +202,7 @@ static inline void full_unlock(struct obs_scene *scene)
 }
 
 static void obs_sceneitem_remove_internal(obs_sceneitem_t *item);
+static void obs_sceneitem_destroy_cb(void *item);
 
 static void remove_all_items(struct obs_scene *scene)
 {
@@ -2135,13 +2136,7 @@ void obs_scene_enum_items(obs_scene_t *scene, bool (*callback)(obs_scene_t *, ob
 
 static obs_sceneitem_t *sceneitem_get_ref(obs_sceneitem_t *si)
 {
-	long owners = os_atomic_load_long(&si->ref);
-	while (owners > 0) {
-		if (os_atomic_compare_exchange_long(&si->ref, &owners, owners + 1)) {
-			return si;
-		}
-	}
-	return NULL;
+	return obs_mem_get_ref(si);
 }
 
 static bool hotkey_show_sceneitem(void *data, obs_hotkey_pair_id id, obs_hotkey_t *hotkey, bool pressed)
@@ -2289,7 +2284,7 @@ static obs_sceneitem_t *obs_scene_add_internal(obs_scene_t *scene, obs_source_t 
 	item->source = source;
 	item->id = id ? id : ++scene->id_counter;
 	item->parent = scene;
-	item->ref = 1;
+	obs_mem_init(item, obs_sceneitem_destroy_cb);
 	item->align = OBS_ALIGN_TOP | OBS_ALIGN_LEFT;
 	item->actions_mutex = mutex;
 	item->user_visible = true;
@@ -2388,14 +2383,20 @@ static void obs_sceneitem_destroy(obs_sceneitem_t *item)
 		if (item->source)
 			obs_source_release(item->source);
 		da_free(item->audio_actions);
+		obs_mem_finalize(item);
 		bfree(item);
 	}
+}
+
+static void obs_sceneitem_destroy_cb(void *item)
+{
+	obs_sceneitem_destroy(item);
 }
 
 void obs_sceneitem_addref(obs_sceneitem_t *item)
 {
 	if (item)
-		os_atomic_inc_long(&item->ref);
+		obs_mem_acquire(item);
 }
 
 void obs_sceneitem_release(obs_sceneitem_t *item)
@@ -2403,8 +2404,7 @@ void obs_sceneitem_release(obs_sceneitem_t *item)
 	if (!item)
 		return;
 
-	if (os_atomic_dec_long(&item->ref) == 0)
-		obs_sceneitem_destroy(item);
+	obs_mem_release(item);
 }
 
 static void obs_sceneitem_remove_internal(obs_sceneitem_t *item)

@@ -80,11 +80,7 @@ void obs_canvas_release(obs_canvas_t *canvas)
 	if (!canvas)
 		return;
 
-	obs_weak_canvas_t *control = (obs_weak_canvas_t *)canvas->context.control;
-	if (obs_ref_release(&control->ref)) {
-		obs_canvas_destroy(canvas);
-		obs_weak_canvas_release(control);
-	}
+	obs_mem_release(canvas);
 }
 
 void obs_weak_canvas_addref(obs_weak_canvas_t *weak)
@@ -92,7 +88,7 @@ void obs_weak_canvas_addref(obs_weak_canvas_t *weak)
 	if (!weak)
 		return;
 
-	obs_weak_ref_addref(&weak->ref);
+	obs_mem_weak_acquire((obs_mem_weak_t *)weak);
 }
 
 void obs_weak_canvas_release(obs_weak_canvas_t *weak)
@@ -100,8 +96,7 @@ void obs_weak_canvas_release(obs_weak_canvas_t *weak)
 	if (!weak)
 		return;
 
-	if (obs_weak_ref_release(&weak->ref))
-		bfree(weak);
+	obs_mem_weak_release((obs_mem_weak_t *)weak);
 }
 
 obs_canvas_t *obs_canvas_get_ref(obs_canvas_t *canvas)
@@ -109,7 +104,7 @@ obs_canvas_t *obs_canvas_get_ref(obs_canvas_t *canvas)
 	if (!canvas)
 		return NULL;
 
-	return obs_weak_canvas_get_canvas((obs_weak_canvas_t *)canvas->context.control);
+	return obs_mem_get_ref(canvas);
 }
 
 obs_weak_canvas_t *obs_canvas_get_weak_canvas(obs_canvas_t *canvas)
@@ -117,9 +112,7 @@ obs_weak_canvas_t *obs_canvas_get_weak_canvas(obs_canvas_t *canvas)
 	if (!canvas)
 		return NULL;
 
-	obs_weak_canvas_t *weak = (obs_weak_canvas_t *)canvas->context.control;
-	obs_weak_canvas_addref(weak);
-	return weak;
+	return (obs_weak_canvas_t *)obs_mem_get_weak(canvas);
 }
 
 obs_canvas_t *obs_weak_canvas_get_canvas(obs_weak_canvas_t *weak)
@@ -127,10 +120,7 @@ obs_canvas_t *obs_weak_canvas_get_canvas(obs_weak_canvas_t *weak)
 	if (!weak)
 		return NULL;
 
-	if (obs_weak_ref_get_ref(&weak->ref))
-		return weak->canvas;
-
-	return NULL;
+	return obs_mem_weak_get_strong((obs_mem_weak_t *)weak);
 }
 
 bool obs_weak_canvas_references_canvas(obs_weak_canvas_t *weak, obs_canvas_t *canvas)
@@ -139,6 +129,13 @@ bool obs_weak_canvas_references_canvas(obs_weak_canvas_t *weak, obs_canvas_t *ca
 }
 
 /*** Creation / Destruction ***/
+
+/* The embedded view is torn down with its canvas and must never be freed on its own, even if a
+ * plugin drops its last ref through obs_mem_release. */
+static void embedded_view_destroy(void *obj)
+{
+	UNUSED_PARAMETER(obj);
+}
 
 static obs_canvas_t *obs_canvas_create_internal(const char *name, const char *uuid, struct obs_video_info *ovi,
 						uint32_t flags, bool private)
@@ -161,6 +158,7 @@ static obs_canvas_t *obs_canvas_create_internal(const char *name, const char *uu
 		return NULL;
 	}
 
+	obs_mem_init(&canvas->view, embedded_view_destroy);
 	obs_view_init(&canvas->view, flags & ACTIVATE ? MAIN_VIEW : AUX_VIEW);
 	obs_context_init_control(&canvas->context, canvas, (obs_destroy_cb)obs_canvas_destroy);
 
@@ -232,6 +230,7 @@ void obs_canvas_destroy(obs_canvas_t *canvas)
 	     canvas->context.uuid);
 
 	pthread_mutex_destroy(&canvas->sources_mutex);
+	obs_mem_finalize(canvas);
 	obs_context_data_free(&canvas->context);
 	obs_view_free(&canvas->view);
 	bfree(canvas);

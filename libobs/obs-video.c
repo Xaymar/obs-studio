@@ -105,8 +105,12 @@ static inline void render_displays(void)
 
 	display = obs->data.first_display;
 	while (display) {
-		render_display(display);
+		/* get_ref, not acquire: a display whose last ref is gone may still wait on this mutex to unlink. */
+		struct obs_display *ref = obs_mem_get_ref(display);
+		if (ref)
+			render_display(display);
 		display = display->next;
+		obs_mem_release(ref);
 	}
 
 	pthread_mutex_unlock(&obs->data.displays_mutex);

@@ -42,6 +42,7 @@ struct fader_cb {
 };
 
 struct obs_fader {
+	struct obs_mem_header hdr;
 	pthread_mutex_t mutex;
 	obs_fader_conversion_t def_to_db;
 	obs_fader_conversion_t db_to_def;
@@ -62,6 +63,7 @@ struct meter_cb {
 };
 
 struct obs_volmeter {
+	struct obs_mem_header hdr;
 	pthread_mutex_t mutex;
 	obs_source_t *source;
 	enum obs_fader_type type;
@@ -186,23 +188,37 @@ static float log_db_to_def(const float db)
 
 static void signal_volume_changed(struct obs_fader *fader, const float db)
 {
+	/* get_ref: a source signal can arrive after the last release, while the destroy waits to disconnect. */
+	if (!obs_mem_get_ref(fader))
+		return;
+
 	pthread_mutex_lock(&fader->callback_mutex);
 	for (size_t i = fader->callbacks.num; i > 0; i--) {
 		struct fader_cb cb = fader->callbacks.array[i - 1];
 		cb.callback(cb.param, db);
 	}
 	pthread_mutex_unlock(&fader->callback_mutex);
+
+	/* after the unlock: this may destroy the fader and its mutex */
+	obs_mem_release(fader);
 }
 
 static void signal_levels_updated(struct obs_volmeter *volmeter, const float magnitude[MAX_AUDIO_CHANNELS],
 				  const float peak[MAX_AUDIO_CHANNELS], const float input_peak[MAX_AUDIO_CHANNELS])
 {
+	/* get_ref: audio data can arrive after the last release, while the destroy waits to detach. */
+	if (!obs_mem_get_ref(volmeter))
+		return;
+
 	pthread_mutex_lock(&volmeter->callback_mutex);
 	for (size_t i = volmeter->callbacks.num; i > 0; i--) {
 		struct meter_cb cb = volmeter->callbacks.array[i - 1];
 		cb.callback(cb.param, magnitude, peak, input_peak);
 	}
 	pthread_mutex_unlock(&volmeter->callback_mutex);
+
+	/* after the unlock: this may destroy the volmeter and its mutex */
+	obs_mem_release(volmeter);
 }
 
 static void fader_source_volume_changed(void *vptr, calldata_t *calldata)
@@ -518,11 +534,26 @@ static void volmeter_source_data_received(void *vptr, obs_source_t *source, cons
 	signal_levels_updated(volmeter, magnitude, peak, input_peak);
 }
 
+static void obs_fader_free_cb(void *obj)
+{
+	obs_fader_t *fader = obj;
+
+	obs_fader_detach_source(fader);
+	da_free(fader->callbacks);
+	pthread_mutex_destroy(&fader->callback_mutex);
+	pthread_mutex_destroy(&fader->mutex);
+
+	obs_mem_finalize(fader);
+	bfree(fader);
+}
+
 obs_fader_t *obs_fader_create(enum obs_fader_type type)
 {
 	struct obs_fader *fader = bzalloc(sizeof(struct obs_fader));
 	if (!fader)
 		return NULL;
+
+	obs_mem_init(fader, obs_fader_free_cb);
 
 	pthread_mutex_init_value(&fader->mutex);
 	pthread_mutex_init_value(&fader->callback_mutex);
@@ -567,12 +598,10 @@ void obs_fader_destroy(obs_fader_t *fader)
 	if (!fader)
 		return;
 
+	/* Detach first: it waits for an in-flight dispatch, whose temporary ref is
+	 * dropped under the source lock detach takes, so no callback runs after this. */
 	obs_fader_detach_source(fader);
-	da_free(fader->callbacks);
-	pthread_mutex_destroy(&fader->callback_mutex);
-	pthread_mutex_destroy(&fader->mutex);
-
-	bfree(fader);
+	obs_mem_release(fader);
 }
 
 bool obs_fader_set_db(obs_fader_t *fader, const float db)
@@ -728,11 +757,26 @@ void obs_fader_remove_callback(obs_fader_t *fader, obs_fader_changed_t callback,
 	pthread_mutex_unlock(&fader->callback_mutex);
 }
 
+static void obs_volmeter_free_cb(void *obj)
+{
+	obs_volmeter_t *volmeter = obj;
+
+	obs_volmeter_detach_source(volmeter);
+	da_free(volmeter->callbacks);
+	pthread_mutex_destroy(&volmeter->callback_mutex);
+	pthread_mutex_destroy(&volmeter->mutex);
+
+	obs_mem_finalize(volmeter);
+	bfree(volmeter);
+}
+
 obs_volmeter_t *obs_volmeter_create(enum obs_fader_type type)
 {
 	struct obs_volmeter *volmeter = bzalloc(sizeof(struct obs_volmeter));
 	if (!volmeter)
 		return NULL;
+
+	obs_mem_init(volmeter, obs_volmeter_free_cb);
 
 	pthread_mutex_init_value(&volmeter->mutex);
 	pthread_mutex_init_value(&volmeter->callback_mutex);
@@ -754,12 +798,10 @@ void obs_volmeter_destroy(obs_volmeter_t *volmeter)
 	if (!volmeter)
 		return;
 
+	/* Detach first: it waits for an in-flight dispatch, whose temporary ref is
+	 * dropped under the source lock detach takes, so no callback runs after this. */
 	obs_volmeter_detach_source(volmeter);
-	da_free(volmeter->callbacks);
-	pthread_mutex_destroy(&volmeter->callback_mutex);
-	pthread_mutex_destroy(&volmeter->mutex);
-
-	bfree(volmeter);
+	obs_mem_release(volmeter);
 }
 
 bool obs_volmeter_attach_source(obs_volmeter_t *volmeter, obs_source_t *source)

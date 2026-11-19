@@ -56,6 +56,21 @@ static inline bool os_atomic_compare_exchange_long(volatile long *val, long *old
 	return __atomic_compare_exchange_n(val, old_val, new_val, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
 }
 
+static inline void *os_atomic_load_ptr(void *const volatile *ptr)
+{
+	return __atomic_load_n(ptr, __ATOMIC_SEQ_CST);
+}
+
+static inline void *os_atomic_set_ptr(void *volatile *ptr, void *val)
+{
+	return __atomic_exchange_n(ptr, val, __ATOMIC_SEQ_CST);
+}
+
+static inline bool os_atomic_compare_exchange_ptr(void *volatile *ptr, void **old_val, void *new_val)
+{
+	return __atomic_compare_exchange_n(ptr, old_val, new_val, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+}
+
 static inline void os_atomic_store_bool(volatile bool *ptr, bool val)
 {
 	__atomic_store_n(ptr, val, __ATOMIC_SEQ_CST);

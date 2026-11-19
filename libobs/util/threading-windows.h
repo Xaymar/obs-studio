@@ -88,6 +88,38 @@ static inline bool os_atomic_compare_exchange_long(volatile long *val, long *old
 	return previous == old_val;
 }
 
+static inline void *os_atomic_load_ptr(void *const volatile *ptr)
+{
+#if defined(_M_ARM64)
+	void *val = (void *)__ldar64((volatile unsigned __int64 *)ptr);
+#elif defined(_WIN64)
+	void *val = (void *)__iso_volatile_load64((const volatile __int64 *)ptr);
+#else
+	void *val = (void *)__iso_volatile_load32((const volatile __int32 *)ptr);
+#endif
+
+#if defined(_M_ARM)
+	__dmb(_ARM_BARRIER_ISH);
+#else
+	_ReadWriteBarrier();
+#endif
+
+	return val;
+}
+
+static inline void *os_atomic_set_ptr(void *volatile *ptr, void *val)
+{
+	return _InterlockedExchangePointer(ptr, val);
+}
+
+static inline bool os_atomic_compare_exchange_ptr(void *volatile *ptr, void **old_ptr, void *new_val)
+{
+	void *const old_val = *old_ptr;
+	void *const previous = _InterlockedCompareExchangePointer(ptr, new_val, old_val);
+	*old_ptr = previous;
+	return previous == old_val;
+}
+
 static inline void os_atomic_store_bool(volatile bool *ptr, bool val)
 {
 #if defined(_M_ARM64)
