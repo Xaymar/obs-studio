@@ -29,6 +29,19 @@ function(obs_add_unit_test name)
   add_dependencies(obs-unit-tests ${name})
 endfunction()
 
+# obs_add_graphics_test(<name>): a unit test that runs gs_* on the libobs-null module (see gs-test.h)
+function(obs_add_graphics_test name)
+  obs_add_unit_test(${name})
+  target_compile_definitions(
+    ${name}
+    PRIVATE
+      NULL_GRAPHICS_MODULE="$<TARGET_FILE:libobs-null>"
+      OBS_DATA_DIR="${CMAKE_SOURCE_DIR}/libobs/data"
+      TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data"
+  )
+  add_dependencies(${name} libobs-null)
+endfunction()
+
 # Serializer test
 add_executable(test_serializer test_serializer.c)
 target_include_directories(test_serializer PRIVATE ${CMOCKA_INCLUDE_DIR})
@@ -370,4 +383,14 @@ foreach(
     test_graphics_geometry
 )
   obs_add_unit_test(${test})
+endforeach()
+
+# graphics/
+foreach(
+  test
+  IN
+  ITEMS
+    test_graphics_graphics
+)
+  obs_add_graphics_test(${test})
 endforeach()
