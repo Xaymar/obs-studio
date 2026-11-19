@@ -648,6 +648,27 @@ EXPORT bool obs_load_core_modules(void);
 /** Loads plugins at a given path. omp defines if modern or legacy plugins at path. */
 EXPORT void obs_load_plugins(struct obs_runtime_module_info *info, struct obs_module_failure_info *error);
 
+/**
+ * Finds the core modules and calls the callback for each, without loading
+ * them. Use with obs_load_found_module to load modules on your own threads.
+ */
+EXPORT void obs_find_core_modules(obs_find_module_callback2_t callback, void *param);
+
+/** Finds the plugins described by info and calls the callback for each, without loading them. */
+EXPORT void obs_find_plugins(const struct obs_runtime_module_info *info, obs_find_module_callback2_t callback,
+			     void *param);
+
+/**
+ * Opens and initializes one module found by obs_find_core_modules,
+ * obs_find_plugins or obs_find_modules2, applying the safe and disabled module
+ * lists. Safe to call for different modules from different threads at once.
+ * Returns false if the module failed to open or initialize.
+ */
+EXPORT bool obs_load_found_module(const struct obs_module_info2 *info);
+
+/** Records whether every core module loaded, for frontends that load them with obs_load_found_module. */
+EXPORT void obs_set_core_modules_loaded(bool loaded);
+
 /** Returns true if a module is a core module. */
 EXPORT bool obs_is_core_module(obs_module_t *module);
 

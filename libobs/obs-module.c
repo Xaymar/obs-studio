@@ -620,6 +620,43 @@ void obs_load_plugins(struct obs_runtime_module_info *info, struct obs_module_fa
 	dstr_free(&failure.fail_modules);
 }
 
+void obs_find_core_modules(obs_find_module_callback2_t callback, void *param)
+{
+	if (!obs || !callback)
+		return;
+
+	load_core_modules(callback, param);
+}
+
+void obs_find_plugins(const struct obs_runtime_module_info *info, obs_find_module_callback2_t callback, void *param)
+{
+	if (!obs || !info || !callback)
+		return;
+
+	struct obs_module_path omp = {.bin = (char *)info->path_info.binary,
+				      .data = (char *)info->path_info.data,
+				      .type = info->type};
+
+	find_modules_in_path(&omp, callback, param);
+}
+
+bool obs_load_found_module(const struct obs_module_info2 *info)
+{
+	if (!obs || !info)
+		return false;
+
+	struct fail_info failure = {0};
+	load_all_callback(&failure, info);
+	dstr_free(&failure.fail_modules);
+	return failure.fail_count == 0;
+}
+
+void obs_set_core_modules_loaded(bool loaded)
+{
+	if (obs)
+		obs->core_modules_loaded = loaded;
+}
+
 void obs_module_failure_info_free(struct obs_module_failure_info *mfi)
 {
 	if (mfi->failed_modules) {
