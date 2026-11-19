@@ -293,6 +293,19 @@ static void include_test(void **state)
 	assert_string_equal(r.text, "header_token header_token v = 7 ;");
 	pp_result_free(&r);
 
+	/* Regression: errors in an included file were positioned against the including file's text */
+	f = os_fopen("inc/bad.h", "wb");
+	assert_non_null(f);
+	fputs("ok\n  #define 5\n", f);
+	fclose(f);
+	assert_true(preprocess(&r, "a\nb\nc\n#include \"bad.h\"\n", "inc/main.c"));
+	assert_int_equal(r.ed.errors.num, 1);
+	assert_string_equal(r.ed.errors.array[0].file, "inc/bad.h");
+	assert_int_equal(r.ed.errors.array[0].row, 2);
+	assert_int_equal(r.ed.errors.array[0].column, 11);
+	pp_result_free(&r);
+	os_unlink("inc/bad.h");
+
 	/* errors do not fail cf_preprocess(); only an unterminated comment does */
 	assert_true(preprocess(&r, "#include \"nope.h\"\n#include 5\n#include 'x'\n", NULL));
 	assert_true(has_error(&r, "Could not open file"));

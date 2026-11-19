@@ -550,8 +550,8 @@ static inline bool next_token(struct cf_token **p_cur_token, bool preprocessor)
 static inline void cf_gettokenoffset(struct cf_preprocessor *pp, const struct cf_token *token, uint32_t *row,
 				     uint32_t *col)
 {
-	/* pp->lex is only set by cf_preprocess(); definitions can be added before that */
-	const struct cf_lexer *lex = pp->lex ? pp->lex : token->lex;
+	/* the token's own lexer: an #included file has its own text. pp->lex is a fallback for tokens without one */
+	const struct cf_lexer *lex = token->lex ? token->lex : pp->lex;
 
 	*row = 0;
 	*col = 0;
