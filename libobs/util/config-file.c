@@ -149,9 +149,18 @@ static void config_add_item(struct config_item **items, struct strref *name, str
 {
 	struct config_item *item;
 	struct dstr item_value;
+	char *item_name = bstrdup_n(name->array, name->len);
 
-	item = bzalloc(sizeof(struct config_item));
-	item->name = bstrdup_n(name->array, name->len);
+	/* a repeated key replaces the earlier value */
+	HASH_FIND_STR(*items, item_name, item);
+	if (item) {
+		bfree(item_name);
+		bfree(item->value);
+	} else {
+		item = bzalloc(sizeof(struct config_item));
+		item->name = item_name;
+		HASH_ADD_STR(*items, name, item);
+	}
 
 	if (!strref_is_empty(value)) {
 		dstr_init_copy_strref(&item_value, value);
@@ -161,8 +170,6 @@ static void config_add_item(struct config_item **items, struct strref *name, str
 	} else {
 		item->value = bzalloc(1);
 	}
-
-	HASH_ADD_STR(*items, name, item);
 }
 
 static void config_parse_section(struct config_section *section, struct lexer *lex)
@@ -232,12 +239,18 @@ static void parse_config_data(struct config_section **sections, struct lexer *le
 		if (!section_name.len)
 			return;
 
-		section = bzalloc(sizeof(struct config_section));
-		section->name = bstrdup_n(section_name.array, section_name.len);
+		/* a repeated section adds its items to the earlier one */
+		char *name = bstrdup_n(section_name.array, section_name.len);
+		HASH_FIND_STR(*sections, name, section);
+		if (section) {
+			bfree(name);
+		} else {
+			section = bzalloc(sizeof(struct config_section));
+			section->name = name;
+			HASH_ADD_STR(*sections, name, section);
+		}
 
 		config_parse_section(section, lex);
-
-		HASH_ADD_STR(*sections, name, section);
 	}
 }
 

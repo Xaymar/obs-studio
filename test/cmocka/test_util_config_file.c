@@ -87,6 +87,37 @@ static void parse_test(void **state)
 	assert_int_equal(config_save(NULL), CONFIG_ERROR);
 }
 
+/* Regression: repeated keys and sections were added to the hash twice */
+static void duplicate_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+
+	config_t *config = NULL;
+	assert_int_equal(config_open_string(&config, "[A]\n"
+						     "Key=first\n"
+						     "Only=1\n"
+						     "Key=second\n"
+						     "[B]\n"
+						     "X=1\n"
+						     "[A]\n"
+						     "Later=2\n"
+						     "Key=third\n"),
+			 CONFIG_SUCCESS);
+
+	assert_int_equal(config_num_sections(config), 2);
+	assert_string_equal(config_get_section(config, 0), "A");
+	assert_string_equal(config_get_section(config, 1), "B");
+	assert_string_equal(config_get_string(config, "A", "Key"), "third");
+	assert_string_equal(config_get_string(config, "A", "Only"), "1");
+	assert_string_equal(config_get_string(config, "A", "Later"), "2");
+	assert_string_equal(config_get_string(config, "B", "X"), "1");
+
+	config_set_string(config, "A", "Key", "set");
+	assert_true(config_remove_value(config, "A", "Key"));
+	assert_null(config_get_string(config, "A", "Key"));
+	config_close(config);
+}
+
 static void set_save_test(void **state)
 {
 	UNUSED_PARAMETER(state);
@@ -222,7 +253,7 @@ static void defaults_test(void **state)
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
-		obs_unit_test(parse_test), obs_unit_test(set_save_test), obs_unit_test(save_empty_test),
+		obs_unit_test(parse_test), obs_unit_test(duplicate_test), obs_unit_test(set_save_test), obs_unit_test(save_empty_test),
 		obs_unit_test(open_test),  obs_unit_test(defaults_test),
 	};
 
