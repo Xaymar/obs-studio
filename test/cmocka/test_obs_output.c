@@ -30,10 +30,14 @@ static void fake_enc_destroy(void *data)
 	bfree(data);
 }
 
+static bool video_encoder_fail;
+
 static bool fake_video_encode(void *data, struct encoder_frame *frame, struct encoder_packet *packet,
 			      bool *received_packet)
 {
 	struct fake_encoder *fe = data;
+	if (video_encoder_fail)
+		return false;
 	bool key = fe->frames % 10 == 0;
 	static const uint8_t idr[] = {0, 0, 0, 1, 0x65, 0x88, 0x84, 0x10};
 	static const uint8_t slice[] = {0, 0, 0, 1, 0x41, 0x9a, 0x02, 0x10};
@@ -667,6 +671,15 @@ static void encoded_output_test(void **state)
 
 	obs_output_stop(out);
 	assert_true(wait_inactive(out));
+	assert_false(obs_encoder_active(venc));
+
+	/* an encode error stops the output */
+	assert_true(obs_output_start(out));
+	before = fo->video_packets;
+	assert_true(wait_for(&fo->video_packets, before + 2));
+	video_encoder_fail = true;
+	assert_true(wait_inactive(out));
+	video_encoder_fail = false;
 	assert_false(obs_encoder_active(venc));
 
 	obs_output_release(out);

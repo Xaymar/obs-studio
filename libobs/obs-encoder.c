@@ -478,6 +478,10 @@ void obs_encoder_destroy(obs_encoder_t *encoder)
 
 		if (encoder->context.data)
 			encoder->info.destroy(encoder->context.data);
+		/* normally released by obs_encoder_shutdown(), which an encode error skips */
+		for (size_t i = 0; i < encoder->paired_encoders.num; i++)
+			obs_weak_encoder_release(encoder->paired_encoders.array[i]);
+		da_free(encoder->paired_encoders);
 		da_free(encoder->callbacks);
 		da_free(encoder->roi);
 		da_free(encoder->encoder_packet_times);
