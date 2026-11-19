@@ -1042,6 +1042,9 @@ void gs_draw_quadf(gs_texture_t *tex, uint32_t flip, float width, float height)
 	float fcx, fcy;
 	struct gs_vb_data *data;
 
+	if (!gs_valid("gs_draw_quadf"))
+		return;
+
 	if (tex) {
 		if (gs_get_texture_type(tex) != GS_TEXTURE_2D) {
 			blog(LOG_ERROR, "A sprite must be a 2D texture");
@@ -1089,6 +1092,9 @@ void gs_draw_sprite_subregion(gs_texture_t *tex, uint32_t flip, uint32_t sub_x, 
 	uint32_t cx, cy;
 	float fcx, fcy;
 	struct gs_vb_data *data;
+
+	if (!gs_valid("gs_draw_sprite_subregion"))
+		return;
 
 	if (tex) {
 		if (gs_get_texture_type(tex) != GS_TEXTURE_2D) {
