@@ -40,14 +40,21 @@ static void parse_test(void **state)
 						     "\n"
 						     "[Second]\n"
 						     "Key=x\n"
-						     "[Broken\n"),
+						     "[Broken\n"
+						     "Hidden=1\n"
+						     "[Third]\n"
+						     "Key=y\n"
+						     "[AtEnd"),
 			 CONFIG_SUCCESS);
 
-	/* "[Broken" without ']' still creates a section: the parse result is ignored */
+	/* Regression: a header without ']' ("[Broken") used to create a section */
 	assert_int_equal(config_num_sections(config), 3);
 	assert_non_null(config_get_section(config, 0));
-	assert_string_equal(config_get_section(config, 2), "Broken");
+	assert_string_equal(config_get_section(config, 2), "Third");
 	assert_null(config_get_section(config, 3));
+	assert_null(config_get_string(config, "Broken", "Hidden"));
+	assert_null(config_get_string(config, "Second", "Hidden"));
+	assert_string_equal(config_get_string(config, "Third", "Key"), "y");
 
 	assert_string_equal(config_get_string(config, "General", "Name"), "Value with spaces");
 	assert_string_equal(config_get_string(config, "General", "Escaped"), "a\\b\nc\rd\\x");

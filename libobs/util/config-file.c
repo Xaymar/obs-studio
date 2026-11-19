@@ -89,7 +89,8 @@ config_t *config_create(const char *file)
 
 static bool config_parse_string(struct lexer *lex, struct strref *ref, char end)
 {
-	bool success = end != 0;
+	/* the end of the text only ends a string that runs to the end of the line */
+	bool success = end == 0;
 	struct base_token token;
 	base_token_clear(&token);
 
@@ -225,7 +226,9 @@ static void parse_config_data(struct config_section **sections, struct lexer *le
 		}
 
 		strref_clear(&section_name);
-		config_parse_string(lex, &section_name, ']');
+		/* skip a header without ']' and the items under it */
+		if (!config_parse_string(lex, &section_name, ']'))
+			continue;
 		if (!section_name.len)
 			return;
 
