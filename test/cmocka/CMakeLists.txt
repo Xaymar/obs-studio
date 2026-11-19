@@ -337,6 +337,8 @@ foreach(
     test_util_file_serializer
     test_util_buffered_file_serializer
     test_util_platform
+    test_util_pipe
+    test_util_profiler
 )
   obs_add_unit_test(${test})
 endforeach()
