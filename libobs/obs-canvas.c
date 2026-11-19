@@ -214,14 +214,23 @@ void obs_canvas_destroy(obs_canvas_t *canvas)
 
 	obs_canvas_clear_mix(canvas);
 
-	obs_source_t *source = canvas->sources;
-	while (source) {
-		/* Canvases can hold strong refs to scene sources, release them here. */
+	/* Take every source out of the canvas: once the canvas is gone they cannot remove themselves,
+	 * and the hash table would leak. Canvases can hold strong refs to scene sources; release those
+	 * after the walk, since a release can destroy the scene. */
+	DARRAY(obs_source_t *) scenes;
+	da_init(scenes);
+	pthread_mutex_lock(&canvas->sources_mutex);
+	struct obs_context_data *ctx, *tmp;
+	HASH_ITER (hh, *(struct obs_context_data **)&canvas->sources, ctx, tmp) {
+		obs_source_t *source = (obs_source_t *)ctx;
+		HASH_DELETE(hh, *(struct obs_context_data **)&canvas->sources, ctx);
 		if (canvas->flags & SCENE_REF && obs_source_is_scene(source))
-			obs_source_release(source);
-
-		source = source->context.hh.next;
+			da_push_back(scenes, &source);
 	}
+	pthread_mutex_unlock(&canvas->sources_mutex);
+	for (size_t i = 0; i < scenes.num; i++)
+		obs_source_release(scenes.array[i]);
+	da_free(scenes);
 
 	obs_context_data_remove_uuid(&canvas->context, &obs->data.canvases_mutex, &obs->data.canvases);
 	if (!canvas->context.private) {
