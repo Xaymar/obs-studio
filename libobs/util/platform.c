@@ -207,6 +207,7 @@ size_t os_fread_utf8(FILE *file, char **pstr)
 		utf8str[size] = 0;
 
 		*pstr = utf8str;
+		len = size;
 	}
 
 	return len;
@@ -700,7 +701,8 @@ char *os_generate_formatted_filename(const char *extension, bool space, const ch
 	time_t now = time(0);
 	struct tm *cur_time;
 	cur_time = localtime(&now);
-	struct obs_video_info ovi;
+	/* stays zeroed when video is not initialized */
+	struct obs_video_info ovi = {0};
 	obs_get_video_info(&ovi);
 
 	const size_t spec_count = 23;
