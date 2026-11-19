@@ -831,6 +831,227 @@ static void service_test(void **state)
 	core_stop();
 }
 
+/* a service type with only the required callbacks, and one with the optional ones fake_service lacks */
+static const char *bare_service_name(void *type_data)
+{
+	UNUSED_PARAMETER(type_data);
+	return "Bare";
+}
+
+static void *bare_service_create(obs_data_t *settings, obs_service_t *service)
+{
+	UNUSED_PARAMETER(settings);
+	UNUSED_PARAMETER(service);
+	return bzalloc(1);
+}
+
+static void *failing_service_create(obs_data_t *settings, obs_service_t *service)
+{
+	UNUSED_PARAMETER(settings);
+	UNUSED_PARAMETER(service);
+	return NULL;
+}
+
+static void bare_service_destroy(void *data)
+{
+	bfree(data);
+}
+
+static const char *bare_service_protocol(void *data)
+{
+	UNUSED_PARAMETER(data);
+	return "BARE";
+}
+
+static void extra_service_defaults(obs_data_t *settings)
+{
+	obs_data_set_default_int(settings, "fps", 30);
+}
+
+static obs_properties_t *extra_service_properties(void *data)
+{
+	UNUSED_PARAMETER(data);
+	obs_properties_t *props = obs_properties_create();
+	obs_properties_add_int(props, "fps", "FPS", 1, 120, 1);
+	return props;
+}
+
+static struct obs_service_resolution extra_resolutions[] = {{1920, 1080}, {1280, 720}};
+
+static void extra_service_resolutions(void *data, struct obs_service_resolution **resolutions, size_t *count)
+{
+	UNUSED_PARAMETER(data);
+	*resolutions = bmemdup(extra_resolutions, sizeof(extra_resolutions));
+	*count = 2;
+}
+
+static void extra_service_max_fps(void *data, int *fps)
+{
+	UNUSED_PARAMETER(data);
+	*fps = 60;
+}
+
+static const char **extra_service_audio_codecs(void *data)
+{
+	UNUSED_PARAMETER(data);
+	static const char *codecs[] = {"opus", NULL};
+	return codecs;
+}
+
+static int service_type_data;
+
+static void service_extra_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+	start();
+
+	struct obs_service_info bare = {
+		.id = "bare_service",
+		.get_name = bare_service_name,
+		.create = bare_service_create,
+		.destroy = bare_service_destroy,
+		.get_protocol = bare_service_protocol,
+	};
+	obs_register_service(&bare);
+	struct obs_service_info extra = bare;
+	extra.id = "extra_service";
+	extra.type_data = &service_type_data;
+	extra.get_defaults = extra_service_defaults;
+	extra.get_properties = extra_service_properties;
+	extra.get_supported_resolutions = extra_service_resolutions;
+	extra.get_max_fps = extra_service_max_fps;
+	extra.get_supported_audio_codecs = extra_service_audio_codecs;
+	obs_register_service(&extra);
+	struct obs_service_info failing = bare;
+	failing.id = "failing_service";
+	failing.create = failing_service_create;
+	obs_register_service(&failing);
+
+	/* by type */
+	assert_null(obs_service_get_display_name("missing"));
+	assert_null(obs_service_defaults("missing"));
+	assert_null(obs_get_service_properties("missing"));
+	assert_null(obs_get_service_properties("bare_service"));
+	assert_null(obs_service_create("missing", "x", NULL, NULL));
+	/* registered by the test, not by a module */
+	assert_null(obs_service_get_module("extra_service"));
+	assert_int_equal(obs_service_load_state("extra_service"), OBS_MODULE_MISSING);
+
+	obs_data_t *defaults = obs_service_defaults("extra_service");
+	assert_int_equal(obs_data_get_int(defaults, "fps"), 30);
+	obs_data_release(defaults);
+	defaults = obs_service_defaults("bare_service");
+	assert_non_null(defaults);
+	obs_data_release(defaults);
+	obs_properties_t *props = obs_get_service_properties("extra_service");
+	assert_non_null(obs_properties_get(props, "fps"));
+	obs_properties_destroy(props);
+
+	/* an instance with the optional callbacks */
+	obs_service_t *svc = obs_service_create("extra_service", "extra", NULL, NULL);
+	assert_non_null(svc);
+	assert_ptr_equal(obs_service_get_type_data(svc), &service_type_data);
+	props = obs_service_properties(svc);
+	assert_non_null(props);
+	obs_properties_destroy(props);
+	obs_data_t *settings = obs_service_get_settings(svc);
+	assert_non_null(settings);
+	obs_data_release(settings);
+
+	struct obs_service_resolution *res = NULL;
+	size_t count = 0;
+	obs_service_get_supported_resolutions(svc, &res, &count);
+	assert_int_equal(count, 2);
+	assert_int_equal(res[1].cy, 720);
+	bfree(res);
+	int fps = 0;
+	obs_service_get_max_fps(svc, &fps);
+	assert_int_equal(fps, 60);
+	assert_string_equal(obs_service_get_supported_audio_codecs(svc)[0], "opus");
+	assert_null(obs_service_get_supported_video_codecs(svc));
+
+	/* references */
+	obs_weak_service_t *weak = obs_service_get_weak_service(svc);
+	assert_true(obs_weak_service_references_service(weak, svc));
+	obs_weak_service_addref(weak);
+	obs_weak_service_release(weak);
+	obs_service_t *ref = obs_service_get_ref(svc);
+	assert_ptr_equal(ref, svc);
+	obs_service_release(ref);
+	ref = obs_weak_service_get_service(weak);
+	assert_ptr_equal(ref, svc);
+	obs_service_release(ref);
+	obs_service_release(svc);
+	assert_null(obs_weak_service_get_service(weak));
+	obs_weak_service_release(weak);
+
+	/* an instance with only the required callbacks gets the defaults */
+	svc = obs_service_create("bare_service", "bare", NULL, NULL);
+	assert_null(obs_service_properties(svc));
+	assert_null(obs_service_get_connect_info(svc, OBS_SERVICE_CONNECT_INFO_SERVER_URL));
+	assert_true(obs_service_can_try_to_connect(svc));
+	assert_null(obs_service_get_preferred_output_type(svc));
+	assert_null(obs_service_get_supported_video_codecs(svc));
+	assert_null(obs_service_get_supported_audio_codecs(svc));
+	res = (void *)1;
+	obs_service_get_supported_resolutions(svc, &res, &count);
+	assert_null(res);
+	assert_int_equal(count, 0);
+	fps = -1;
+	obs_service_get_max_fps(svc, &fps);
+	assert_int_equal(fps, 0);
+	int vb = -1, ab = -1;
+	obs_service_get_max_bitrate(svc, &vb, &ab);
+	assert_int_equal(vb, 0);
+	assert_int_equal(ab, 0);
+	obs_data_t *v = obs_data_create();
+	obs_service_apply_encoder_settings(svc, v, NULL);
+	assert_int_equal(obs_data_get_int(v, "bitrate"), 0);
+	obs_data_release(v);
+	obs_service_get_supported_resolutions(svc, NULL, &count);
+	obs_service_get_supported_resolutions(svc, &res, NULL);
+	obs_service_get_max_fps(svc, NULL);
+	obs_service_release(svc);
+
+	/* a create callback that fails still gives a service, without data */
+	svc = obs_service_create("failing_service", "failing", NULL, NULL);
+	assert_non_null(svc);
+	assert_string_equal(obs_service_get_protocol(svc), "BARE");
+	obs_service_release(svc);
+
+	/* NULL */
+	assert_null(obs_service_get_name(NULL));
+	assert_null(obs_service_get_id(NULL));
+	assert_null(obs_service_get_type(NULL));
+	assert_null(obs_service_properties(NULL));
+	assert_null(obs_service_get_settings(NULL));
+	assert_null(obs_service_get_type_data(NULL));
+	assert_null(obs_service_get_protocol(NULL));
+	assert_null(obs_service_get_preferred_output_type(NULL));
+	assert_null(obs_service_get_connect_info(NULL, 0));
+	assert_false(obs_service_can_try_to_connect(NULL));
+	/* Regression: these two dereferenced NULL */
+	assert_null(obs_service_get_supported_video_codecs(NULL));
+	assert_null(obs_service_get_supported_audio_codecs(NULL));
+	obs_service_update(NULL, NULL);
+	obs_service_apply_encoder_settings(NULL, NULL, NULL);
+	vb = ab = -1;
+	obs_service_get_max_bitrate(NULL, &vb, &ab);
+	assert_int_equal(vb, 0);
+	obs_service_get_max_bitrate(NULL, NULL, NULL);
+	obs_service_get_max_fps(NULL, &fps);
+	obs_service_get_supported_resolutions(NULL, &res, &count);
+	assert_null(obs_service_get_ref(NULL));
+	assert_null(obs_service_get_weak_service(NULL));
+	assert_null(obs_weak_service_get_service(NULL));
+	assert_false(obs_weak_service_references_service(NULL, NULL));
+	obs_weak_service_addref(NULL);
+	obs_weak_service_release(NULL);
+	obs_service_release(NULL);
+
+	core_stop();
+}
+
 static void null_test(void **state)
 {
 	UNUSED_PARAMETER(state);
@@ -861,7 +1082,7 @@ int main(void)
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(raw_output_test),     cmocka_unit_test(encoder_test),
 		cmocka_unit_test(encoded_output_test), cmocka_unit_test(delay_reconnect_test),
-		cmocka_unit_test(service_test),        cmocka_unit_test(null_test),
+		cmocka_unit_test(service_test), cmocka_unit_test(service_extra_test),        cmocka_unit_test(null_test),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);
