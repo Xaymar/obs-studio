@@ -373,6 +373,7 @@ foreach(
     test_util_threading
     test_util_task
     test_util_spsc_fifo
+    test_util_windows
 )
   obs_add_unit_test(${test})
 endforeach()

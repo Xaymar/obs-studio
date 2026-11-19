@@ -120,10 +120,10 @@ bool ms_get_window_exe(struct dstr *name, HWND window)
 	bool success = false;
 	HANDLE process = NULL;
 	char *slash;
-	DWORD id;
+	DWORD id = 0;
 
-	GetWindowThreadProcessId(window, &id);
-	if (id == GetCurrentProcessId())
+	/* id stays unset for a window that no longer exists */
+	if (GetWindowThreadProcessId(window, &id) && id == GetCurrentProcessId())
 		return false;
 
 	process = open_process(PROCESS_QUERY_LIMITED_INFORMATION, false, id);
