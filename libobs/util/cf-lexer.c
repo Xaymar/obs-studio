@@ -535,7 +535,13 @@ static inline bool next_token(struct cf_token **p_cur_token, bool preprocessor)
 static inline void cf_gettokenoffset(struct cf_preprocessor *pp, const struct cf_token *token, uint32_t *row,
 				     uint32_t *col)
 {
-	lexer_getstroffset(&pp->lex->base_lexer, token->unmerged_str.array, row, col);
+	/* pp->lex is only set by cf_preprocess(); definitions can be added before that */
+	const struct cf_lexer *lex = pp->lex ? pp->lex : token->lex;
+
+	*row = 0;
+	*col = 0;
+	if (lex)
+		lexer_getstroffset(&lex->base_lexer, token->unmerged_str.array, row, col);
 }
 
 static void cf_addew(struct cf_preprocessor *pp, const struct cf_token *token, const char *message, int error_level,
@@ -544,14 +550,16 @@ static void cf_addew(struct cf_preprocessor *pp, const struct cf_token *token, c
 	uint32_t row, col;
 	cf_gettokenoffset(pp, token, &row, &col);
 
+	const char *file = token->lex ? token->lex->file : NULL;
+
 	if (!val1 && !val2 && !val3) {
-		error_data_add(pp->ed, token->lex->file, row, col, message, error_level);
+		error_data_add(pp->ed, file, row, col, message, error_level);
 	} else {
 		struct dstr formatted;
 		dstr_init(&formatted);
 		dstr_safe_printf(&formatted, message, val1, val2, val3, NULL);
 
-		error_data_add(pp->ed, token->lex->file, row, col, formatted.array, error_level);
+		error_data_add(pp->ed, file, row, col, formatted.array, error_level);
 		dstr_free(&formatted);
 	}
 }

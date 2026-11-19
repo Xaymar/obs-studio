@@ -292,7 +292,18 @@ static void api_def_test(void **state)
 
 	struct cf_preprocessor pp;
 	cf_preprocessor_init(&pp);
-	/* add_def reports redefinitions through pp->lex and pp->ed, which cf_preprocess() normally sets */
+	/* Regression: a redefinition before cf_preprocess() crashed, pp->lex and pp->ed were still NULL */
+	struct cf_def early;
+	cf_def_init(&early);
+	cf_token_copy(&early.name, cf_lexer_get_tokens(&def_lex));
+	cf_preprocessor_add_def(&pp, &early);
+	struct cf_def early2;
+	cf_def_init(&early2);
+	cf_token_copy(&early2.name, cf_lexer_get_tokens(&def_lex));
+	cf_preprocessor_add_def(&pp, &early2);
+	cf_preprocessor_remove_def(&pp, "NAME");
+
+	/* with an error list the redefinition warnings are recorded */
 	struct error_data ed;
 	error_data_init(&ed);
 	pp.lex = &def_lex;
