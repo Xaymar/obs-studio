@@ -121,20 +121,19 @@ static bool init_animated_gif(gs_image_file_ex_t *image, const char *path, uint6
 		goto fail;
 	}
 
-	do {
-		result = nsgif_data_scan(image->internal->gif, size, image->internal->gif_data);
-		if (result < 0) {
-			blog(LOG_WARNING,
-			     "Failed to initialize gif '%s', "
-			     "possible file corruption",
-			     path);
-			goto fail;
-		}
-	} while (result != NSGIF_OK);
+	/* nsgif errors are positive, and all of the data is given at once: scan once. Errors are informational,
+	 * frames scanned before one stay usable. */
+	result = nsgif_data_scan(image->internal->gif, size, image->internal->gif_data);
+	if (result != NSGIF_OK)
+		blog(LOG_WARNING, "Gif '%s' may be corrupt: %s", path, nsgif_strerror(result));
 
 	nsgif_data_complete(image->internal->gif);
 
 	image->internal->gif_info = nsgif_get_info(image->internal->gif);
+	if (!image->internal->gif_info->frame_count) {
+		blog(LOG_WARNING, "Failed to initialize gif '%s', no frames", path);
+		goto fail;
+	}
 
 	if (image->internal->gif_info->width > 4096 || image->internal->gif_info->height > 4096) {
 		blog(LOG_WARNING, "Bad texture dimensions (%dx%d) in '%s'", image->internal->gif_info->width,
