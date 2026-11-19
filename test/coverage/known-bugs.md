@@ -34,6 +34,7 @@ still open, with the reason.
 | util/windows/window-helpers.c | **Fixed** in `e20f80668`: `ms_get_window_exe()` compares an uninitialized process id for a window that no longer exists. |
 | obs.c | **Fixed** in `ebdce7c8d`: `obs_get_video_info()` (and so `os_generate_formatted_filename()`) dereferences `obs` and crashes before `obs_startup()`. |
 | obs.c | **Fixed** in `686380e63`: `obs_get_video_sdr_white_level()` and `obs_get_video_hdr_nominal_peak_level()` return 0 once video is up until `obs_set_video_levels()` is called (the frontend always calls it), so every SDR/HDR multiplier divided by 0. They now start at the 300 and 1000 nits reported before video is up. |
+| obs.c, obs-video.c | **Fixed** in `cafe2319e`, **behaviour change**: Output formats without a GPU conversion (Y800, I412, I210, YA2L, ...) and YUV formats with `gpu_conversion` off are accepted, and `copy_rgbx_frame()` then copies the 4-byte RGBA texture into their smaller frames: heap corruption on every frame. `obs_reset_video()` now rejects them. |
 | obs-service.c | **Fixed** in `bed0899ab`: `obs_service_get_supported_video_codecs(NULL)` and `obs_service_get_supported_audio_codecs(NULL)` crash; every other service getter checks the service. |
 | obs-encoder.c | **Fixed** in `cf549e547`: An encoder destroyed after an encode error leaks its paired encoder array and weak reference: they are released only in `obs_encoder_shutdown()`, which the error path skips. |
 | obs-module.c | **Fixed** in `ac24f6a61`: A source a module registers but that is rejected is still added to the module's source list, so `obs_source_get_module()` and `obs_source_load_state()` report a source that does not exist. |
@@ -83,6 +84,7 @@ These fixes change behaviour that plugins might rely on.
 | util/array-serializer.c, util/buffered-file-serializer.c | `SERIALIZE_SEEK_END` adds the offset to the end like `fseek()`; a positive offset used to move back. | `723919330` |
 | media-io/video-io.c | `video_output_get_frame_rate()` and `video_output_get_frame_time()` of an encoder's frame rate divisor output give the divided rate; flv-mux's `framerate` metadata changes with it. | `1d79916d9` |
 | obs-service.c | A service's settings include its type's defaults (`get_defaults`) for keys the caller did not set. No service in the tree has a `get_defaults`. | `bc440c43f` |
+| obs.c | `obs_reset_video()` returns `OBS_VIDEO_INVALID_PARAM` for output formats that are neither RGBA/BGRA/BGRX nor I420/NV12/I444/I010/P010/P216/P416 with GPU conversion. The frontend only uses supported ones. | `cafe2319e` |
 | graphics/plane.c | `plane_transform()` and `plane_transform3x4()` give different planes for every matrix with a translation or rotation; `plane_tri_inside()` and `plane_line_inside()` return the inverted result. No callers in the tree. | `c37e79238`, `04515d185` |
 | graphics/math-extra.c | `polar_to_norm()` returns a different normal for every input except (0, 0). No callers in the tree. | `622ef4024` |
 | graphics/graphics.c | `gs_color4v()` adds the color; with fewer colors than vertices, the draw is shortened like it is for `gs_color()`. | `7cf55011e` |
