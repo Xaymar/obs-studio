@@ -3,10 +3,6 @@ cmake_minimum_required(VERSION 3.28...3.30)
 option(ENABLE_FFMPEG_LOGGING "Enables obs-ffmpeg logging" OFF)
 option(ENABLE_NEW_MPEGTS_OUTPUT "Use native SRT/RIST mpegts output" ON)
 
-if(OS_LINUX OR OS_WINDOWS)
-  option(ENABLE_FFMPEG_NVENC "Enable legacy FFmpeg NVENC encoder" OFF)
-endif()
-
 include(cmake/dependencies.cmake)
 
 add_library(obs-ffmpeg MODULE)
@@ -18,7 +14,6 @@ target_sources(
   obs-ffmpeg
   PRIVATE
     $<$<BOOL:${ENABLE_FFMPEG_LOGGING}>:obs-ffmpeg-logging.c>
-    $<$<BOOL:${ENABLE_FFMPEG_NVENC}>:obs-ffmpeg-nvenc.c>
     $<$<BOOL:${ENABLE_NEW_MPEGTS_OUTPUT}>:obs-ffmpeg-mpegts.c>
     $<$<BOOL:${ENABLE_NEW_MPEGTS_OUTPUT}>:obs-ffmpeg-rist.h>
     $<$<BOOL:${ENABLE_NEW_MPEGTS_OUTPUT}>:obs-ffmpeg-srt.h>
@@ -46,7 +41,6 @@ target_compile_definitions(
   obs-ffmpeg
   PRIVATE
     $<$<BOOL:${ENABLE_FFMPEG_LOGGING}>:ENABLE_FFMPEG_LOGGING>
-    $<$<BOOL:${ENABLE_FFMPEG_NVENC}>:ENABLE_FFMPEG_NVENC>
     $<$<BOOL:${ENABLE_NEW_MPEGTS_OUTPUT}>:NEW_MPEGTS_OUTPUT>
 )
 
