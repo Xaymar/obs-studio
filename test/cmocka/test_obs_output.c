@@ -954,8 +954,9 @@ static void service_extra_test(void **state)
 	props = obs_service_properties(svc);
 	assert_non_null(props);
 	obs_properties_destroy(props);
+	/* Regression: the type's defaults were not applied to the instance's settings */
 	obs_data_t *settings = obs_service_get_settings(svc);
-	assert_non_null(settings);
+	assert_int_equal(obs_data_get_int(settings, "fps"), 30);
 	obs_data_release(settings);
 
 	struct obs_service_resolution *res = NULL;

@@ -89,6 +89,10 @@ static obs_service_t *obs_service_create_internal(const char *id, const char *na
 	service->info = *info;
 	obs_context_init_control(&service->context, service, (obs_destroy_cb)obs_service_destroy);
 
+	/* like outputs and encoders, the instance's settings fall back to the type's defaults */
+	if (service->info.get_defaults)
+		service->info.get_defaults(service->context.settings);
+
 	service->context.data = service->info.create(service->context.settings, service);
 	if (!service->context.data)
 		blog(LOG_ERROR, "Failed to create service '%s'!", name);
