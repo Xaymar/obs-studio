@@ -28,7 +28,8 @@ function Invoke-Checked {
 Invoke-Checked cmake @('-S', $SourceDir, '-B', $BuildDir, '-G', $Generator, '-A', 'x64', '-T', 'ClangCL',
     "-DLLVM_ROOT=$($LlvmRoot -replace '\\', '/')", '-C', (Join-Path $PSScriptRoot 'clangcov.cmake'))
 # shortcut: explicit target list because libobs-winrt does not compile with clang-cl (STL1009); add new test targets here
-$targets = @('libobs', 'test_serializer', 'test_darray', 'test_bitstream', 'test_os_path', 'test-obs-mem')
+$targets = @('libobs', 'test_serializer', 'test_darray', 'test_bitstream', 'test_os_path', 'test-obs-mem',
+    'libobs-null', 'test_obs_canvas_weak', 'test_obs_video_null')
 Invoke-Checked cmake (@('--build', $BuildDir, '--config', $Config, '--parallel', '--target') + $targets)
 
 # Fresh profiles for every run

@@ -245,3 +245,38 @@ target_include_directories(test_os_path PRIVATE ${CMOCKA_INCLUDE_DIR})
 target_link_libraries(test_os_path PRIVATE OBS::libobs cmocka::cmocka)
 
 add_test(test_os_path test_os_path)
+
+# Tests that start libobs: run from the rundir so libobs finds its data files (../../data/libobs), with obs.dll and
+# the obs-deps runtime libraries on PATH
+if(TARGET libobs-null)
+  set(_obs_runtime_env "PATH=path_list_prepend:${OBS_OUTPUT_DIR}/$<CONFIG>/${OBS_EXECUTABLE_DESTINATION}")
+  foreach(prefix IN LISTS CMAKE_PREFIX_PATH)
+    if(EXISTS "${prefix}/bin")
+      list(APPEND _obs_runtime_env "PATH=path_list_prepend:${prefix}/bin")
+    endif()
+  endforeach()
+
+  # Canvas weak reference regression test
+  add_executable(test_obs_canvas_weak test_obs_canvas_weak.c)
+  target_include_directories(test_obs_canvas_weak PRIVATE ${CMOCKA_INCLUDE_DIR})
+  target_link_libraries(test_obs_canvas_weak PRIVATE OBS::libobs cmocka::cmocka)
+  add_test(
+    NAME test_obs_canvas_weak
+    COMMAND test_obs_canvas_weak
+    WORKING_DIRECTORY "${OBS_OUTPUT_DIR}/$<CONFIG>/${OBS_EXECUTABLE_DESTINATION}"
+  )
+
+  # Video thread on the null graphics module
+  add_executable(test_obs_video_null test_obs_video_null.c)
+  target_include_directories(test_obs_video_null PRIVATE ${CMOCKA_INCLUDE_DIR})
+  target_link_libraries(test_obs_video_null PRIVATE OBS::libobs cmocka::cmocka)
+  target_compile_definitions(test_obs_video_null PRIVATE NULL_GRAPHICS_MODULE="$<TARGET_FILE:libobs-null>")
+  add_dependencies(test_obs_video_null libobs-null)
+  add_test(
+    NAME test_obs_video_null
+    COMMAND test_obs_video_null
+    WORKING_DIRECTORY "${OBS_OUTPUT_DIR}/$<CONFIG>/${OBS_EXECUTABLE_DESTINATION}"
+  )
+
+  set_tests_properties(test_obs_canvas_weak test_obs_video_null PROPERTIES ENVIRONMENT_MODIFICATION "${_obs_runtime_env}")
+endif()
