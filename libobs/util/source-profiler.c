@@ -291,12 +291,14 @@ void source_profiler_frame_collect(void)
 	bool gpu_ready = false;
 	uint64_t freq = 0;
 
+	/* also without GPU profiling: timers left from before it was turned off are destroyed below */
+	gs_enter_context(obs->video.graphics);
+
 	if (gpu_enabled) {
 		uint8_t timer_range_idx = (timer_idx + 1) % FRAME_BUFFER_SIZE;
 
 		if (timer_ranges[timer_range_idx]) {
 			gpu_ready = true;
-			gs_enter_context(obs->video.graphics);
 			gs_timer_range_get_data(timer_ranges[timer_range_idx], &gpu_disjoint, &freq);
 		}
 
@@ -380,8 +382,7 @@ void source_profiler_frame_collect(void)
 
 	pthread_rwlock_unlock(&hm_rwlock);
 
-	if (gpu_enabled && gpu_ready)
-		gs_leave_context();
+	gs_leave_context();
 
 	/* Apply updated states for next frame */
 	if (!enable_next) {
