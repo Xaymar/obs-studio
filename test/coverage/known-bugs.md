@@ -34,6 +34,8 @@ still open, with the reason.
 | util/windows/window-helpers.c | **Fixed** in `e20f80668`: `ms_get_window_exe()` compares an uninitialized process id for a window that no longer exists. |
 | obs.c | **Fixed** in `ebdce7c8d`: `obs_get_video_info()` (and so `os_generate_formatted_filename()`) dereferences `obs` and crashes before `obs_startup()`. |
 | obs.c | **Fixed** in `686380e63`: `obs_get_video_sdr_white_level()` and `obs_get_video_hdr_nominal_peak_level()` return 0 once video is up until `obs_set_video_levels()` is called (the frontend always calls it), so every SDR/HDR multiplier divided by 0. They now start at the 300 and 1000 nits reported before video is up. |
+| obs-service.c | **Fixed** in `bed0899ab`: `obs_service_get_supported_video_codecs(NULL)` and `obs_service_get_supported_audio_codecs(NULL)` crash; every other service getter checks the service. |
+| obs-service.c | **Fixed** in `bc440c43f`, **behaviour change**: `obs_service_create()` never applies the type's `get_defaults`, unlike outputs and encoders, so unset keys read as 0 or "". |
 
 ## media-io/
 
@@ -76,6 +78,7 @@ These fixes change behaviour that plugins might rely on.
 | util/text-lookup.c | Spaces and tabs around the name and `=` are skipped (`Key = Value` gives `Value`, not `" "`), and a CRLF line with a name but no value no longer defines it. | `dc9cc505b` |
 | util/array-serializer.c, util/buffered-file-serializer.c | `SERIALIZE_SEEK_END` adds the offset to the end like `fseek()`; a positive offset used to move back. | `723919330` |
 | media-io/video-io.c | `video_output_get_frame_rate()` and `video_output_get_frame_time()` of an encoder's frame rate divisor output give the divided rate; flv-mux's `framerate` metadata changes with it. | `1d79916d9` |
+| obs-service.c | A service's settings include its type's defaults (`get_defaults`) for keys the caller did not set. No service in the tree has a `get_defaults`. | `bc440c43f` |
 | graphics/plane.c | `plane_transform()` and `plane_transform3x4()` give different planes for every matrix with a translation or rotation; `plane_tri_inside()` and `plane_line_inside()` return the inverted result. No callers in the tree. | `c37e79238`, `04515d185` |
 | graphics/math-extra.c | `polar_to_norm()` returns a different normal for every input except (0, 0). No callers in the tree. | `622ef4024` |
 | graphics/graphics.c | `gs_color4v()` adds the color; with fewer colors than vertices, the draw is shortened like it is for `gs_color()`. | `7cf55011e` |
