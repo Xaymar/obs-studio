@@ -163,6 +163,9 @@ bool signal_handler_add(signal_handler_t *handler, const char *signal_decl)
 	struct signal_info *sig, *last;
 	bool success = true;
 
+	if (!handler)
+		return false;
+
 	if (!parse_decl_string(&func, signal_decl)) {
 		blog(LOG_ERROR, "Signal declaration invalid: %s", signal_decl);
 		return false;
