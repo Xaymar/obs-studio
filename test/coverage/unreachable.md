@@ -11,7 +11,7 @@ Reasons:
 - **Exit**: the code ends the process, so it cannot run inside a test process that reports results.
 - **Once per process**: `bcrash()` refuses to run twice, so only one crash path per test executable is testable.
 - **Dead**: no input reaches it.
-- **Crash**: reaching it crashes libobs, so no test can run it (see known-bugs.md).
+- **Crash**: reaching it crashed libobs. All of these are fixed now; their rows say so.
 
 ## util/
 
@@ -28,7 +28,7 @@ Reasons:
 | util/dstr.h | 256 | `dstr_is_empty()`: `return true` for a non-NULL array with `*array == 0` | Dead: every dstr function frees instead of keeping an empty array |
 | util/lexer.c | 168 | `valid_float_str()`: sign branch `return false` | Reachable only for signed exponents, which the function rejects earlier (see known-bugs.md) |
 | util/cf-lexer.c | 75-77 | octal escape in `cf_convert_from_escape_literal()` | Reachable, but wrong (see known-bugs.md); not asserted |
-| util/cf-lexer.c | 591-593, 1126, 1157-1159 | macro call without `(` or left open at end of file | Crash |
+| util/cf-lexer.c | 591-593, 1126, 1157-1159 | macro call without `(` or left open at end of file | Now covered: the open call is fixed (`9cb523235`), the call without `(` never crashed |
 | util/cf-lexer.c | 1178-1182 | zero-parameter macro call `M()` | Dead: `#define M()` is rejected, so no zero-parameter macro exists (see known-bugs.md) |
 | util/cf-lexer.c | `next_token()` | `preprocessor == false` loop condition `SPACETAB && NEWLINE` | Dead: the condition can never be true; every caller passes `true` anyway |
 | util/cf-lexer.c | 1350 | `cf_preprocess()`: `if (!token) return false;` | Dead: `cf_lexer_lex()` always leaves at least the end token |
@@ -40,7 +40,7 @@ Reasons:
 | util/buffered-file-serializer.c | 69-72 | `bmalloc()` returned NULL | Dead: `bmalloc()` never returns NULL |
 | util/buffered-file-serializer.c | 182-187, 215, 262, 317 | `fwrite()` failure and the `output_error` paths it enables | OS failure (disk full) |
 | util/buffered-file-serializer.c | 273-279 | writer waits for the I/O thread | Timing: only when the I/O thread falls behind; flaky to force |
-| util/profiler.c | `profiler_free()` | freeing after a start/snapshot/stop cycle | Crash |
+| util/profiler.c | `profiler_free()` | freeing after a start/snapshot/stop cycle | Now covered: the crash was a later call after the free (fixed in `435b31de3`) |
 
 ## media-io/
 
@@ -53,7 +53,7 @@ Reasons:
 | media-io/audio-resampler-ffmpeg.c | 156 | `swr_set_matrix()` failure for the mono upmix | Dead for the layouts libobs passes |
 | media-io/media-remux.c | 56-59, 81-91 | stream info, stream allocation and parameter copy failures | OS failure (libavformat allocation) / needs a corrupt file libavformat opens but cannot probe |
 | media-io/media-remux.c | 186-189, 207-215, 231-233, 243-245 | read, mux, header and trailer errors | Needs inputs that libavformat opens but fails to read or mux; not constructible from a test-generated file |
-| media-io/video-frame.c | 37-39, 127-129 | `VIDEO_FORMAT_NONE` in the layout switches | Crash: `video_frame_init()` then calls `bmalloc(0)` (see known-bugs.md) |
+| media-io/video-frame.c | 37-39, 127-129 | `VIDEO_FORMAT_NONE` in the layout switches | Now covered: `video_frame_init()` no longer crashes on it (`391adc5d7`) |
 | media-io/video-io.c | 248-276 | `video_output_open()`: mutex, semaphore or thread creation failed | OOM / OS failure |
 | media-io/video-io.c | 119-120, 357-359 | scaling a frame failed / scaler creation failed for a reason other than a bad conversion | OS failure (swscale allocation) |
 | media-io/video-io.c | 617-679 | `video_output_inc/dec_texture_*()`, `video_output_create_with_frame_rate_divisor()` | Not exported: reachable only through the encoder code (track with obs-encoder tests) |

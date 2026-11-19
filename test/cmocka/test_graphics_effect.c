@@ -232,8 +232,8 @@ static void params_test(void **state)
 	gs_effect_destroy(effect);
 }
 
-/* Malformed effects must fail cleanly with an error string. Not here: inputs that crash the cf preprocessor (a
- * function-like macro used without '(' or left open at end of file, see known-bugs.md). */
+/* Malformed effects must fail cleanly with an error string. The two macro inputs used to crash the cf
+ * preprocessor before 9cb523235. */
 static const char *bad_effects[] = {
 	"uniform float x",                                         /* missing ';' */
 	"technique Draw { pass { vertex_shader = Missing(v); } }", /* missing function */
@@ -254,6 +254,8 @@ static const char *bad_effects[] = {
 	"uniform float4x4 ViewProj; uniform texture2d image; float4 PS(float2 uv : TEXCOORD0) : TARGET { return "
 	"image.Sample(missing_sampler, uv); }\ntechnique Draw { pass { pixel_shader = PS(uv); } }",
 	"",
+	"#define M(a, b) a b\nM 2\n",
+	"#define M(a) a\nuniform float x = M(1, 2",
 };
 
 static void malformed_test(void **state)
