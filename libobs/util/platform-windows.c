@@ -318,6 +318,10 @@ double os_cpu_usage_info_query(os_cpu_usage_info_t *info)
 	GetSystemTimeAsFileTime(&cur_time.ft);
 	GetProcessTimes(GetCurrentProcess(), &dummy, &dummy, &cur_sys_time.ft, &cur_user_time.ft);
 
+	/* no clock tick since the last query: keep measuring from it */
+	if (cur_time.val == info->last_time.val)
+		return 0.0;
+
 	percent = (double)(cur_sys_time.val - info->last_sys_time.val + (cur_user_time.val - info->last_user_time.val));
 	percent /= (double)(cur_time.val - info->last_time.val);
 	percent /= (double)info->core_count;

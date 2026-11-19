@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
+#include <math.h>
 
 #include "obs-test.h"
 
@@ -322,7 +323,13 @@ static void system_test(void **state)
 
 	os_cpu_usage_info_t *cpu = os_cpu_usage_info_start();
 	assert_non_null(cpu);
-	os_sleep_ms(20); /* a query within the same clock tick as start divides by zero */
+	/* Regression: queries within the same clock tick as start divided by zero (NaN) */
+	for (int i = 0; i < 1000; i++) {
+		double usage = os_cpu_usage_info_query(cpu);
+		assert_false(isnan(usage));
+		assert_true(usage >= 0.0);
+	}
+	os_sleep_ms(20);
 	assert_true(os_cpu_usage_info_query(cpu) >= 0.0);
 	os_cpu_usage_info_destroy(cpu);
 	assert_true(os_cpu_usage_info_query(NULL) == 0.0);
