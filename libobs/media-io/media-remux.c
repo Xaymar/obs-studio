@@ -139,7 +139,7 @@ bool media_remux_job_create(media_remux_job_t *job, const char *in_filename, con
 		return false;
 
 	*job = NULL;
-	if (!os_file_exists(in_filename))
+	if (!in_filename || !out_filename || !os_file_exists(in_filename))
 		return false;
 
 	if (strcmp(in_filename, out_filename) == 0)

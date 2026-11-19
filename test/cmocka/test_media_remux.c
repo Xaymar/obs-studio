@@ -117,6 +117,11 @@ static void error_test(void **state)
 	media_remux_job_t job = (media_remux_job_t)1;
 	assert_false(media_remux_job_create(NULL, "in.wav", "out.mka"));
 	assert_false(media_remux_job_create(&job, "missing.wav", "out.mka"));
+	write_wav("null-out.wav", 2);
+	/* Regression: a NULL output name went to strcmp() */
+	assert_false(media_remux_job_create(&job, "null-out.wav", NULL));
+	assert_false(media_remux_job_create(&job, NULL, "out.mka"));
+	os_unlink("null-out.wav");
 	assert_null(job);
 
 	write_wav("same.wav", 2);
