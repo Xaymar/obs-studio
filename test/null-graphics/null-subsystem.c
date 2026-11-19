@@ -57,6 +57,42 @@ static volatile long live_objects;
 
 #define COUNT(name) os_atomic_inc_long(&call_counts[NULL_CALL_##name])
 
+/* Failure injection: the next `count` calls of a named export fail, see null_gs_fail_next() */
+static volatile long fail_counts[NULL_CALL_COUNT];
+
+static bool fail_call(enum null_call call)
+{
+	long left = os_atomic_load_long(&fail_counts[call]);
+	while (left > 0) {
+		if (os_atomic_compare_exchange_long(&fail_counts[call], &left, left - 1))
+			return true;
+	}
+	return false;
+}
+
+#define FAIL_IF_ASKED(name, ret)                  \
+	do {                                      \
+		if (fail_call(NULL_CALL_##name)) \
+			return ret;               \
+	} while (false)
+
+EXPORT bool null_gs_fail_next(const char *name, long count)
+{
+	for (size_t i = 0; name && i < NULL_CALL_COUNT; i++) {
+		if (strcmp(call_names[i], name) == 0) {
+			os_atomic_set_long(&fail_counts[i], count);
+			return true;
+		}
+	}
+	return false;
+}
+
+EXPORT void null_gs_reset_failures(void)
+{
+	for (size_t i = 0; i < NULL_CALL_COUNT; i++)
+		os_atomic_set_long(&fail_counts[i], 0);
+}
+
 EXPORT long null_gs_get_call_count(const char *name)
 {
 	for (size_t i = 0; name && i < NULL_CALL_COUNT; i++) {
@@ -272,6 +308,7 @@ EXPORT int device_create(gs_device_t **p_device, uint32_t adapter)
 {
 	UNUSED_PARAMETER(adapter);
 	COUNT(device_create);
+	FAIL_IF_ASKED(device_create, GS_ERROR_FAIL);
 
 	gs_device_t *device = obj_alloc(sizeof(*device));
 	device->cur_color_space = GS_CS_SRGB;
@@ -311,6 +348,7 @@ EXPORT void *device_get_device_obj(gs_device_t *device)
 EXPORT gs_swapchain_t *device_swapchain_create(gs_device_t *device, const struct gs_init_data *data)
 {
 	COUNT(device_swapchain_create);
+	FAIL_IF_ASKED(device_swapchain_create, NULL);
 
 	gs_swapchain_t *swap = obj_alloc(sizeof(*swap));
 	swap->device = device;
@@ -391,6 +429,7 @@ EXPORT gs_texture_t *device_texture_create(gs_device_t *device, uint32_t width, 
 					   uint32_t flags)
 {
 	COUNT(device_texture_create);
+	FAIL_IF_ASKED(device_texture_create, NULL);
 
 	gs_texture_t *tex = texture_create(device, GS_TEXTURE_2D, width, height, 1, color_format, levels, flags);
 	if (tex && data && data[0])
@@ -402,6 +441,7 @@ EXPORT gs_texture_t *device_cubetexture_create(gs_device_t *device, uint32_t siz
 					       uint32_t levels, const uint8_t **data, uint32_t flags)
 {
 	COUNT(device_cubetexture_create);
+	FAIL_IF_ASKED(device_cubetexture_create, NULL);
 
 	gs_texture_t *tex = texture_create(device, GS_TEXTURE_CUBE, size, size, 1, color_format, levels, flags);
 	if (tex && data) {
@@ -420,6 +460,7 @@ EXPORT gs_texture_t *device_voltexture_create(gs_device_t *device, uint32_t widt
 					      const uint8_t *const *data, uint32_t flags)
 {
 	COUNT(device_voltexture_create);
+	FAIL_IF_ASKED(device_voltexture_create, NULL);
 
 	gs_texture_t *tex = texture_create(device, GS_TEXTURE_3D, width, height, depth, color_format, levels, flags);
 	if (tex && data && data[0])
@@ -477,6 +518,7 @@ EXPORT enum gs_color_format gs_texture_get_color_format(const gs_texture_t *tex)
 EXPORT bool gs_texture_map(gs_texture_t *tex, uint8_t **ptr, uint32_t *linesize)
 {
 	COUNT(gs_texture_map);
+	FAIL_IF_ASKED(gs_texture_map, false);
 
 	/* Same restriction as the real backends */
 	if (tex->type != GS_TEXTURE_2D || !(tex->flags & GS_DYNAMIC) || tex->mapped) {
@@ -614,6 +656,7 @@ EXPORT gs_stagesurf_t *device_stagesurface_create(gs_device_t *device, uint32_t 
 						  enum gs_color_format color_format)
 {
 	COUNT(device_stagesurface_create);
+	FAIL_IF_ASKED(device_stagesurface_create, NULL);
 
 	uint32_t bpp = gs_get_format_bpp(color_format);
 	if (!width || !height || !bpp) {
@@ -662,6 +705,7 @@ EXPORT enum gs_color_format gs_stagesurface_get_color_format(const gs_stagesurf_
 EXPORT bool gs_stagesurface_map(gs_stagesurf_t *stagesurf, uint8_t **data, uint32_t *linesize)
 {
 	COUNT(gs_stagesurface_map);
+	FAIL_IF_ASKED(gs_stagesurface_map, false);
 	if (stagesurf->mapped)
 		return false;
 
@@ -680,6 +724,7 @@ EXPORT void gs_stagesurface_unmap(gs_stagesurf_t *stagesurf)
 EXPORT gs_stagesurf_t *device_stagesurface_create_nv12(gs_device_t *device, uint32_t width, uint32_t height)
 {
 	COUNT(device_stagesurface_create_nv12);
+	FAIL_IF_ASKED(device_stagesurface_create_nv12, NULL);
 	if (!yuv_textures_enabled())
 		return NULL;
 	/* both planes in one buffer, the UV plane after the Y plane */
@@ -689,6 +734,7 @@ EXPORT gs_stagesurf_t *device_stagesurface_create_nv12(gs_device_t *device, uint
 EXPORT gs_stagesurf_t *device_stagesurface_create_p010(gs_device_t *device, uint32_t width, uint32_t height)
 {
 	COUNT(device_stagesurface_create_p010);
+	FAIL_IF_ASKED(device_stagesurface_create_p010, NULL);
 	if (!yuv_textures_enabled())
 		return NULL;
 	/* both planes in one buffer, the UV plane after the Y plane */
@@ -699,6 +745,7 @@ EXPORT gs_zstencil_t *device_zstencil_create(gs_device_t *device, uint32_t width
 					     enum gs_zstencil_format format)
 {
 	COUNT(device_zstencil_create);
+	FAIL_IF_ASKED(device_zstencil_create, NULL);
 	if (!width || !height || format == GS_ZS_NONE)
 		return NULL;
 
@@ -724,6 +771,7 @@ EXPORT void gs_zstencil_destroy(gs_zstencil_t *zstencil)
 EXPORT gs_samplerstate_t *device_samplerstate_create(gs_device_t *device, const struct gs_sampler_info *info)
 {
 	COUNT(device_samplerstate_create);
+	FAIL_IF_ASKED(device_samplerstate_create, NULL);
 
 	gs_samplerstate_t *ss = obj_alloc(sizeof(*ss));
 	ss->device = device;
@@ -752,7 +800,8 @@ EXPORT void gs_samplerstate_destroy(gs_samplerstate_t *samplerstate)
 EXPORT gs_vertbuffer_t *device_vertexbuffer_create(gs_device_t *device, struct gs_vb_data *data, uint32_t flags)
 {
 	COUNT(device_vertexbuffer_create);
-	if (!data || !data->num) {
+	/* like the real backends, the buffer owns the data even when it fails */
+	if (!data || !data->num || fail_call(NULL_CALL_device_vertexbuffer_create)) {
 		blog(LOG_ERROR, "null: vertex buffer created without data");
 		gs_vbdata_destroy(data);
 		return NULL;
@@ -833,7 +882,7 @@ EXPORT gs_indexbuffer_t *device_indexbuffer_create(gs_device_t *device, enum gs_
 						   size_t num, uint32_t flags)
 {
 	COUNT(device_indexbuffer_create);
-	if (!indices || !num) {
+	if (!indices || !num || fail_call(NULL_CALL_device_indexbuffer_create)) {
 		blog(LOG_ERROR, "null: index buffer created without indices");
 		bfree(indices);
 		return NULL;
@@ -902,6 +951,7 @@ EXPORT enum gs_index_type gs_indexbuffer_get_type(const gs_indexbuffer_t *indexb
 EXPORT gs_timer_t *device_timer_create(gs_device_t *device)
 {
 	COUNT(device_timer_create);
+	FAIL_IF_ASKED(device_timer_create, NULL);
 	gs_timer_t *timer = obj_alloc(sizeof(*timer));
 	timer->device = device;
 	return timer;
@@ -910,6 +960,7 @@ EXPORT gs_timer_t *device_timer_create(gs_device_t *device)
 EXPORT gs_timer_range_t *device_timer_range_create(gs_device_t *device)
 {
 	COUNT(device_timer_range_create);
+	FAIL_IF_ASKED(device_timer_range_create, NULL);
 	gs_timer_range_t *range = obj_alloc(sizeof(*range));
 	range->device = device;
 	return range;
@@ -1017,6 +1068,7 @@ EXPORT gs_shader_t *device_vertexshader_create(gs_device_t *device, const char *
 					       char **error_string)
 {
 	COUNT(device_vertexshader_create);
+	FAIL_IF_ASKED(device_vertexshader_create, NULL);
 	return shader_create(device, GS_SHADER_VERTEX, shader, file, error_string);
 }
 
@@ -1024,6 +1076,7 @@ EXPORT gs_shader_t *device_pixelshader_create(gs_device_t *device, const char *s
 					      char **error_string)
 {
 	COUNT(device_pixelshader_create);
+	FAIL_IF_ASKED(device_pixelshader_create, NULL);
 	return shader_create(device, GS_SHADER_PIXEL, shader, file, error_string);
 }
 
@@ -1765,6 +1818,7 @@ EXPORT gs_duplicator_t *device_duplicator_create(gs_device_t *device, int monito
 	UNUSED_PARAMETER(device);
 	UNUSED_PARAMETER(monitor_idx);
 	COUNT(device_duplicator_create);
+	FAIL_IF_ASKED(device_duplicator_create, NULL);
 	return NULL;
 }
 
@@ -1815,6 +1869,7 @@ EXPORT gs_texture_t *device_texture_create_gdi(gs_device_t *device, uint32_t wid
 	UNUSED_PARAMETER(width);
 	UNUSED_PARAMETER(height);
 	COUNT(device_texture_create_gdi);
+	FAIL_IF_ASKED(device_texture_create_gdi, NULL);
 	return NULL;
 }
 
