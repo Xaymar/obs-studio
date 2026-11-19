@@ -15,8 +15,7 @@ struct layout {
 	uint32_t heights[4];
 };
 
-/* 10x6 frame; V210 rounds the width up to 48 pixels (regression: it used a power-of-two mask and got 16). Not here: VIDEO_FORMAT_NONE, which makes
- * video_frame_init() call bmalloc(0) and crash (see known-bugs.md). */
+/* 10x6 frame; V210 rounds the width up to 48 pixels (regression: it used a power-of-two mask and got 16). VIDEO_FORMAT_NONE is covered below. */
 static const struct layout layouts[] = {
 	{VIDEO_FORMAT_I420, {10, 5, 5}, {6, 3, 3}},
 	{VIDEO_FORMAT_NV12, {10, 10}, {6, 3}},
@@ -97,6 +96,17 @@ static void frame_test(void **state)
 	assert_int_equal(wide.data[0][16], 7);
 	video_frame_free(&narrow);
 	video_frame_free(&wide);
+
+	/* Regression: no planes made video_frame_init() call bmalloc(0) and crash */
+	struct video_frame none;
+	video_frame_init(&none, VIDEO_FORMAT_NONE, 10, 6);
+	assert_null(none.data[0]);
+	video_frame_free(&none);
+	video_frame_init(&none, (enum video_format)999, 10, 6);
+	assert_null(none.data[0]);
+	video_frame_init(&none, VIDEO_FORMAT_I420, 0, 6);
+	assert_null(none.data[0]);
+	video_frame_destroy(video_frame_create(VIDEO_FORMAT_NONE, 10, 6));
 
 	video_frame_init(NULL, VIDEO_FORMAT_I420, 10, 6);
 	video_frame_free(NULL);
