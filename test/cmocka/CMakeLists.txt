@@ -35,6 +35,12 @@ target_link_libraries(test_no_video PRIVATE OBS::libobs cmocka::cmocka)
 
 add_test(test_no_video test_no_video)
 
+add_executable(test_type_alias test_type_alias.c)
+target_include_directories(test_type_alias PRIVATE ${CMOCKA_INCLUDE_DIR})
+target_link_libraries(test_type_alias PRIVATE OBS::libobs cmocka::cmocka)
+
+add_test(test_type_alias test_type_alias)
+
 # Vulkan backend export test
 if(ENABLE_VULKAN)
   find_package(Vulkan REQUIRED)

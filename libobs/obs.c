@@ -1236,6 +1236,10 @@ static bool obs_init(const char *locale, const char *module_config_path, profile
 	pthread_mutex_init_value(&obs->source_aliases_mutex);
 	if (pthread_mutex_init(&obs->source_aliases_mutex, NULL) != 0)
 		return false;
+	if (!obs_type_alias_table_init(&obs->encoder_aliases))
+		return false;
+	if (!obs_type_alias_table_init(&obs->output_aliases))
+		return false;
 
 	pthread_mutex_init_value(&obs->audio.monitoring_mutex);
 	pthread_mutex_init_value(&obs->audio.task_mutex);
@@ -1406,6 +1410,8 @@ void obs_shutdown(void)
 	da_free(obs->source_types);
 
 	obs_free_source_aliases();
+	obs_type_alias_table_free(&obs->encoder_aliases);
+	obs_type_alias_table_free(&obs->output_aliases);
 
 #define FREE_REGISTERED_TYPES(structure, list)                         \
 	do {                                                           \

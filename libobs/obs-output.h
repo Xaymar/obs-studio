@@ -94,6 +94,38 @@ EXPORT void obs_register_output_s(const struct obs_output_info *info, size_t siz
 
 #define obs_register_output(info) obs_register_output_s(info, sizeof(struct obs_output_info))
 
+/**
+ * Called when an output is created through an alias, before the new output
+ * type sees the settings. Rename or convert keys here so the new output type
+ * understands settings that were saved for the old one.
+ *
+ * @param  param     The param given to obs_register_output_alias
+ * @param  old_id    The ID the output was requested with
+ * @param  settings  A private copy of the settings, safe to modify
+ */
+typedef void (*obs_output_alias_migrate_t)(void *param, const char *old_id, obs_data_t *settings);
+
+/**
+ * Registers an alias, so that outputs requested with an old output ID are
+ * created as another, registered output type instead. Queries by ID
+ * (display name, flags, codecs, defaults, properties) follow aliases too.
+ *
+ * Aliases are resolved when used, never at registration, so the target may be
+ * registered by another module and in any order. Output types registered
+ * under old_id always win over the alias. An alias may point at another alias.
+ *
+ * The created output reports the new ID through obs_output_get_id.
+ *
+ * @param  old_id   ID to replace
+ * @param  new_id   ID of the replacement
+ * @param  migrate  Optional settings migration, run once per created output
+ * @param  param    Passed to migrate
+ * @return          false if the arguments are invalid, old_id is already an
+ *                  alias, or an output type is already registered as old_id
+ */
+EXPORT bool obs_register_output_alias(const char *old_id, const char *new_id, obs_output_alias_migrate_t migrate,
+				      void *param);
+
 #ifdef __cplusplus
 }
 #endif
