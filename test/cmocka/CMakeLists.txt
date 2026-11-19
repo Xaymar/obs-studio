@@ -371,6 +371,7 @@ foreach(
     test_util_pipe
     test_util_profiler
     test_util_threading
+    test_util_task
     test_util_spsc_fifo
 )
   obs_add_unit_test(${test})
