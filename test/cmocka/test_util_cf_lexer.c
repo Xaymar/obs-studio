@@ -298,11 +298,18 @@ static void include_test(void **state)
 	assert_non_null(f);
 	fputs("ok\n  #define 5\n", f);
 	fclose(f);
-	assert_true(preprocess(&r, "a\nb\nc\n#include \"bad.h\"\n", "inc/main.c"));
-	assert_int_equal(r.ed.errors.num, 1);
-	assert_string_equal(r.ed.errors.array[0].file, "inc/bad.h");
-	assert_int_equal(r.ed.errors.array[0].row, 2);
-	assert_int_equal(r.ed.errors.array[0].column, 11);
+	/* Regression: tokens of an included file pointed at a lexer on the stack, which the second include used */
+	assert_true(preprocess(&r, "a\nb\nc\n#include \"bad.h\"\n#include \"bad.h\"\n", "inc/main.c"));
+	assert_int_equal(r.ed.errors.num, 2);
+	for (size_t i = 0; i < 2; i++) {
+		assert_string_equal(r.ed.errors.array[i].file, "inc/bad.h");
+		assert_int_equal(r.ed.errors.array[i].row, 2);
+		assert_int_equal(r.ed.errors.array[i].column, 11);
+	}
+	for (struct cf_token *t = cf_preprocessor_get_tokens(&r.pp); t->type != CFTOKEN_NONE; t++) {
+		if (strref_cmp(&t->str, "ok") == 0)
+			assert_string_equal(t->lex->file, "inc/bad.h");
+	}
 	pp_result_free(&r);
 	os_unlink("inc/bad.h");
 

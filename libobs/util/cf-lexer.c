@@ -634,7 +634,7 @@ static inline void insert_path(struct cf_preprocessor *pp, struct dstr *str_file
 
 static void cf_include_file(struct cf_preprocessor *pp, const struct cf_token *file_token)
 {
-	struct cf_lexer new_lex;
+	struct cf_lexer *new_lex;
 	struct dstr str_file;
 	FILE *file;
 	char *file_data;
@@ -648,7 +648,7 @@ static void cf_include_file(struct cf_preprocessor *pp, const struct cf_token *f
 
 	/* if dependency already exists, run preprocessor on it */
 	for (i = 0; i < pp->dependencies.num; i++) {
-		struct cf_lexer *dep = pp->dependencies.array + i;
+		struct cf_lexer *dep = pp->dependencies.array[i];
 
 		if (strcmp(dep->file, str_file.array) == 0) {
 			tokens = cf_lexer_get_tokens(dep);
@@ -666,13 +666,13 @@ static void cf_include_file(struct cf_preprocessor *pp, const struct cf_token *f
 	os_fread_utf8(file, &file_data);
 	fclose(file);
 
-	cf_lexer_init(&new_lex);
-	cf_lexer_lex(&new_lex, file_data, str_file.array);
-	tokens = cf_lexer_get_tokens(&new_lex);
+	new_lex = bmalloc(sizeof(struct cf_lexer));
+	cf_lexer_init(new_lex);
+	cf_lexer_lex(new_lex, file_data, str_file.array);
+	da_push_back(pp->dependencies, &new_lex);
+	tokens = cf_lexer_get_tokens(new_lex);
 	cf_preprocess_tokens(pp, false, &tokens);
 	bfree(file_data);
-
-	da_push_back(pp->dependencies, &new_lex);
 
 exit:
 	dstr_free(&str_file);
@@ -1350,7 +1350,7 @@ void cf_preprocessor_init(struct cf_preprocessor *pp)
 
 void cf_preprocessor_free(struct cf_preprocessor *pp)
 {
-	struct cf_lexer *dependencies = pp->dependencies.array;
+	struct cf_lexer **dependencies = pp->dependencies.array;
 	char **sys_include_dirs = pp->sys_include_dirs.array;
 	struct cf_def *defs = pp->defines.array;
 	size_t i;
@@ -1359,8 +1359,10 @@ void cf_preprocessor_free(struct cf_preprocessor *pp)
 		cf_def_free(defs + i);
 	for (i = 0; i < pp->sys_include_dirs.num; i++)
 		bfree(sys_include_dirs[i]);
-	for (i = 0; i < pp->dependencies.num; i++)
-		cf_lexer_free(dependencies + i);
+	for (i = 0; i < pp->dependencies.num; i++) {
+		cf_lexer_free(dependencies[i]);
+		bfree(dependencies[i]);
+	}
 
 	da_free(pp->defines);
 	da_free(pp->sys_include_dirs);
