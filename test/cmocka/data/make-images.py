@@ -42,6 +42,28 @@ frames[0].save(path('anim.gif'), save_all=True, append_images=frames[1:], durati
                disposal=[1, 2, 3])
 frames[0].save(path('anim-once.gif'), save_all=True, append_images=frames[1:], duration=40, loop=1)
 
+# GIFs using more of the format: frames with their own (local) palettes and transparency, cropped to the
+# changed area at an offset, disposal to the previous frame, a comment, interlacing, and more colors than fit
+# in a small LZW code size
+complex_frames = []
+for i in range(4):
+    img = Image.new('RGBA', (16, 12), (0, 0, 0, 0))
+    for x in range(16):
+        for y in range(12):
+            if (x + y + i) % 3:
+                img.putpixel((x, y), ((x * 16 + i * 40) % 256, (y * 20) % 256, (i * 60) % 256, 255))
+    complex_frames.append(img)
+complex_frames[0].save(path('complex.gif'), save_all=True, append_images=complex_frames[1:], duration=[30, 30, 60, 30],
+                       loop=2, disposal=[0, 3, 2, 1], comment=b'knurbs test', interlace=True, optimize=False)
+many = Image.new('RGB', (32, 32))
+many.putdata([((i * 7) % 256, (i * 13) % 256, (i * 29) % 256) for i in range(32 * 32)])
+many.convert('P', palette=Image.ADAPTIVE, colors=256).save(path('colors.gif'), interlace=False)
+# a GIF cut off in the middle of its image data
+with open(path('colors.gif'), 'rb') as f:
+    data = f.read()
+with open(path('truncated.gif'), 'wb') as f:
+    f.write(data[:len(data) // 2])
+
 with open(path('broken.png'), 'wb') as f:
     f.write(b'\x89PNG\r\n\x1a\n not really a png')
 with open(path('broken.gif'), 'wb') as f:

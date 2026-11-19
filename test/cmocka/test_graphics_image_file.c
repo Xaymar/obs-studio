@@ -203,6 +203,30 @@ static void animated_gif_test(void **state)
 		gs_image_file_ex_free(&image);
 	}
 
+	/* local palettes, transparency, cropped frames, disposal to previous, interlacing, two loops */
+	gs_image_file_ex_t complex;
+	gs_image_file_ex_init(&complex, DATA("complex.gif"), GS_IMAGE_ALPHA_PREMULTIPLY);
+	assert_true(complex.loaded);
+	assert_true(complex.is_animated_gif);
+	assert_int_equal(complex.cx, 16);
+	assert_int_equal(complex.cy, 12);
+	gs_image_file_ex_init_texture(&complex);
+	for (int i = 0; i < 12; i++) {
+		gs_image_file_ex_tick(&complex, 30000000);
+		gs_image_file_ex_update_texture(&complex);
+	}
+	gs_image_file_ex_free(&complex);
+
+	/* a full 256 color palette, and the same image cut off half way */
+	gs_image_file_ex_t colors;
+	gs_image_file_ex_init(&colors, DATA("colors.gif"), GS_IMAGE_ALPHA_STRAIGHT);
+	assert_true(colors.loaded);
+	assert_int_equal(colors.cx, 32);
+	gs_image_file_ex_free(&colors);
+	gs_image_file_ex_t truncated;
+	gs_image_file_ex_init(&truncated, DATA("truncated.gif"), GS_IMAGE_ALPHA_STRAIGHT);
+	gs_image_file_ex_free(&truncated);
+
 	/* a GIF that plays once stops on its last frame */
 	gs_image_file_ex_t once;
 	gs_image_file_ex_init(&once, DATA("anim-once.gif"), GS_IMAGE_ALPHA_STRAIGHT);
