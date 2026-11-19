@@ -501,6 +501,10 @@ static int obs_init_graphics(struct obs_video_info *ovi)
 		}
 	}
 
+	/* the levels reported before graphics exist, until obs_set_video_levels() */
+	video->sdr_white_level = 300.f;
+	video->hdr_nominal_peak_level = 1000.f;
+
 	profile_start(shader_comp_name);
 	gs_enter_context(video->graphics);
 

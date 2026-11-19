@@ -91,9 +91,12 @@ static void display_test(void **state)
 	obs_remove_main_render_callback(on_render, NULL);
 	obs_remove_main_rendered_callback(on_rendered, NULL);
 	assert_true(obs_get_video_frame_time() > 0);
-	obs_set_video_levels(300.0f, 1000.0f);
+	/* Regression: both levels were 0 once graphics existed, until obs_set_video_levels() */
 	assert_true(obs_get_video_sdr_white_level() == 300.0f);
 	assert_true(obs_get_video_hdr_nominal_peak_level() == 1000.0f);
+	obs_set_video_levels(200.0f, 800.0f);
+	assert_true(obs_get_video_sdr_white_level() == 200.0f);
+	assert_true(obs_get_video_hdr_nominal_peak_level() == 800.0f);
 
 	core_stop();
 }
