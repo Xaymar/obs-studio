@@ -381,6 +381,7 @@ foreach(
     test_graphics_vec
     test_graphics_matrix
     test_graphics_geometry
+    test_graphics_shader_parser
 )
   obs_add_unit_test(${test})
 endforeach()
@@ -393,6 +394,7 @@ foreach(
     test_graphics_graphics
     test_graphics_effect
     test_graphics_image_file
+    test_graphics_texture_render
 )
   obs_add_graphics_test(${test})
 endforeach()
