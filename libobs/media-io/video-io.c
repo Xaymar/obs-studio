@@ -608,8 +608,7 @@ double video_output_get_frame_rate(const video_t *video)
 	if (!video)
 		return 0.0;
 
-	video = get_const_root(video);
-
+	/* not the root: a frame rate divisor output has its own fps_den */
 	return (double)video->info.fps_num / (double)video->info.fps_den;
 }
 
@@ -668,6 +667,7 @@ video_t *video_output_create_with_frame_rate_divisor(video_t *video, uint32_t di
 	memcpy(new_video, video, sizeof(*new_video));
 	new_video->parent = video;
 	new_video->info.fps_den *= divisor;
+	new_video->frame_time *= divisor;
 
 	return new_video;
 }

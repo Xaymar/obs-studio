@@ -542,6 +542,13 @@ static void encoder_test(void **state)
 	assert_int_equal(obs_encoder_get_scale_type(venc), OBS_SCALE_LANCZOS);
 	assert_true(obs_encoder_set_frame_rate_divisor(venc, 2));
 	assert_int_equal(obs_encoder_get_frame_rate_divisor(venc), 2);
+	/* Regression: the divisor output reported the full frame rate and frame time of its root */
+	video_t *half = obs_encoder_video(venc);
+	assert_ptr_not_equal(half, obs_get_video());
+	assert_true(video_output_get_frame_rate(half) * 2.0 == video_output_get_frame_rate(obs_get_video()));
+	assert_int_equal(video_output_get_frame_time(half), video_output_get_frame_time(obs_get_video()) * 2);
+	assert_int_equal(video_output_get_info(half)->fps_den, video_output_get_info(obs_get_video())->fps_den * 2);
+	assert_int_equal(video_output_get_width(half), 640);
 	assert_false(obs_encoder_set_frame_rate_divisor(venc, 0));
 	assert_true(obs_encoder_set_frame_rate_divisor(venc, 1));
 	obs_encoder_set_preferred_video_format(venc, VIDEO_FORMAT_I420);
