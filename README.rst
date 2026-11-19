@@ -39,8 +39,8 @@ These are goals, not promises, and none of them has a date:
 - **A new Qt 6 frontend.** A new application shell built with Qt Widgets,
   developed alongside the old frontend until it reaches parity. Features
   live in plugins wherever possible, so alternatives can be swapped in.
-- **A libobs test suite.** Broad test coverage of libobs, so bugs are found
-  and stay fixed.
+- **A full test suite by default.** Everything is covered by tests, to
+  guarantee functionality and stability.
 - **A cleaner API.** The C API is to be renamed to a ``knurbs_`` prefix and
   every object made reference counted. Installed headers already live under
   ``<prefix>/include/knurbs/``.
