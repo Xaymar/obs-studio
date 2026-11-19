@@ -63,6 +63,12 @@ bool obs_module_load(void)
 {
 	loads++;
 	obs_register_source(&module_source);
+
+	/* rejected: composite sources cannot be audio sources */
+	struct obs_source_info invalid = module_source;
+	invalid.id = "fake_module_invalid_source";
+	invalid.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_COMPOSITE | OBS_SOURCE_AUDIO;
+	obs_register_source(&invalid);
 	return true;
 }
 

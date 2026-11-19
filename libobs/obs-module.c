@@ -1063,12 +1063,6 @@ void obs_register_source_s(const struct obs_source_info *info, size_t size)
 		goto error;
 	}
 
-	/* NOTE: The assignment of data.module must occur before memcpy! */
-	if (loadingModule) {
-		char *source_id = bstrdup(info->id);
-		da_push_back(loadingModule->sources, &source_id);
-	}
-
 	memcpy(&data, info, size);
 
 	/* mark audio-only filters as an async filter categorically */
@@ -1126,6 +1120,12 @@ void obs_register_source_s(const struct obs_source_info *info, size_t size)
 		data.id = versioned_id.array;
 	} else {
 		data.id = bstrdup(data.id);
+	}
+
+	/* only once it is registered: obs_source_get_module() finds sources by these ids */
+	if (loadingModule) {
+		char *source_id = bstrdup(info->id);
+		da_push_back(loadingModule->sources, &source_id);
 	}
 
 	if (array)

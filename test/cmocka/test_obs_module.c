@@ -63,6 +63,10 @@ static void open_test(void **state)
 	assert_ptr_equal(obs_source_get_module("fake_module_source"), module);
 	assert_int_equal(obs_source_load_state("fake_module_source"), OBS_MODULE_ENABLED);
 	obs_source_release(src);
+	/* Regression: a source the module tried to register but that was rejected was still listed as its own */
+	assert_null(obs_source_get_display_name("fake_module_invalid_source"));
+	assert_null(obs_source_get_module("fake_module_invalid_source"));
+	assert_int_equal(obs_source_load_state("fake_module_invalid_source"), OBS_MODULE_MISSING);
 
 	/* locale and data files */
 	const char *out = NULL;
