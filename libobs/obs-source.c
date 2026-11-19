@@ -3353,7 +3353,7 @@ int obs_source_filter_get_index(obs_source_t *source, obs_source_t *filter)
 static bool set_filter_index(obs_source_t *source, obs_source_t *filter, size_t index)
 {
 	size_t idx = da_find(source->filters, &filter, 0);
-	if (idx == DARRAY_INVALID)
+	if (idx == DARRAY_INVALID || index >= source->filters.num)
 		return false;
 
 	da_move_item(source->filters, idx, index);
