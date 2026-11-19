@@ -125,6 +125,51 @@ static void async_video_test(void **state)
 	core_stop();
 }
 
+/* a buffered source deinterlacing a steady 60 fps stream, with a timestamp jump and both field orders */
+static void deinterlace_buffered_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+	core_start();
+
+	obs_source_t *src = obs_source_create("fake_async", "deint", NULL, NULL);
+	obs_set_output_source(0, src);
+
+	static const enum obs_deinterlace_mode modes[] = {
+		OBS_DEINTERLACE_MODE_BLEND_2X, OBS_DEINTERLACE_MODE_LINEAR_2X, OBS_DEINTERLACE_MODE_YADIF_2X,
+		OBS_DEINTERLACE_MODE_YADIF,    OBS_DEINTERLACE_MODE_DISCARD,
+	};
+	const uint64_t interval = 1000000000ULL / 60;
+	uint64_t ts = os_gettime_ns();
+	struct obs_source_frame frame;
+	for (size_t i = 0; i < sizeof(modes) / sizeof(modes[0]); i++) {
+		obs_source_set_deinterlace_mode(src, modes[i]);
+		obs_source_set_deinterlace_field_order(src, i % 2 ? OBS_DEINTERLACE_FIELD_ORDER_BOTTOM
+								  : OBS_DEINTERLACE_FIELD_ORDER_TOP);
+		for (int f = 0; f < 12; f++) {
+			/* a jump of a second halfway through */
+			if (f == 6)
+				ts += 1000000000ULL;
+			make_frame(&frame, f % 3 ? VIDEO_FORMAT_BGRA : VIDEO_FORMAT_RGBA, ts);
+			obs_source_output_video(src, &frame);
+			ts += interval;
+			if (f % 2)
+				core_wait_frames(1);
+		}
+		core_wait_frames(3);
+		assert_int_equal(obs_source_get_width(src), FRAME_W);
+	}
+
+	/* turning it off again goes back to plain frames */
+	obs_source_set_deinterlace_mode(src, OBS_DEINTERLACE_MODE_DISABLE);
+	make_frame(&frame, VIDEO_FORMAT_BGRA, ts);
+	obs_source_output_video(src, &frame);
+	core_wait_frames(3);
+
+	obs_set_output_source(0, NULL);
+	obs_source_release(src);
+	core_stop();
+}
+
 static void get_frame_test(void **state)
 {
 	UNUSED_PARAMETER(state);
@@ -258,6 +303,7 @@ int main(void)
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(async_video_test),
 		cmocka_unit_test(get_frame_test),
+		cmocka_unit_test(deinterlace_buffered_test),
 		cmocka_unit_test(audio_test),
 	};
 
