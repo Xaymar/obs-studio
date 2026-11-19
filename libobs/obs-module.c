@@ -767,10 +767,15 @@ static void process_found_module(struct obs_module_path *omp, const char *path, 
 	if (strcmp(file, ".") == 0 || strcmp(file, "..") == 0)
 		return;
 
+	/* only a module file has an extension to strip: a folder's name is the module name, dots and all
+	 * (plugins/com.example.plugin/), and so is a file name with dots before its extension */
 	dstr_copy(&name, file);
-	char *ext = strrchr(name.array, '.');
-	if (ext)
-		dstr_resize(&name, ext - name.array);
+	if (!directory) {
+		const char *module_ext = get_module_extension();
+		size_t ext_len = strlen(module_ext);
+		if (name.len > ext_len && astrcmpi(name.array + name.len - ext_len, module_ext) == 0)
+			dstr_resize(&name, name.len - ext_len);
+	}
 
 	if (!directory) {
 		dstr_copy(&parsed_bin_path, path);

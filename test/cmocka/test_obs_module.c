@@ -124,11 +124,136 @@ static void load_all_test(void **state)
 	core_stop();
 }
 
+struct found_module {
+	char name[64];
+	char bin[512];
+	char data[512];
+	int count;
+};
+
+static void on_found(void *param, const struct obs_module_info2 *info)
+{
+	struct found_module *found = param;
+	if (strcmp(info->name, "com.example.plugin") != 0 && strstr(info->bin_path, "com.example") == NULL)
+		return;
+	snprintf(found->name, sizeof(found->name), "%s", info->name);
+	snprintf(found->bin, sizeof(found->bin), "%s", info->bin_path);
+	snprintf(found->data, sizeof(found->data), "%s", info->data_path);
+	found->count++;
+}
+
+static char *abs_path(const char *path)
+{
+	char *abs = os_get_abs_path_ptr(path);
+	assert_non_null(abs);
+	for (char *c = abs; *c; c++) {
+		if (*c == '\\')
+			*c = '/';
+	}
+	return abs;
+}
+
+/* Regression: a module in a folder with dots in its name (plugins/com.example.plugin/...) was looked up as
+ * "com.example", the folder name cut at its last dot, so its binary was not found. Dots in parent folders must
+ * not matter either. */
+static void dotted_paths_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+
+	/* per-module folders under a dotted parent: <root>/plugins/com.example.plugin/bin/64bit/com.example.plugin.dll */
+	assert_true(os_mkdirs("dotted.root/plugins/com.example.plugin/bin/64bit") != MKDIR_ERROR);
+	assert_true(os_mkdirs("dotted.root/plugins/com.example.plugin/data") != MKDIR_ERROR);
+	/* left from an earlier run */
+	os_unlink("dotted.root/plugins/com.example.plugin/bin/64bit/com.example.plugin.dll");
+	os_unlink("dotted.root/flat/com.example.plugin.dll");
+	assert_int_equal(os_copyfile(FAKE_MODULE_PATH,
+				     "dotted.root/plugins/com.example.plugin/bin/64bit/com.example.plugin.dll"),
+			 0);
+	/* the flat layout: <root>/flat/com.example.plugin.dll, data in <root>/flat-data/com.example.plugin */
+	assert_true(os_mkdirs("dotted.root/flat") != MKDIR_ERROR);
+	assert_true(os_mkdirs("dotted.root/flat-data/com.example.plugin") != MKDIR_ERROR);
+	assert_int_equal(os_copyfile(FAKE_MODULE_PATH, "dotted.root/flat/com.example.plugin.dll"), 0);
+
+	/* allocated before core_start(), which counts allocations from there */
+	char *root = abs_path("dotted.root");
+	struct dstr bin = {0}, data = {0}, want_bin = {0}, want_data = {0};
+	dstr_reserve(&bin, 512);
+	dstr_reserve(&data, 512);
+	dstr_reserve(&want_bin, 512);
+	dstr_reserve(&want_data, 512);
+	core_start();
+
+	/* folders */
+	dstr_printf(&bin, "%s/plugins/%%module%%/bin/64bit", root);
+	dstr_printf(&data, "%s/plugins/%%module%%/data", root);
+	obs_add_module_path(bin.array, data.array);
+	struct found_module found = {0};
+	obs_find_modules2(on_found, &found);
+	assert_int_equal(found.count, 1);
+	assert_string_equal(found.name, "com.example.plugin");
+	dstr_printf(&want_bin, "%s/plugins/com.example.plugin/bin/64bit/com.example.plugin.dll", root);
+	dstr_printf(&want_data, "%s/plugins/com.example.plugin/data", root);
+	assert_string_equal(found.bin, want_bin.array);
+	assert_string_equal(found.data, want_data.array);
+
+	/* and loading them the way the frontend does */
+	obs_add_safe_module("com.example.plugin");
+	struct obs_runtime_module_info info = {
+		.path_info = {.binary = bin.array, .data = data.array},
+		.type = OBS_MODULE_TYPE_PLUGIN,
+		.name = "dotted",
+	};
+	struct obs_module_failure_info mfi = {0};
+	obs_load_plugins(&info, &mfi);
+	assert_int_equal(mfi.count, 0);
+	obs_module_failure_info_free(&mfi);
+	obs_module_t *module = obs_get_module("com.example.plugin");
+	assert_non_null(module);
+	assert_string_equal(obs_get_module_file_name(module), "com.example.plugin.dll");
+	assert_string_equal(obs_get_module_binary_path(module), want_bin.array);
+	assert_string_equal(obs_get_module_data_path(module), want_data.array);
+
+	core_stop();
+	core_start();
+
+	/* flat */
+	dstr_printf(&bin, "%s/flat", root);
+	dstr_printf(&data, "%s/flat-data/%%module%%", root);
+	obs_add_module_path(bin.array, data.array);
+	memset(&found, 0, sizeof(found));
+	obs_find_modules2(on_found, &found);
+	assert_int_equal(found.count, 1);
+	assert_string_equal(found.name, "com.example.plugin");
+	dstr_printf(&want_bin, "%s/flat/com.example.plugin.dll", root);
+	dstr_printf(&want_data, "%s/flat-data/com.example.plugin", root);
+	assert_string_equal(found.bin, want_bin.array);
+	assert_string_equal(found.data, want_data.array);
+
+	obs_add_safe_module("com.example.plugin");
+	info.path_info.binary = bin.array;
+	info.path_info.data = data.array;
+	obs_load_plugins(&info, &mfi);
+	assert_int_equal(mfi.count, 0);
+	obs_module_failure_info_free(&mfi);
+	module = obs_get_module("com.example.plugin");
+	assert_non_null(module);
+	assert_string_equal(obs_get_module_binary_path(module), want_bin.array);
+	assert_string_equal(obs_get_module_data_path(module), want_data.array);
+
+	core_stop();
+	dstr_free(&bin);
+	dstr_free(&data);
+	dstr_free(&want_bin);
+	dstr_free(&want_data);
+	bfree(root);
+}
+
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(open_test),
 		cmocka_unit_test(load_all_test),
+		cmocka_unit_test(dotted_paths_test),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);
