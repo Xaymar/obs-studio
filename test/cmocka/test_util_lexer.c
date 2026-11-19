@@ -84,8 +84,12 @@ static void number_test(void **state)
 	assert_true(valid_float_str("-1.5 ", 4));
 
 	assert_true(valid_float_str("1.5", 0));
-	/* signed exponents ("1e-3") are rejected: found_num is reset at 'e' and the sign branch requires it */
-	assert_false(valid_float_str("1e-3", 0));
+	/* Regression: signed exponents were rejected */
+	assert_true(valid_float_str("1e-3", 0));
+	assert_true(valid_float_str("2.5e+3", 0));
+	assert_false(valid_float_str("1e-", 0));
+	assert_false(valid_float_str("1e3-2", 0));
+	assert_false(valid_float_str("1e--3", 0));
 	assert_true(valid_float_str("2e5", 0));
 	assert_false(valid_float_str(".5", 0));
 	assert_false(valid_float_str("1.2.3", 0));
