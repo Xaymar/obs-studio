@@ -39,3 +39,16 @@ their own commits with a regression test and are not listed here.
 | media-io/video-io.c | `valid_video_params()` accepts `cache_size == 0`; such an output never locks a frame and keeps counting every frame as skipped. |
 | media-io/video-io.c | `video_output_unlock_frame()` without a successful `video_output_lock_frame()` decrements `available_frames` below zero (it is a `size_t`). |
 | media-io/media-remux.c | `media_remux_job_create()` passes `out_filename` to `strcmp()` without a NULL check. |
+
+## graphics/
+
+| File | Bug |
+| --- | --- |
+| graphics/plane.c | `plane_transform()` transforms the normal as a point (including the translation) before normalizing it, and subtracts the transformed origin from the distance; translating the plane z = 1 by 2 along z gives distance -1 instead of 3, and any translation tilts normals that are not parallel to it. |
+| graphics/plane.c | `plane_tri_inside()` and `plane_line_inside()` return a side bitmask as `bool`: false when everything lies on the plane, true when anything is off it, the opposite of what the names say. |
+| graphics/math-extra.c | `norm_to_polar()` and `polar_to_norm()` use different angle conventions, so they are not inverses of each other. |
+| graphics/graphics.c | `gs_color4v()`, `gs_cubetexture_set_image()`, `gs_set_3d_mode()`, `gs_draw_cube_backdrop()` and `gs_get_input()` are unimplemented `/* TODO */` stubs; `gs_color4v()` silently drops immediate-mode colors. |
+| graphics/effect-parser.c | Several malformed effects leak memory on the error path: a uniform of unknown type (4 allocations), a pass calling a missing function (1), a sampler state missing ';' (2), a broken initializer (2) and a shader using undefined names (8). |
+| graphics/shader-parser.c | Array initializers (`uniform float v[3] = {1, 2, 3};`) and `bool` defaults (`uniform bool b = false;`) are rejected ("Expected 'numeric value'", "Invalid type 'bool' used for assignment"). |
+| graphics/shader-parser.c | `shader_sampler_convert()` reads `BorderColor` with `strtol(value + 1, ...)`: it skips the first character, so `0xff00ff00` becomes 0, and `strtol()` clamps colors above 0x7fffffff (alpha >= 0x80) on Windows, where `long` is 32 bits. |
+| graphics/graphics-ffmpeg.c | EXIF orientation is ignored: it is read from the "Orientation" frame metadata, which the bundled FFmpeg no longer sets (it exports a display matrix instead), so rotated JPEGs load unrotated. |

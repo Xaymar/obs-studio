@@ -63,6 +63,18 @@ Reasons:
 | audio-monitoring/monitoring-mix.c | all | monitoring mixer | Not exported: reachable only through libobs audio monitoring with live sources (track with obs-audio tests) |
 | audio-monitoring/win32/* | all | WASAPI monitoring output and device enumeration | Needs a real audio device |
 
+## graphics/
+
+| File | Lines | Code | Reason |
+| --- | --- | --- | --- |
+| graphics/graphics.c | `gs_create()` error paths | module missing exports, `device_create()` failure | Needs a broken graphics module; libobs-null always loads |
+| graphics/graphics.c | Apple and Linux branches (`gs_texture_create_from_iosurface`, dmabuf, sync objects) | platform-specific wrappers | Not compiled on Windows |
+| graphics/graphics-ffmpeg.c | WIC paths (`wic_image_init`, PQ conversion) | HDR images (JXR) through WIC | Needs HDR test images and WIC codecs; reachable, not covered yet |
+| graphics/graphics-ffmpeg.c | `avcodec_*` / `av_frame_*` / swscale allocation failures | decoder setup and conversion failures | OOM / OS failure |
+| graphics/image-file.c | `alloc_mem()` limits, "overflowed maximum pointer size" | GIFs whose decoded size overflows | Needs a GIF that claims more than 4096x4096 or overflows; reachable with a crafted file, not covered yet |
+| graphics/libnsgif/* | interlacing, local color tables, extension blocks, LZW error paths | parts of the GIF format the test images do not use | Reachable with more crafted GIFs, not covered yet |
+| graphics/half.h | all | half-float conversion | No exported caller in libobs |
+
 Not yet covered and not tested on purpose (threading-level, may be replaced):
 
 - util/threading-windows.c, util/threading-windows.h, util/threading.h
