@@ -29,6 +29,9 @@ static void lookup_test(void **state)
 			     "Quoted=\"Hello \\\"World\\\"\\n\\tTab\\r\"\n"
 			     "Spaced=\"x y\" # trailing comment\n"
 			     "Around = x\n"
+			     "\t  Indented\t=  \"y y\"\r\n"
+			     "Blank = \n"
+			     "CrLfNoValue\r\n"
 			     "Unterminated=\"open\n"
 			     "\n"
 			     "NoValue\n"
@@ -47,14 +50,18 @@ static void lookup_test(void **state)
 	assert_string_equal(out, "Hello \"World\"\n\tTab\r");
 	assert_true(text_lookup_getstr(lookup, "Spaced", &out));
 	assert_string_equal(out, "x y");
-	/* whitespace around '=' is not skipped: the value is the space before "x" */
+	/* Regression: whitespace around '=' used to be the value */
 	assert_true(text_lookup_getstr(lookup, "Around", &out));
-	assert_string_equal(out, " ");
+	assert_string_equal(out, "x");
+	assert_true(text_lookup_getstr(lookup, "Indented", &out));
+	assert_string_equal(out, "y y");
+	assert_false(text_lookup_getstr(lookup, "Blank", &out));
+	assert_false(text_lookup_getstr(lookup, "CrLfNoValue", &out));
 	assert_true(text_lookup_getstr(lookup, "Unterminated", &out));
 	assert_string_equal(out, "open");
-	/* without '=' the first token after the name is the value, here the space */
+	/* without '=' the first token after the name is the value */
 	assert_true(text_lookup_getstr(lookup, "NoEquals", &out));
-	assert_string_equal(out, " ");
+	assert_string_equal(out, "value");
 	assert_true(text_lookup_getstr(lookup, "Override", &out));
 	assert_string_equal(out, "second");
 	assert_true(text_lookup_getstr(lookup, "Last", &out));
