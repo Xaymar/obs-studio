@@ -144,6 +144,7 @@ static void null_test(void **state)
 	assert_int_equal(profiler_snapshot_num_children(NULL), 0);
 	profiler_snapshot_enumerate_roots(NULL, count_entries, NULL);
 	profiler_snapshot_enumerate_children(NULL, count_entries, NULL);
+	profiler_snapshot_filter_roots(NULL, keep_root_only, NULL); /* regression: crashed */
 	assert_null(profiler_snapshot_entry_name(NULL));
 	assert_null(profiler_snapshot_entry_times(NULL));
 	assert_null(profiler_snapshot_entry_times_between_calls(NULL));
