@@ -13,6 +13,22 @@ if(OS_WINDOWS)
   endforeach()
 endif()
 
+# Every unit test and what it needs, so run-coverage.ps1 can build them in one go
+add_custom_target(obs-unit-tests)
+
+# obs_add_unit_test(<name>): <name>.c linked with libobs and cmocka, run in its own scratch directory
+function(obs_add_unit_test name)
+  add_executable(${name} ${name}.c)
+  target_include_directories(${name} PRIVATE ${CMOCKA_INCLUDE_DIR})
+  target_link_libraries(${name} PRIVATE OBS::libobs cmocka::cmocka)
+  set_target_properties(${name} PROPERTIES FOLDER "Tests and Examples")
+  set(work_dir "${CMAKE_CURRENT_BINARY_DIR}/work/${name}")
+  file(MAKE_DIRECTORY "${work_dir}")
+  add_test(NAME ${name} COMMAND ${name} WORKING_DIRECTORY "${work_dir}")
+  set_tests_properties(${name} PROPERTIES ENVIRONMENT_MODIFICATION "${_obs_runtime_env}")
+  add_dependencies(obs-unit-tests ${name})
+endfunction()
+
 # Serializer test
 add_executable(test_serializer test_serializer.c)
 target_include_directories(test_serializer PRIVATE ${CMOCKA_INCLUDE_DIR})
@@ -291,3 +307,27 @@ if(TARGET libobs-null)
 
   set_tests_properties(test_obs_canvas_weak test_obs_video_null PROPERTIES ENVIRONMENT_MODIFICATION "${_obs_runtime_env}")
 endif()
+
+foreach(test IN ITEMS test_serializer test_darray test_bitstream test_os_path test_obs_canvas_weak test_obs_video_null)
+  if(TARGET ${test})
+    add_dependencies(obs-unit-tests ${test})
+  endif()
+endforeach()
+if(TARGET test-obs-mem)
+  add_dependencies(obs-unit-tests test-obs-mem)
+endif()
+
+# util/
+foreach(
+  test
+  IN
+  ITEMS
+    test_util_base
+    test_util_bmem
+    test_util_crc32
+    test_util_darray
+    test_util_deque
+    test_util_dstr
+)
+  obs_add_unit_test(${test})
+endforeach()

@@ -27,10 +27,8 @@ function Invoke-Checked {
 
 Invoke-Checked cmake @('-S', $SourceDir, '-B', $BuildDir, '-G', $Generator, '-A', 'x64', '-T', 'ClangCL',
     "-DLLVM_ROOT=$($LlvmRoot -replace '\\', '/')", '-C', (Join-Path $PSScriptRoot 'clangcov.cmake'))
-# shortcut: explicit target list because libobs-winrt does not compile with clang-cl (STL1009); add new test targets here
-$targets = @('libobs', 'test_serializer', 'test_darray', 'test_bitstream', 'test_os_path', 'test-obs-mem',
-    'libobs-null', 'test_obs_canvas_weak', 'test_obs_video_null')
-Invoke-Checked cmake (@('--build', $BuildDir, '--config', $Config, '--parallel', '--target') + $targets)
+# Not ALL_BUILD: libobs-winrt does not compile with clang-cl (STL1009). obs-unit-tests depends on every test.
+Invoke-Checked cmake @('--build', $BuildDir, '--config', $Config, '--parallel', '--target', 'libobs', 'obs-unit-tests')
 
 # Fresh profiles for every run
 if (Test-Path $CovDir) { Remove-Item -Recurse -Force $CovDir }
@@ -50,7 +48,10 @@ if ($profiles.Count -eq 0) { throw 'No profiles were written; did any instrument
 $profdata = Join-Path $CovDir 'merged.profdata'
 Invoke-Checked (Join-Path $LlvmBin 'llvm-profdata.exe') (@('merge', '-sparse', '-o', $profdata) + $profiles)
 
-$covArgs = @("$BuildDir\libobs\$Config\obs.dll", "-instr-profile=$profdata",
+# The test executables carry their own copies of libobs' header-inline helpers (darray.h, deque.h, ...)
+$testObjects = @(Get-ChildItem "$BuildDir\test" -Recurse -Filter *.exe | Where-Object { $_.DirectoryName -like "*\$Config" } |
+    ForEach-Object { "-object=$($_.FullName)" })
+$covArgs = @("$BuildDir\libobs\$Config\obs.dll") + $testObjects + @("-instr-profile=$profdata",
     '-ignore-filename-regex=([\\/]\.deps[\\/]|[\\/]test[\\/]|[\\/]build[^\\/]*[\\/])')
 $llvmCov = Join-Path $LlvmBin 'llvm-cov.exe'
 & $llvmCov report @covArgs | Tee-Object (Join-Path $CovDir 'report.txt')
