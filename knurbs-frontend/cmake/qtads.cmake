@@ -1,0 +1,37 @@
+# Qt Advanced Docking System (LGPL-2.1).
+# Prefer an installed package (obs-deps or system); otherwise fetch the pinned release.
+
+find_package(qt6advanceddocking CONFIG QUIET)
+
+if(TARGET ads::qt6advanceddocking)
+  add_library(Knurbs::qtads ALIAS ads::qt6advanceddocking)
+  return()
+endif()
+
+include(FetchContent)
+
+set(KNURBS_QTADS_VERSION 4.3.1 CACHE STRING "Qt Advanced Docking System release to fetch")
+mark_as_advanced(KNURBS_QTADS_VERSION)
+
+set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(BUILD_STATIC ON CACHE BOOL "" FORCE)
+set(QT_VERSION_MAJOR 6 CACHE STRING "" FORCE)
+set(ADS_VERSION ${KNURBS_QTADS_VERSION} CACHE STRING "" FORCE)
+
+FetchContent_Declare(
+  qtads
+  GIT_REPOSITORY https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System.git
+  GIT_TAG ${KNURBS_QTADS_VERSION}
+  GIT_SHALLOW TRUE
+  EXCLUDE_FROM_ALL
+)
+FetchContent_MakeAvailable(qtads)
+
+# Note: on Linux, ADS 4.x links libxcb unconditionally for its floating
+# windows, although Knurbs runs on Wayland only. Dropping that needs a patch
+# to ADS.
+if(TARGET qt6advanceddocking)
+  add_library(Knurbs::qtads ALIAS qt6advanceddocking)
+else()
+  message(FATAL_ERROR "Qt Advanced Docking System target not found after fetching ${KNURBS_QTADS_VERSION}")
+endif()

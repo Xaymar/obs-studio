@@ -46,5 +46,6 @@ if(ENABLE_UNIT_TESTS)
 endif()
 
 add_subdirectory(frontend)
+add_subdirectory(knurbs-frontend)
 
 message_configuration()
