@@ -66,8 +66,9 @@ static void parse_test(void **state)
 	assert_int_equal(info.address_v, GS_ADDRESS_BORDER);
 	assert_int_equal(info.address_w, GS_ADDRESS_MIRRORONCE);
 	assert_int_equal(info.max_anisotropy, 8);
-	/* BorderColor is parsed with strtol() after skipping one character, so "0xff00ff00" becomes 0 and colors
-	 * above 0x7fffffff would clamp on Windows (see known-bugs.md) */
+	/* Regression: BorderColor was parsed with strtol() after skipping one character, so "0xff00ff00" became 0, and
+	 * colors above 0x7fffffff clamped on Windows */
+	assert_int_equal(info.border_color, 0xff00ff00);
 	shader_sampler_convert(shader_parser_getsampler(&sp, "t"), &info);
 	assert_int_equal(info.filter, GS_FILTER_POINT);
 
