@@ -439,6 +439,7 @@ foreach(
     test_obs_source_av
     test_obs_scene
     test_obs_output
+    test_obs_audio
 )
   obs_add_core_test(${test})
 endforeach()
