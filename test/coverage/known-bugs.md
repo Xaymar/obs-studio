@@ -36,6 +36,7 @@ still open, with the reason.
 | obs.c | **Fixed** in `686380e63`: `obs_get_video_sdr_white_level()` and `obs_get_video_hdr_nominal_peak_level()` return 0 once video is up until `obs_set_video_levels()` is called (the frontend always calls it), so every SDR/HDR multiplier divided by 0. They now start at the 300 and 1000 nits reported before video is up. |
 | obs-service.c | **Fixed** in `bed0899ab`: `obs_service_get_supported_video_codecs(NULL)` and `obs_service_get_supported_audio_codecs(NULL)` crash; every other service getter checks the service. |
 | obs-encoder.c | **Fixed** in `cf549e547`: An encoder destroyed after an encode error leaks its paired encoder array and weak reference: they are released only in `obs_encoder_shutdown()`, which the error path skips. |
+| obs-module.c | **Fixed** in `ac24f6a61`: A source a module registers but that is rejected is still added to the module's source list, so `obs_source_get_module()` and `obs_source_load_state()` report a source that does not exist. |
 | obs-video-gpu-encode.c | **Fixed** in `7b96f0216`: An encode error in a texture encoder hangs the GPU encode thread for good: `full_stop()` runs on that thread and waits for it to go idle (and joins it for the last encoder), so its encoders and textures are never freed. |
 | obs-service.c | **Fixed** in `bc440c43f`, **behaviour change**: `obs_service_create()` never applies the type's `get_defaults`, unlike outputs and encoders, so unset keys read as 0 or "". |
 
