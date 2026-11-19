@@ -18,6 +18,7 @@
 /* Null graphics module for unit tests: no GPU, but objects keep their description and CPU-side contents so that
  * libobs can map, copy, stage and read back real memory, and shaders keep the parameters libobs' effect system binds. */
 
+#include <stdlib.h>
 #include <string.h>
 
 #include <util/base.h>
@@ -556,44 +557,54 @@ EXPORT enum gs_color_format gs_voltexture_get_color_format(const gs_texture_t *v
 	return voltex->format;
 }
 
+/* Two-plane YUV textures (and with them libobs' GPU encoding path) are off unless a test sets
+ * NULL_GRAPHICS_YUV_TEXTURES=1 before creating the device. */
+static bool yuv_textures_enabled(void)
+{
+	const char *val = getenv("NULL_GRAPHICS_YUV_TEXTURES");
+	return val && *val == '1';
+}
+
 EXPORT bool device_nv12_available(gs_device_t *device)
 {
 	UNUSED_PARAMETER(device);
 	COUNT(device_nv12_available);
-	return false;
+	return yuv_textures_enabled();
 }
 
 EXPORT bool device_p010_available(gs_device_t *device)
 {
 	UNUSED_PARAMETER(device);
 	COUNT(device_p010_available);
-	return false;
+	return yuv_textures_enabled();
+}
+
+static bool create_two_plane(gs_device_t *device, gs_texture_t **tex_y, gs_texture_t **tex_uv, uint32_t width,
+			     uint32_t height, uint32_t flags, enum gs_color_format y_format,
+			     enum gs_color_format uv_format)
+{
+	*tex_y = NULL;
+	*tex_uv = NULL;
+	if (!yuv_textures_enabled())
+		return false;
+
+	*tex_y = device_texture_create(device, width, height, y_format, 1, NULL, flags);
+	*tex_uv = device_texture_create(device, width / 2, height / 2, uv_format, 1, NULL, flags);
+	return true;
 }
 
 EXPORT bool device_texture_create_nv12(gs_device_t *device, gs_texture_t **tex_y, gs_texture_t **tex_uv, uint32_t width,
 				       uint32_t height, uint32_t flags)
 {
-	UNUSED_PARAMETER(device);
-	UNUSED_PARAMETER(width);
-	UNUSED_PARAMETER(height);
-	UNUSED_PARAMETER(flags);
 	COUNT(device_texture_create_nv12);
-	*tex_y = NULL;
-	*tex_uv = NULL;
-	return false;
+	return create_two_plane(device, tex_y, tex_uv, width, height, flags, GS_R8, GS_R8G8);
 }
 
 EXPORT bool device_texture_create_p010(gs_device_t *device, gs_texture_t **tex_y, gs_texture_t **tex_uv, uint32_t width,
 				       uint32_t height, uint32_t flags)
 {
-	UNUSED_PARAMETER(device);
-	UNUSED_PARAMETER(width);
-	UNUSED_PARAMETER(height);
-	UNUSED_PARAMETER(flags);
 	COUNT(device_texture_create_p010);
-	*tex_y = NULL;
-	*tex_uv = NULL;
-	return false;
+	return create_two_plane(device, tex_y, tex_uv, width, height, flags, GS_R16, GS_RG16);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -668,20 +679,20 @@ EXPORT void gs_stagesurface_unmap(gs_stagesurf_t *stagesurf)
 
 EXPORT gs_stagesurf_t *device_stagesurface_create_nv12(gs_device_t *device, uint32_t width, uint32_t height)
 {
-	UNUSED_PARAMETER(device);
-	UNUSED_PARAMETER(width);
-	UNUSED_PARAMETER(height);
 	COUNT(device_stagesurface_create_nv12);
-	return NULL;
+	if (!yuv_textures_enabled())
+		return NULL;
+	/* both planes in one buffer, the UV plane after the Y plane */
+	return device_stagesurface_create(device, width, height + height / 2, GS_R8);
 }
 
 EXPORT gs_stagesurf_t *device_stagesurface_create_p010(gs_device_t *device, uint32_t width, uint32_t height)
 {
-	UNUSED_PARAMETER(device);
-	UNUSED_PARAMETER(width);
-	UNUSED_PARAMETER(height);
 	COUNT(device_stagesurface_create_p010);
-	return NULL;
+	if (!yuv_textures_enabled())
+		return NULL;
+	/* both planes in one buffer, the UV plane after the Y plane */
+	return device_stagesurface_create(device, width, height + height / 2, GS_R16);
 }
 
 EXPORT gs_zstencil_t *device_zstencil_create(gs_device_t *device, uint32_t width, uint32_t height,

@@ -3220,10 +3220,12 @@ bool start_gpu_encode(obs_encoder_t *encoder)
 
 	if (!video->gpu_encoders.num)
 		success = init_gpu_encoding(video);
-	if (success)
+	if (success) {
+		os_atomic_set_bool(&encoder->gpu_encode_failed, false);
 		da_push_back(video->gpu_encoders, &encoder);
-	else
+	} else {
 		free_gpu_encoding(video);
+	}
 
 	pthread_mutex_unlock(&video->gpu_encoder_mutex);
 	obs_leave_graphics();

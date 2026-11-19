@@ -279,6 +279,34 @@ static void fake_service_apply(void *data, obs_data_t *video, obs_data_t *audio)
 		obs_data_set_int(audio, "bitrate", 160);
 }
 
+/* a texture encoder for the GPU encoding path */
+static volatile long long texture_encodes;
+static bool texture_encoder_fail;
+
+static bool fake_texture_encode(void *data, struct encoder_texture *texture, int64_t pts, uint64_t lock_key,
+				uint64_t *next_key, struct encoder_packet *packet, bool *received_packet)
+{
+	UNUSED_PARAMETER(lock_key);
+	UNUSED_PARAMETER(next_key);
+	struct fake_encoder *fe = data;
+	if (!texture->tex[0] || !texture->tex[1])
+		return false;
+	if (texture_encoder_fail)
+		return false;
+
+	static const uint8_t idr[] = {0, 0, 0, 1, 0x65, 0x88, 0x84, 0x10};
+	memcpy(fe->packet, idr, sizeof(idr));
+	packet->data = fe->packet;
+	packet->size = sizeof(idr);
+	packet->pts = pts;
+	packet->dts = pts;
+	packet->keyframe = true;
+	packet->type = OBS_ENCODER_VIDEO;
+	*received_packet = true;
+	texture_encodes++;
+	return true;
+}
+
 static void register_output_types(void)
 {
 	struct obs_encoder_info venc = {
@@ -297,6 +325,12 @@ static void register_output_types(void)
 		.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_ROI,
 	};
 	obs_register_encoder(&venc);
+
+	struct obs_encoder_info tenc = venc;
+	tenc.id = "fake_texture_enc";
+	tenc.encode_texture2 = fake_texture_encode;
+	tenc.caps = OBS_ENCODER_CAP_PASS_TEXTURE;
+	obs_register_encoder(&tenc);
 
 	struct obs_encoder_info aenc = {
 		.id = "fake_audio_enc",
@@ -689,6 +723,74 @@ static void encoded_output_test(void **state)
 	obs_set_output_source(0, NULL);
 	obs_source_release(src);
 	core_stop();
+}
+
+/* NV12 output with two-plane textures: encoders that take textures run on the GPU encode thread */
+static void gpu_encode_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+	_putenv("NULL_GRAPHICS_YUV_TEXTURES=1");
+	start();
+	texture_encodes = 0;
+	texture_encoder_fail = false;
+
+	obs_source_t *src = obs_source_create("fake_input", "src", NULL, NULL);
+	obs_set_output_source(0, src);
+
+	obs_output_t *out = obs_output_create("fake_encoded_output", "enc", NULL, NULL);
+	obs_encoder_t *venc = obs_video_encoder_create("fake_texture_enc", "tenc", NULL, NULL);
+	obs_encoder_t *aenc = obs_audio_encoder_create("fake_audio_enc", "aenc", NULL, 0, NULL);
+	obs_encoder_set_video(venc, obs_get_video());
+	obs_encoder_set_audio(aenc, obs_get_audio());
+	obs_output_set_video_encoder(out, venc);
+	obs_output_set_audio_encoder(out, aenc, 0);
+	obs_data_t *ss = obs_data_create();
+	obs_data_set_string(ss, "server", "fake://server");
+	obs_service_t *service = obs_service_create("fake_service", "svc", ss, NULL);
+	obs_data_release(ss);
+	obs_output_set_service(out, service);
+
+	assert_true(obs_output_start(out));
+	struct fake_output *fo = fake_output_of(out);
+	assert_true(wait_for(&fo->video_packets, 10));
+	assert_true(texture_encodes >= 10);
+	/* the raw video encoder path was not used */
+	assert_true(obs_encoder_get_encoded_frames(venc) > 0);
+
+	/* pausing stops the texture encodes too */
+	assert_true(obs_output_pause(out, true));
+	os_sleep_ms(50);
+	long long paused = texture_encodes;
+	os_sleep_ms(100);
+	assert_true(texture_encodes <= paused + 1);
+	assert_true(obs_output_pause(out, false));
+	long long before = fo->video_packets;
+	assert_true(wait_for(&fo->video_packets, before + 5));
+
+	/* half the frame rate */
+	obs_output_stop(out);
+	assert_true(wait_inactive(out));
+	assert_true(obs_encoder_set_frame_rate_divisor(venc, 2));
+	assert_true(obs_output_start(out));
+	before = fo->video_packets;
+	assert_true(wait_for(&fo->video_packets, before + 5));
+
+	/* a failing encode stops the output with an error */
+	texture_encoder_fail = true;
+	assert_true(wait_inactive(out));
+	texture_encoder_fail = false;
+
+	obs_output_stop(out);
+	assert_true(wait_inactive(out));
+
+	obs_output_release(out);
+	obs_encoder_release(venc);
+	obs_encoder_release(aenc);
+	obs_service_release(service);
+	obs_set_output_source(0, NULL);
+	obs_source_release(src);
+	core_stop();
+	_putenv("NULL_GRAPHICS_YUV_TEXTURES=");
 }
 
 static long long packet_callbacks;
@@ -1096,7 +1198,7 @@ int main(void)
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(raw_output_test),     cmocka_unit_test(encoder_test),
 		cmocka_unit_test(encoded_output_test), cmocka_unit_test(delay_reconnect_test),
-		cmocka_unit_test(service_test), cmocka_unit_test(service_extra_test),        cmocka_unit_test(null_test),
+		cmocka_unit_test(service_test), cmocka_unit_test(service_extra_test), cmocka_unit_test(gpu_encode_test),        cmocka_unit_test(null_test),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);
