@@ -5,6 +5,8 @@
 
 #include "obs-core-test.h"
 
+#include <util/threading.h>
+
 #include <obs-config.h>
 
 static void lifecycle_test(void **state)
@@ -491,6 +493,180 @@ static void transition_test(void **state)
 	assert_int_equal(fake.creates, fake.destroys);
 }
 
+/* a controllable media source, and an audio source that mixes its own audio (submix) */
+static volatile long media_calls[6];
+static int64_t media_time;
+static volatile long submixes;
+
+static void media_play_pause(void *data, bool pause)
+{
+	UNUSED_PARAMETER(data);
+	os_atomic_inc_long(&media_calls[pause ? 0 : 1]);
+}
+
+static void media_restart(void *data)
+{
+	UNUSED_PARAMETER(data);
+	os_atomic_inc_long(&media_calls[2]);
+}
+
+static void media_stop(void *data)
+{
+	UNUSED_PARAMETER(data);
+	os_atomic_inc_long(&media_calls[3]);
+}
+
+static void media_next(void *data)
+{
+	UNUSED_PARAMETER(data);
+	os_atomic_inc_long(&media_calls[4]);
+}
+
+static void media_previous(void *data)
+{
+	UNUSED_PARAMETER(data);
+	os_atomic_inc_long(&media_calls[5]);
+}
+
+static int64_t media_duration(void *data)
+{
+	UNUSED_PARAMETER(data);
+	return 60000;
+}
+
+static int64_t media_get_time(void *data)
+{
+	UNUSED_PARAMETER(data);
+	return media_time;
+}
+
+static void media_set_time(void *data, int64_t ms)
+{
+	UNUSED_PARAMETER(data);
+	media_time = ms;
+}
+
+static enum obs_media_state media_state(void *data)
+{
+	UNUSED_PARAMETER(data);
+	return OBS_MEDIA_STATE_PLAYING;
+}
+
+static bool submix_audio(void *data, uint64_t *ts_out, struct audio_output_data *audio_output, size_t channels,
+			 size_t sample_rate)
+{
+	UNUSED_PARAMETER(data);
+	UNUSED_PARAMETER(sample_rate);
+	for (size_t ch = 0; ch < channels; ch++)
+		for (size_t i = 0; i < AUDIO_OUTPUT_FRAMES; i++)
+			audio_output->data[ch][i] = 0.25f;
+	*ts_out = os_gettime_ns();
+	return os_atomic_inc_long(&submixes) % 4 != 0;
+}
+
+static volatile long media_signals;
+static void on_media_signal(void *data, calldata_t *cd)
+{
+	UNUSED_PARAMETER(data);
+	UNUSED_PARAMETER(cd);
+	os_atomic_inc_long(&media_signals);
+}
+
+static bool wait_long_at_least(volatile long *v, long count)
+{
+	for (int i = 0; i < 400 && os_atomic_load_long(v) < count; i++)
+		os_sleep_ms(5);
+	return os_atomic_load_long(v) >= count;
+}
+
+static void media_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+	core_start();
+
+	struct obs_source_info media = {
+		.id = "fake_media",
+		.type = OBS_SOURCE_TYPE_INPUT,
+		.output_flags = OBS_SOURCE_ASYNC_VIDEO | OBS_SOURCE_AUDIO | OBS_SOURCE_CONTROLLABLE_MEDIA,
+		.media_play_pause = media_play_pause,
+		.media_restart = media_restart,
+		.media_stop = media_stop,
+		.media_next = media_next,
+		.media_previous = media_previous,
+		.media_get_duration = media_duration,
+		.media_get_time = media_get_time,
+		.media_set_time = media_set_time,
+		.media_get_state = media_state,
+		FAKE_COMMON,
+	};
+	media.get_width = NULL;
+	media.get_height = NULL;
+	obs_register_source(&media);
+
+	struct obs_source_info submix = {
+		.id = "fake_submix",
+		.type = OBS_SOURCE_TYPE_INPUT,
+		.output_flags = OBS_SOURCE_AUDIO | OBS_SOURCE_SUBMIX,
+		.audio_mix = submix_audio,
+		FAKE_COMMON,
+	};
+	submix.get_width = NULL;
+	submix.get_height = NULL;
+	obs_register_source(&submix);
+
+	obs_source_t *src = obs_source_create("fake_media", "media", NULL, NULL);
+	signal_handler_t *sh = obs_source_get_signal_handler(src);
+	const char *signals[] = {"media_play", "media_pause", "media_restart", "media_stopped",
+				 "media_next", "media_previous", "media_started", "media_ended"};
+	for (size_t i = 0; i < 8; i++)
+		signal_handler_connect(sh, signals[i], on_media_signal, NULL);
+	obs_set_output_source(0, src);
+
+	/* actions queue up and run on the next tick, each with its signal */
+	media_signals = 0;
+	obs_source_media_play_pause(src, true);
+	obs_source_media_play_pause(src, false);
+	obs_source_media_restart(src);
+	obs_source_media_stop(src);
+	obs_source_media_next(src);
+	obs_source_media_previous(src);
+	obs_source_media_set_time(src, 1234);
+	assert_true(wait_long_at_least(&media_signals, 6));
+	for (int i = 0; i < 6; i++)
+		assert_int_equal(os_atomic_load_long(&media_calls[i]), 1);
+	assert_int_equal(obs_source_media_get_time(src), 1234);
+	assert_int_equal(obs_source_media_get_duration(src), 60000);
+	assert_int_equal(obs_source_media_get_state(src), OBS_MEDIA_STATE_PLAYING);
+	obs_source_media_started(src);
+	obs_source_media_ended(src);
+	assert_true(wait_long_at_least(&media_signals, 8));
+
+	/* a source that is not controllable ignores them */
+	obs_source_t *plain = obs_source_create("fake_input", "plain", NULL, NULL);
+	obs_source_media_play_pause(plain, true);
+	obs_source_media_restart(plain);
+	obs_source_media_stop(plain);
+	obs_source_media_next(plain);
+	obs_source_media_previous(plain);
+	obs_source_media_set_time(plain, 1);
+	assert_int_equal(obs_source_media_get_duration(plain), 0);
+	assert_int_equal(obs_source_media_get_time(plain), 0);
+	assert_int_equal(obs_source_media_get_state(plain), OBS_MEDIA_STATE_NONE);
+	obs_source_release(plain);
+
+	/* the submix source's audio is mixed in the audio thread; every fourth mix has nothing */
+	obs_source_t *mix = obs_source_create("fake_submix", "submix", NULL, NULL);
+	obs_set_output_source(1, mix);
+	submixes = 0;
+	assert_true(wait_long_at_least(&submixes, 10));
+	obs_set_output_source(1, NULL);
+	obs_source_release(mix);
+
+	obs_set_output_source(0, NULL);
+	obs_source_release(src);
+	core_stop();
+}
+
 static int enum_count;
 static void count_child(obs_source_t *parent, obs_source_t *child, void *param)
 {
@@ -603,6 +779,7 @@ int main(void)
 		cmocka_unit_test(filter_test),
 		cmocka_unit_test(transition_test),
 		cmocka_unit_test(transition_save_load_test),
+		cmocka_unit_test(media_test),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);
