@@ -29,6 +29,21 @@ target_link_libraries(test_source_alias PRIVATE OBS::libobs cmocka::cmocka)
 
 add_test(test_source_alias test_source_alias)
 
+# Video Device Capture: migrations and backend selection, with fake backends
+add_executable(
+  test_video_device
+  test_video_device.c
+  ${CMAKE_SOURCE_DIR}/plugins/capture-video-device/migrate.c
+  ${CMAKE_SOURCE_DIR}/plugins/capture-video-device/video-device.c
+)
+target_include_directories(
+  test_video_device
+  PRIVATE ${CMOCKA_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/plugins/capture-video-device
+)
+target_link_libraries(test_video_device PRIVATE OBS::libobs cmocka::cmocka)
+
+add_test(test_video_device test_video_device)
+
 # Vulkan backend export test
 if(ENABLE_VULKAN)
   find_package(Vulkan REQUIRED)

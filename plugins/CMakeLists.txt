@@ -50,6 +50,7 @@ add_core_module(
 )
 add_core_module(aja-output-ui PLATFORMS WINDOWS MACOS LINUX WITH_MESSAGE)
 add_core_module(asio-output-ui PLATFORMS WINDOWS WITH_MESSAGE)
+add_core_module(capture-video-device PLATFORMS WINDOWS MACOS LINUX FREEBSD OPENBSD)
 add_core_module(coreaudio-encoder PLATFORMS WINDOWS MACOS)
 add_core_module(
     decklink

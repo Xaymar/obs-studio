@@ -1,0 +1,106 @@
+/*
+ * Video Device Capture: one user-facing source for cameras and capture cards,
+ * with the platform API (DirectShow, AVFoundation, PipeWire, V4L2) chosen as a
+ * backend behind it.
+ *
+ * This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation, either version 2 of the License, or (at your option)
+ * any later version.
+ */
+#pragma once
+
+#include <obs-module.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define VIDEO_DEVICE_SOURCE_ID "video_device_capture"
+
+/* ------------------------------------------------------------------------- */
+/* Common settings, the same on every platform.                              */
+
+/* Backend name, or "auto". */
+#define VD_BACKEND "backend"
+#define VD_BACKEND_AUTO "auto"
+
+/* Device identity: backend that owns the ID, the backend's stable ID, and the
+ * display name used as a fallback when the ID no longer matches (another
+ * machine, another port, another platform). */
+#define VD_DEVICE_BACKEND "device_backend"
+#define VD_DEVICE_ID "device_id"
+#define VD_DEVICE_NAME "device_name"
+
+/* "WxH", or empty for the device's preferred resolution. */
+#define VD_RESOLUTION "resolution"
+/* Frame rate as a fraction. 0/0 is the highest the device offers. */
+#define VD_FPS_NUM "fps_num"
+#define VD_FPS_DEN "fps_den"
+/* Pick the device frame rate closest to the output frame rate instead. */
+#define VD_FPS_MATCH_OUTPUT "fps_match_output"
+/* FourCC such as "NV12" or "MJPG", or empty for automatic. */
+#define VD_PIXEL_FORMAT "pixel_format"
+
+#define VD_COLOR_SPACE "color_space" /* auto, 601, 709, 2100pq, 2100hlg */
+#define VD_COLOR_RANGE "color_range" /* auto, partial, full */
+#define VD_BUFFERING "buffering"     /* auto, on, off */
+#define VD_FLIP_VERTICAL "flip_vertical"
+#define VD_DEACTIVATE_WHEN_HIDDEN "deactivate_when_hidden"
+#define VD_CAPTURE_AUDIO "capture_audio"
+
+#define VD_AUTO "auto"
+
+/* Backend-specific settings are stored as "<backend>.<key>", for example
+ * "v4l2.dv_timing" or "dshow.audio_output_mode", so they survive a trip
+ * through another platform untouched. */
+
+/* ------------------------------------------------------------------------- */
+/* Backend interface                                                         */
+
+typedef void (*vd_device_cb)(void *param, const char *id, const char *name);
+
+struct vd_backend {
+	/* Stable name, used in settings ("dshow", "avfoundation", "pipewire",
+	 * "v4l2"). */
+	const char *name;
+	/* Locale key of the name shown to users. */
+	const char *display_name;
+
+	/* Whether the backend can run on this system right now. */
+	bool (*available)(void);
+
+	/* Lists the devices the backend can open. */
+	void (*enum_devices)(vd_device_cb cb, void *param);
+
+	/* Instance lifetime. The backend delivers frames with
+	 * obs_source_output_video (and audio with obs_source_output_audio).
+	 * A backend that keeps frames on the GPU converts them to RGBA8,
+	 * RGB10A2 or RGBA16F on its own device before handing them over. */
+	void *(*create)(obs_source_t *source, obs_data_t *settings);
+	void (*destroy)(void *data);
+	void (*update)(void *data, obs_data_t *settings);
+
+	/* Optional. */
+	void (*get_defaults)(obs_data_t *settings);
+	/* Adds the device-dependent properties (resolution, frame rate, pixel
+	 * format lists) and any "<backend>." properties. data may be NULL. */
+	void (*add_properties)(void *data, obs_properties_t *props, obs_data_t *settings);
+	void (*activate)(void *data);
+	void (*deactivate)(void *data);
+
+	/* Whether the backend can capture the device's own audio. */
+	bool has_audio;
+};
+
+/* Registered backends for this platform, in Auto preference order. */
+extern const struct vd_backend *const vd_backends[];
+extern const size_t vd_num_backends;
+
+const struct vd_backend *vd_find_backend(const char *name);
+
+extern struct obs_source_info video_device_capture_info;
+
+#ifdef __cplusplus
+}
+#endif
