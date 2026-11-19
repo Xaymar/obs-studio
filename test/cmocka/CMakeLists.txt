@@ -328,6 +328,8 @@ foreach(
     test_util_darray
     test_util_deque
     test_util_dstr
+    test_util_lexer
+    test_util_cf_lexer
 )
   obs_add_unit_test(${test})
 endforeach()
