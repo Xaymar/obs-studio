@@ -442,6 +442,7 @@ foreach(
     test_obs_source
     test_obs_source_av
     test_obs_source_profiler
+    test_obs_register
     test_obs_scene
     test_obs_output
     test_obs_audio
