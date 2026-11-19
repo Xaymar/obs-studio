@@ -2087,7 +2087,9 @@ bool obs_encoder_add_roi(obs_encoder_t *encoder, const struct obs_encoder_roi *r
 		return false;
 	if (!(encoder->info.caps & OBS_ENCODER_CAP_ROI))
 		return false;
-	/* Area smaller than the smallest possible block (16x16) */
+	/* Area smaller than the smallest possible block (16x16), or inverted (the edges are unsigned) */
+	if (roi->bottom < roi->top || roi->right < roi->left)
+		return false;
 	if (roi->bottom - roi->top < 16 || roi->right - roi->left < 16)
 		return false;
 	/* Other invalid ROIs */
