@@ -99,12 +99,13 @@ char *cf_literal_to_str(const char *literal, size_t count)
 	if (literal[0] != '\"' && literal[0] != '\'')
 		return NULL;
 
-	/* strip leading and trailing quote characters */
+	/* strip leading and trailing quote characters; escapes consume more than one source character */
+	const char *end = literal + count - 1;
 	str = bzalloc(--count);
 	temp_src = literal + 1;
 	temp_dst = str;
 
-	while (*temp_src && --count > 0) {
+	while (*temp_src && temp_src < end) {
 		if (*temp_src == '\\') {
 			temp_src++;
 			cf_convert_from_escape_literal(&temp_dst, &temp_src);
@@ -976,6 +977,9 @@ static void cf_preprocess_if(struct cf_preprocessor *pp, struct cf_token **p_cur
 			goto exit;
 	} else if (strref_cmp(&cur_token->str, "elif") == 0) {
 		if (is_true) {
+			/* the #elif condition is not evaluated; skip it rather than lexing it as block content */
+			go_to_newline(&cur_token);
+			cur_token--;
 			if (!cf_preprocess_subblock(pp, is_true, &cur_token))
 				goto exit;
 		} else {
@@ -1015,6 +1019,9 @@ static void cf_preprocess_ifdef(struct cf_preprocessor *pp, bool ifnot, struct c
 
 	} else if (strref_cmp(&cur_token->str, "elif") == 0) {
 		if (is_true) {
+			/* the #elif condition is not evaluated; skip it rather than lexing it as block content */
+			go_to_newline(&cur_token);
+			cur_token--;
 			if (!cf_preprocess_subblock(pp, is_true, &cur_token))
 				goto exit;
 
@@ -1359,6 +1366,8 @@ void cf_preprocessor_add_def(struct cf_preprocessor *pp, struct cf_def *def)
 		dstr_init_copy_strref(&name, &def->name.str);
 		cf_addwarning(pp, &def->name, "Token $1 already defined", name.array, NULL, NULL);
 		cf_addwarning(pp, &existing->name, "Previous definition of $1 is here", name.array, NULL, NULL);
+
+		dstr_free(&name);
 
 		cf_def_free(existing);
 		memcpy(existing, def, sizeof(struct cf_def));

@@ -131,8 +131,12 @@ bool valid_int_str(const char *str, size_t n)
 
 	if (!n)
 		n = strlen(str);
-	if (*str == '-' || *str == '+')
+	/* the sign counts toward n */
+	if (*str == '-' || *str == '+') {
 		++str;
+		if (!--n)
+			return false;
+	}
 
 	do {
 		if (*str > '9' || *str < '0')
@@ -157,8 +161,12 @@ bool valid_float_str(const char *str, size_t n)
 
 	if (!n)
 		n = strlen(str);
-	if (*str == '-' || *str == '+')
+	/* the sign counts toward n */
+	if (*str == '-' || *str == '+') {
 		++str;
+		if (!--n)
+			return false;
+	}
 
 	do {
 		if (*str == '.') {
