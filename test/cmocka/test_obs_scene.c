@@ -6,6 +6,11 @@
 #include "obs-core-test.h"
 
 #include <math.h>
+#include <stdio.h>
+#include <string.h>
+
+#include <util/base.h>
+#include <util/threading.h>
 
 #include <graphics/matrix4.h>
 
@@ -628,11 +633,51 @@ static void render_test(void **state)
 	core_stop();
 }
 
+static volatile long double_destroys;
+static log_handler_t previous_handler;
+static void *previous_param;
+
+static void count_double_destroys(int level, const char *format, va_list args, void *param)
+{
+	UNUSED_PARAMETER(param);
+	if (strstr(format, "Double destroy"))
+		os_atomic_inc_long(&double_destroys);
+	previous_handler(level, format, args, previous_param);
+}
+
+/* Regression: shutting down with scenes that only the main canvas still holds destroyed their sources first,
+ * and the scenes, destroyed afterwards on the destruction thread, released those sources again ("Double
+ * destroy", a use after free). Which came first depended on the order of the uuids, so try a few times. */
+static void shutdown_order_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+	base_get_log_handler(&previous_handler, &previous_param);
+	base_set_log_handler(count_double_destroys, NULL);
+	double_destroys = 0;
+
+	for (int run = 0; run < 10; run++) {
+		core_start();
+		obs_scene_t *scene = obs_scene_create("scene");
+		for (int i = 0; i < 4; i++) {
+			char name[16];
+			snprintf(name, sizeof(name), "src%d", i);
+			obs_source_t *src = make_input(name);
+			obs_scene_add(scene, src);
+			obs_source_release(src);
+		}
+		obs_scene_release(scene);
+		core_stop();
+	}
+
+	base_set_log_handler(previous_handler, previous_param);
+	assert_int_equal(os_atomic_load_long(&double_destroys), 0);
+}
+
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(items_test),     cmocka_unit_test(transform_test), cmocka_unit_test(groups_test),
-		cmocka_unit_test(save_load_test), cmocka_unit_test(misc_test), cmocka_unit_test(render_test),
+		cmocka_unit_test(save_load_test), cmocka_unit_test(misc_test), cmocka_unit_test(render_test), cmocka_unit_test(shutdown_order_test),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);

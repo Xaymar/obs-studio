@@ -1063,10 +1063,15 @@ static void obs_free_data(void)
 	FREE_OBS_LINKED_LIST(display);
 	FREE_OBS_LINKED_LIST(service);
 
-	FREE_OBS_HASH_TABLE(hh, &data->public_sources, source);
-	FREE_OBS_HASH_TABLE(hh_uuid, &data->sources, source);
+	/* Canvases own their scenes, and scenes are destroyed on the destruction thread, releasing their items'
+	 * sources there. Let that finish before destroying the sources still left, or a source destroyed here is
+	 * released (and destroyed) again by a scene being destroyed. */
 	FREE_OBS_HASH_TABLE(hh, &data->named_canvases, canvas);
 	FREE_OBS_HASH_TABLE(hh_uuid, &data->canvases, canvas);
+	os_task_queue_wait(obs->destruction_task_thread);
+
+	FREE_OBS_HASH_TABLE(hh, &data->public_sources, source);
+	FREE_OBS_HASH_TABLE(hh_uuid, &data->sources, source);
 
 	os_task_queue_wait(obs->destruction_task_thread);
 
