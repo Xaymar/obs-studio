@@ -33,18 +33,20 @@ extern "C" {
 typedef void (*obs_mem_destroy_cb)(void *obj);
 typedef struct obs_mem_weak obs_mem_weak_t;
 
-#ifdef _MSC_VER
-#define OBS_MEM_ALIGN32 __declspec(align(32))
-#else
-#define OBS_MEM_ALIGN32 __attribute__((aligned(32)))
-#endif
-
-/* 32 bytes, 32-byte aligned; must be the first member of the object. */
-struct OBS_MEM_ALIGN32 obs_mem_header {
-	volatile long refs;                 /* strong count, destroyed at 0 */
-	struct obs_mem_weak *volatile weak; /* NULL, a weak block or a "dying" marker */
-	obs_mem_destroy_cb destroy;
-	volatile long flags; /* spare */
+/*
+ * 32 bytes, a multiple of 16; must be the first member of the object. No alignment attribute:
+ * brealloc'd objects such as obs_data items may be only 16-byte aligned.
+ */
+struct obs_mem_header {
+	union {
+		struct {
+			volatile long refs;                 /* strong count, destroyed at 0 */
+			struct obs_mem_weak *volatile weak; /* NULL, a weak block or a "dying" marker */
+			obs_mem_destroy_cb destroy;
+			volatile long flags; /* spare */
+		};
+		char reserved[32]; /* fixes the size whatever sizeof(long) is */
+	};
 };
 
 /* Sets refs to 1 and stores the destroy callback. */

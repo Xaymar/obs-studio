@@ -37,7 +37,7 @@ The goal is to replace all of these with one mechanism: one header struct, one c
 
 ## Constraints
 
-- `bmalloc` aligns to 32 bytes (`ALIGNMENT 32` in `libobs/util/bmem.c`). The header is exactly 32 bytes, so whatever follows it keeps 32-byte alignment.
+- `bmalloc` aligns to 32 bytes (`ALIGNMENT 32` in `libobs/util/bmem.c`), but `brealloc` may only keep 16 on non-Windows platforms. The header is exactly 32 bytes, so whatever follows it keeps the allocation's alignment.
 - `long` is 32-bit on Windows; counts stay `volatile long`, as today.
 - `libobs/util/threading-*.h` has no pointer atomics. The design needs pointer compare-exchange and load, so `os_atomic_*_ptr` helpers get added for both Windows and POSIX.
 - `obs_data_item` reallocates itself (`obs-data.c:332`). That's fine with an embedded header, but such objects can never have a weak block, because the weak block points back at the object.
@@ -66,7 +66,7 @@ struct obs_mem_header {          /* 32 bytes, first member of every refcounted o
 };
 ```
 
-Use `static_assert(sizeof(struct obs_mem_header) == 32)`, and give the struct 32-byte alignment so the members that follow it stay aligned.
+Use `static_assert(sizeof(struct obs_mem_header) == 32)`. The size is fixed with explicit padding (a union with `char reserved[32]`), not an alignment attribute: with `ALIGNMENT_HACK`, `brealloc` can return 16-aligned blocks (`bmem.c`), and `obs_data_item` is `brealloc`'d, so declaring 32-byte alignment would be undefined behaviour. 32 is a multiple of 16, so members after the header keep whatever alignment the allocation has (32 for `bmalloc`).
 
 ### Counting rules
 
@@ -156,6 +156,7 @@ Before this change, only the creator held the newly refcounted types, so `*_dest
 Concretely:
 - **Display.** `render_displays` (`obs-video.c:94`) holds the recursive `displays_mutex` while calling draw callbacks. A callback that drops the last ref would today unlink and free the node the loop is standing on. The fix: take a ref on the current display, render it, read `next`, then release. The final destroy then happens under the recursive mutex, after the loop has moved on.
 - **Fader and volmeter.** Their callback dispatch, from the audio and source signal paths, holds a ref on the fader or volmeter while invoking callbacks.
+- **Creator-only timing (decided in review).** Those temporary refs must not move a creator-only destroy to another thread. `obs_display_destroy` releases while holding graphics and then `displays_mutex` (the render thread's order), so the render thread's temporary ref is always gone first. `obs_fader_destroy` and `obs_volmeter_destroy` detach from the source before releasing; detach waits on the signal mutex or `audio_cb_mutex`, inside which the dispatch drops its temporary ref, and it stops callbacks for every other holder too.
 - **Properties.** The modified, button and group callbacks hold a ref on the top-level `obs_properties_t` while running.
 - **Properties groups.** `group_data_free` clears the child's `parent` link before releasing it. A group's properties held by a plugin then survive their parent as a detached set, and `obs_properties_get_parent` returns NULL instead of a dangling pointer.
 - `obs_view`, `obs_missing_files` and `obs_encoder_group` hand themselves to no user callbacks, so they need no guard.
@@ -164,7 +165,7 @@ Concretely:
 
 ## Left to the builder
 
-- Exact padding and alignment syntax for the header (the `alignas(32)` and MSVC equivalents used elsewhere in libobs).
+- Exact padding syntax for the header (decided in review: explicit padding, no alignment attribute).
 - Whether `obs_mem_acquire` and `obs_mem_release` are also `static inline` internally for speed, alongside the exported versions.
 - Spin strategy while waiting on pins (`os_yield` or a plain pause loop is fine).
 - The order in which types are converted. Suggested order: `obs-mem.c` with tests first, then `obs_data`, scene items, missing files, the context types, and finally the newly refcounted types.
