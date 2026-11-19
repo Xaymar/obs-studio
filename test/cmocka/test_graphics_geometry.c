@@ -106,15 +106,17 @@ static void plane_test(void **state)
 	vec3_set(&end, 1.0f, 0.0f, -1.0f);
 	assert_false(plane_intersection_line(&z1, &orig, &end, &t));
 
-	/* plane_tri_inside() returns a side bitmask: 0 on the plane, 2 in front, 1 behind, 3 straddling */
-	assert_int_equal(plane_tri_inside(&z1, &a, &b, &c, 1e-4f), 0);
+	/* Regression: these returned a side bitmask as bool, true when anything was off the plane */
+	assert_true(plane_tri_inside(&z1, &a, &b, &c, 1e-4f));
 	vec3_set(&c, 0.0f, 1.0f, 2.0f);
-	assert_true(plane_tri_inside(&z1, &a, &b, &c, 1e-4f));
+	assert_false(plane_tri_inside(&z1, &a, &b, &c, 1e-4f));
 	vec3_set(&c, 0.0f, 1.0f, 0.0f);
+	assert_false(plane_tri_inside(&z1, &a, &b, &c, 1e-4f));
+	vec3_set(&c, 0.0f, 1.0f, 1.00001f);
 	assert_true(plane_tri_inside(&z1, &a, &b, &c, 1e-4f));
-	/* same bitmask convention as plane_tri_inside() */
-	assert_false(plane_line_inside(&z1, &a, &b, 1e-4f));
-	assert_true(plane_line_inside(&z1, &a, &c, 1e-4f));
+	assert_true(plane_line_inside(&z1, &a, &b, 1e-4f));
+	vec3_set(&c, 0.0f, 1.0f, 0.0f);
+	assert_false(plane_line_inside(&z1, &a, &c, 1e-4f));
 }
 
 static void bounds_test(void **state)

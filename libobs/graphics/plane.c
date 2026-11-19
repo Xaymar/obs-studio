@@ -134,7 +134,8 @@ bool plane_tri_inside(const struct plane *p, const struct vec3 *v1, const struct
 	else if (d3 <= -precision)
 		sides |= 1;
 
-	return sides;
+	/* inside: every point lies on the plane */
+	return sides == 0;
 }
 
 bool plane_line_inside(const struct plane *p, const struct vec3 *v1, const struct vec3 *v2, float precision)
@@ -155,5 +156,6 @@ bool plane_line_inside(const struct plane *p, const struct vec3 *v1, const struc
 	else if (d2 <= -precision)
 		sides |= 1;
 
-	return sides;
+	/* inside: every point lies on the plane */
+	return sides == 0;
 }
