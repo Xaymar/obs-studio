@@ -327,7 +327,7 @@ gs_epass_t *gs_technique_get_pass_by_idx(const gs_technique_t *technique, size_t
 		return NULL;
 	struct gs_effect_pass *passes = technique->passes.array;
 
-	if (pass > technique->passes.num)
+	if (pass >= technique->passes.num)
 		return NULL;
 
 	return passes + pass;
