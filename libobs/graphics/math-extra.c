@@ -24,6 +24,7 @@
 void polar_to_cart(struct vec3 *dst, const struct vec3 *v)
 {
 	struct vec3 cart;
+	vec3_zero(&cart); /* the w lane takes part in vec3_dot() */
 	float sinx = cosf(v->x);
 	float sinx_z = v->z * sinx;
 
@@ -37,6 +38,7 @@ void polar_to_cart(struct vec3 *dst, const struct vec3 *v)
 void cart_to_polar(struct vec3 *dst, const struct vec3 *v)
 {
 	struct vec3 polar;
+	vec3_zero(&polar); /* the w lane takes part in vec3_dot() */
 	polar.z = vec3_len(v);
 
 	if (close_float(polar.z, 0.0f, EPSILON)) {
