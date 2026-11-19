@@ -27,3 +27,15 @@ their own commits with a regression test and are not listed here.
 | util/profiler.c | A snapshot reports fewer root calls than were made in `test_util_profiler`; not investigated yet. |
 | util/profiler.c | `profiler_snapshot_filter_roots(NULL, ...)` crashes, unlike every other snapshot accessor. |
 | obs.c | `obs_get_video_info()` (and so `os_generate_formatted_filename()`) dereferences `obs` and crashes before `obs_startup()`. |
+
+## media-io/
+
+| File | Bug |
+| --- | --- |
+| media-io/format-conversion.c | `decompress_420()` packs pixels as `Y << 16 \| U << 8 \| V`, `decompress_nv12()` as `V << 16 \| U << 8 \| Y`: the same "packed 4:4:4" output in opposite byte orders. Neither has callers in the tree. |
+| media-io/video-frame.c | `video_frame_init()` (and `video_frame_create()`) with `VIDEO_FORMAT_NONE` or an unknown format computes a size of 0 and calls `bmalloc(0)`, which crashes. |
+| media-io/video-io.c | `video_output_get_skipped_frames(NULL)` and `video_output_get_total_frames(NULL)` crash; every other getter returns a default for NULL. |
+| media-io/video-io.c | The getters of a frame-rate divisor output (`video_output_get_frame_rate()` and the rest) read the root output, so a half-rate output reports the full frame rate. |
+| media-io/video-io.c | `valid_video_params()` accepts `cache_size == 0`; such an output never locks a frame and keeps counting every frame as skipped. |
+| media-io/video-io.c | `video_output_unlock_frame()` without a successful `video_output_lock_frame()` decrements `available_frames` below zero (it is a `size_t`). |
+| media-io/media-remux.c | `media_remux_job_create()` passes `out_filename` to `strcmp()` without a NULL check. |

@@ -42,6 +42,27 @@ Reasons:
 | util/buffered-file-serializer.c | 273-279 | writer waits for the I/O thread | Timing: only when the I/O thread falls behind; flaky to force |
 | util/profiler.c | `profiler_free()` | freeing after a start/snapshot/stop cycle | Crash |
 
+## media-io/
+
+| File | Lines | Code | Reason |
+| --- | --- | --- | --- |
+| media-io/audio-io.c | 363-390 | `audio_output_open()`: `bzalloc()`, mutex, event or thread creation failed | OOM / OS failure |
+| media-io/audio-io.c | 278-281 | `audio_input_init()`: resampler creation failed | Dead: every format/layout pair the API accepts creates a resampler |
+| media-io/audio-resampler-ffmpeg.c | 49-50, 70 | `AUDIO_FORMAT_UNKNOWN` / unknown layout fallbacks | Dead: `audio_output_open()` rejects unknown formats and layouts |
+| media-io/audio-resampler-ffmpeg.c | 134-137, 161-164, 209-211 | `swr_alloc_set_opts2()`, `swr_init()`, `swr_convert()` failures | OS failure (swresample allocation) |
+| media-io/audio-resampler-ffmpeg.c | 156 | `swr_set_matrix()` failure for the mono upmix | Dead for the layouts libobs passes |
+| media-io/media-remux.c | 56-59, 81-91 | stream info, stream allocation and parameter copy failures | OS failure (libavformat allocation) / needs a corrupt file libavformat opens but cannot probe |
+| media-io/media-remux.c | 186-189, 207-215, 231-233, 243-245 | read, mux, header and trailer errors | Needs inputs that libavformat opens but fails to read or mux; not constructible from a test-generated file |
+| media-io/video-frame.c | 37-39, 127-129 | `VIDEO_FORMAT_NONE` in the layout switches | Crash: `video_frame_init()` then calls `bmalloc(0)` (see known-bugs.md) |
+| media-io/video-io.c | 248-276 | `video_output_open()`: mutex, semaphore or thread creation failed | OOM / OS failure |
+| media-io/video-io.c | 119-120, 357-359 | scaling a frame failed / scaler creation failed for a reason other than a bad conversion | OS failure (swscale allocation) |
+| media-io/video-io.c | 617-679 | `video_output_inc/dec_texture_*()`, `video_output_create_with_frame_rate_divisor()` | Not exported: reachable only through the encoder code (track with obs-encoder tests) |
+| media-io/video-scaler-ffmpeg.c | 181-190, 202-218, 242-244 | `av_image_alloc()`, `sws_alloc_context()`, `sws_init_context()`, `sws_scale()` failures | OS failure (swscale allocation) |
+| media-io/video-scaler-ffmpeg.c | 209-211 | `sws_setColorspaceDetails()` failure | Dead for the coefficients libobs passes |
+| media-io/video-matrices.c | 188, 190 | `bpc < 8` / `bpc > 16` clamps | Dead: every format maps to 8, 10, 12 or 16 bits |
+| audio-monitoring/monitoring-mix.c | all | monitoring mixer | Not exported: reachable only through libobs audio monitoring with live sources (track with obs-audio tests) |
+| audio-monitoring/win32/* | all | WASAPI monitoring output and device enumeration | Needs a real audio device |
+
 Not yet covered and not tested on purpose (threading-level, may be replaced):
 
 - util/threading-windows.c, util/threading-windows.h, util/threading.h
@@ -56,3 +77,8 @@ Reachable, but no test yet (not unreachable; tracked here until covered):
 - util/config-file.c: 424-429: `config_save_safe()`: temporary file cannot be written
 - util/serializer.h: 61: `serialize()` read path
 - util/utf8.c: 37: `wchar_to_utf8()` with `insize == 0`
+- media-io/video-io.c: 179-181: a repeated frame that is also skipped (`frame_info->skipped`)
+- media-io/video-io.c: 288: `video_output_close()` freeing inputs that are still connected
+- media-io/video-io.c: 322-327: `collapse_space()` for sRGB and HLG conversions
+- media-io/video-io.c: 457-462: `log_skipped()` after frames were skipped
+- media-io/video-scaler-ffmpeg.c: 260: copying into an output linesize smaller than the scaler's
