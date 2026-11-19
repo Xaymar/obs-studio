@@ -93,6 +93,17 @@ struct signal_handler {
 	pthread_mutex_t global_callbacks_mutex;
 };
 
+static size_t find_global_callback(signal_handler_t *handler, global_signal_callback_t callback, void *data)
+{
+	for (size_t i = 0; i < handler->global_callbacks.num; i++) {
+		struct global_callback_info *cb = handler->global_callbacks.array + i;
+		if (cb->callback == callback && cb->data == data)
+			return i;
+	}
+
+	return DARRAY_INVALID;
+}
+
 static struct signal_info *getsignal(signal_handler_t *handler, const char *name, struct signal_info **p_last)
 {
 	struct signal_info *signal, *last = NULL;
@@ -363,16 +374,18 @@ void signal_handler_connect_global(signal_handler_t *handler, global_signal_call
 
 	pthread_mutex_lock(&handler->global_callbacks_mutex);
 
-	idx = da_find(handler->global_callbacks, &cb_data, 0);
+	idx = find_global_callback(handler, callback, data);
 	if (idx == DARRAY_INVALID)
 		da_push_back(handler->global_callbacks, &cb_data);
+	else
+		/* reconnecting while a disconnect is pending keeps the callback */
+		handler->global_callbacks.array[idx].remove = false;
 
 	pthread_mutex_unlock(&handler->global_callbacks_mutex);
 }
 
 void signal_handler_disconnect_global(signal_handler_t *handler, global_signal_callback_t callback, void *data)
 {
-	struct global_callback_info cb_data = {callback, data, 0, false};
 	size_t idx;
 
 	if (!handler || !callback)
@@ -380,7 +393,8 @@ void signal_handler_disconnect_global(signal_handler_t *handler, global_signal_c
 
 	pthread_mutex_lock(&handler->global_callbacks_mutex);
 
-	idx = da_find(handler->global_callbacks, &cb_data, 0);
+	/* match on callback and data only: the entry's signaling count is non-zero inside the callback */
+	idx = find_global_callback(handler, callback, data);
 	if (idx != DARRAY_INVALID) {
 		struct global_callback_info *cb = handler->global_callbacks.array + idx;
 
