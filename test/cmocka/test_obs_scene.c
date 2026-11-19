@@ -519,11 +519,120 @@ static void misc_test(void **state)
 	core_stop();
 }
 
+static float scene_samples[2][480];
+
+/* items drawn through their own texture (crop, scale filters, sRGB off), every bounds mode with bounds cropping,
+ * a scene mixing an async source's audio, and reordering with groups */
+static void render_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+	core_start();
+
+	obs_scene_t *scene = obs_scene_create("render");
+	obs_set_output_source(0, obs_scene_get_source(scene));
+
+	obs_source_t *src = make_input("src");
+	obs_sceneitem_t *item = obs_scene_add(scene, src);
+	struct obs_sceneitem_crop crop = {.left = 1, .right = 2, .top = 1, .bottom = 1};
+	obs_sceneitem_set_crop(item, &crop);
+	struct vec2 v = {1.5f, 1.25f};
+	obs_sceneitem_set_scale(item, &v);
+	for (int filter = OBS_SCALE_DISABLE; filter <= OBS_SCALE_AREA; filter++) {
+		obs_sceneitem_set_scale_filter(item, (enum obs_scale_type)filter);
+		obs_sceneitem_set_blending_method(item, filter % 2 ? OBS_BLEND_METHOD_SRGB_OFF : OBS_BLEND_METHOD_DEFAULT);
+		core_wait_frames(2);
+	}
+	/* down-scaling with the area filter */
+	vec2_set(&v, 0.5f, 0.5f);
+	obs_sceneitem_set_scale(item, &v);
+	core_wait_frames(2);
+
+	vec2_set(&v, 1.0f, 1.0f);
+	obs_sceneitem_set_scale(item, &v);
+	vec2_set(&v, 20.0f, 50.0f);
+	obs_sceneitem_set_bounds(item, &v);
+	const uint32_t alignments[] = {OBS_ALIGN_CENTER, OBS_ALIGN_LEFT | OBS_ALIGN_TOP,
+				       OBS_ALIGN_RIGHT | OBS_ALIGN_BOTTOM};
+	for (int type = OBS_BOUNDS_STRETCH; type <= OBS_BOUNDS_MAX_ONLY; type++) {
+		obs_sceneitem_set_bounds_type(item, (enum obs_bounds_type)type);
+		obs_sceneitem_set_bounds_alignment(item, alignments[type % 3]);
+		obs_sceneitem_set_bounds_crop(item, type % 2 == 0);
+		obs_sceneitem_force_update_transform(item);
+		core_wait_frames(1);
+	}
+	/* bounds relative to the canvas */
+	struct obs_transform_info info;
+	obs_sceneitem_get_info2(item, &info);
+	info.bounds_type = OBS_BOUNDS_SCALE_OUTER;
+	info.crop_to_bounds = true;
+	obs_sceneitem_set_info2(item, &info);
+	core_wait_frames(2);
+
+	/* audio from an async source in the scene */
+	obs_source_t *async = obs_source_create("fake_async", "async", NULL, NULL);
+	obs_sceneitem_t *aitem = obs_scene_add(scene, async);
+	for (int i = 0; i < 480; i++)
+		scene_samples[0][i] = scene_samples[1][i] = (i % 48) / 48.0f - 0.5f;
+	uint64_t ts = os_gettime_ns();
+	for (int i = 0; i < 30; i++) {
+		struct obs_source_audio audio = {
+			.data = {(uint8_t *)scene_samples[0], (uint8_t *)scene_samples[1]},
+			.frames = 480,
+			.speakers = SPEAKERS_STEREO,
+			.format = AUDIO_FORMAT_FLOAT_PLANAR,
+			.samples_per_sec = 48000,
+			.timestamp = ts + i * 10000000ULL,
+		};
+		obs_source_output_audio(async, &audio);
+		if (i == 15)
+			obs_sceneitem_set_visible(aitem, false);
+		if (i % 5 == 0)
+			core_wait_frames(1);
+	}
+	obs_sceneitem_set_visible(aitem, true);
+	core_wait_frames(5);
+
+	/* reordering across a group */
+	obs_sceneitem_t *group = obs_scene_add_group2(scene, "grp", false);
+	obs_source_t *gsrc = make_input("gsrc");
+	obs_sceneitem_t *gitem = obs_scene_add(scene, gsrc);
+	struct obs_sceneitem_order_info order[] = {
+		{NULL, aitem},
+		{NULL, group},
+		{group, gitem}, /* a group's items follow it */
+		{NULL, item},
+	};
+	assert_true(obs_scene_reorder_items2(scene, order, 4));
+	assert_ptr_equal(obs_sceneitem_get_group(scene, gitem), group);
+	struct item_list list = items_of(scene);
+	assert_int_equal(list.count, 3);
+	assert_ptr_equal(list.items[0], aitem);
+	assert_ptr_equal(list.items[2], item);
+	/* back out of the group */
+	struct obs_sceneitem_order_info flat[] = {
+		{NULL, gitem},
+		{NULL, item},
+		{NULL, group},
+		{NULL, aitem},
+	};
+	assert_true(obs_scene_reorder_items2(scene, flat, 4));
+	assert_null(obs_sceneitem_get_group(scene, gitem));
+	assert_false(obs_scene_reorder_items2(NULL, flat, 4));
+	core_wait_frames(2);
+
+	obs_set_output_source(0, NULL);
+	obs_source_release(gsrc);
+	obs_source_release(async);
+	obs_source_release(src);
+	obs_scene_release(scene);
+	core_stop();
+}
+
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(items_test),     cmocka_unit_test(transform_test), cmocka_unit_test(groups_test),
-		cmocka_unit_test(save_load_test), cmocka_unit_test(misc_test),
+		cmocka_unit_test(save_load_test), cmocka_unit_test(misc_test), cmocka_unit_test(render_test),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);
