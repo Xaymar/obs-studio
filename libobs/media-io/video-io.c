@@ -85,6 +85,8 @@ struct video_output {
 	size_t available_frames;
 	size_t first_added;
 	size_t last_added;
+	/* a frame from video_output_lock_frame() waits for video_output_unlock_frame() */
+	bool frame_locked;
 	struct cached_frame_info cache[MAX_CACHE_SIZE];
 
 	struct video_output *parent;
@@ -538,6 +540,7 @@ bool video_output_lock_frame(video_t *video, struct video_frame *frame, int coun
 		memcpy(frame, &cfi->frame, sizeof(*frame));
 
 		locked = true;
+		video->frame_locked = true;
 	}
 
 	pthread_mutex_unlock(&video->data_mutex);
@@ -554,8 +557,12 @@ void video_output_unlock_frame(video_t *video)
 
 	pthread_mutex_lock(&video->data_mutex);
 
-	video->available_frames--;
-	os_sem_post(video->update_semaphore);
+	/* without a locked frame there is nothing to hand to the video thread */
+	if (video->frame_locked) {
+		video->frame_locked = false;
+		video->available_frames--;
+		os_sem_post(video->update_semaphore);
+	}
 
 	pthread_mutex_unlock(&video->data_mutex);
 }

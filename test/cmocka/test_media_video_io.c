@@ -212,6 +212,12 @@ static void skipped_test(void **state)
 	/* no frame free: the newest frame is repeated and counted as skipped */
 	assert_false(video_output_lock_frame(video, &frame, 1, 2));
 
+	/* Regression: an unlock without a locked frame decremented the free frame count below zero, after which
+	 * every lock succeeded */
+	video_output_unlock_frame(video);
+	video_output_unlock_frame(video);
+	assert_false(video_output_lock_frame(video, &frame, 1, 3));
+
 	video_output_disconnect(video, on_frame, &raw);
 	video_output_close(video);
 }
