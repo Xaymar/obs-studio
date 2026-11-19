@@ -13,6 +13,22 @@ Reasons:
 - **Dead**: no input reaches it.
 - **Crash**: reaching it crashed libobs. All of these are fixed now; their rows say so.
 
+## Allocation failure checks (dead)
+
+`bmalloc()`, `bzalloc()` and `brealloc()` never return NULL: they `bcrash()` when the allocation fails
+(util/bmem.c), so an `if (!ptr)` right after one of them is dead. The checks in libobs:
+
+| File | Lines | Allocation |
+| --- | --- | --- |
+| audio-monitoring/monitoring-mix.c | 210, 384 | `bzalloc()` of the mix and of a mix source |
+| media-io/audio-io.c | 362 (`goto fail0`) | `bzalloc()` of the audio output |
+| media-io/video-io.c | 250 (`goto fail0`) | `bzalloc()` of the video output |
+| obs-audio-controls.c | 553, 776 | `bzalloc()` of a fader and of a volume meter |
+| util/buffered-file-serializer.c | 70-72 | `bmalloc()` of the I/O thread's chunk (also listed below) |
+
+Out of this build: obs-nix.c 196 (`bmalloc()`). `bstrdup()` checks are not dead (it returns NULL for NULL).
+Allocation failures inside FFmpeg, the CRT and Win32 calls stay under OOM in the tables below.
+
 ## util/
 
 | File | Lines | Code | Reason |
