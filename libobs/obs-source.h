@@ -567,6 +567,41 @@ EXPORT void obs_register_source_s(const struct obs_source_info *info, size_t siz
  */
 #define obs_register_source(info) obs_register_source_s(info, sizeof(struct obs_source_info))
 
+/**
+ * Called when a source is created through an alias, before the new source
+ * type sees the settings. Rename or convert keys here so the new source type
+ * understands settings that were saved by the old one.
+ *
+ * @param  param     The param given to obs_register_source_alias
+ * @param  old_id    The ID the source was requested or saved with
+ * @param  settings  A private copy of the settings, safe to modify
+ */
+typedef void (*obs_source_alias_migrate_t)(void *param, const char *old_id, obs_data_t *settings);
+
+/**
+ * Registers an alias, so that sources requested or saved with an old source
+ * ID are created as another, registered source type instead.
+ *
+ * Aliases are resolved when a source is created or loaded, never at
+ * registration, so the target may be registered by another module and in any
+ * order (safe with parallel module loading). A source type registered under
+ * old_id always wins over the alias. An alias may point at another alias.
+ *
+ * The created source reports the new ID through obs_source_get_id and is
+ * saved with it.
+ *
+ * @param  old_id   Exact ID to replace, as saved in "versioned_id" (for
+ *                  example "xshm_input_v2"; register each version separately)
+ * @param  new_id   Exact ID of the replacement, or its unversioned ID to always
+ *                  use its latest version
+ * @param  migrate  Optional settings migration, run once per created source
+ * @param  param    Passed to migrate
+ * @return          false if the arguments are invalid, old_id is already an
+ *                  alias, or a source type is already registered as old_id
+ */
+EXPORT bool obs_register_source_alias(const char *old_id, const char *new_id, obs_source_alias_migrate_t migrate,
+				      void *param);
+
 #ifdef __cplusplus
 }
 #endif

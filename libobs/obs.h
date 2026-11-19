@@ -744,6 +744,15 @@ EXPORT bool obs_enum_input_types2(size_t idx, const char **id, const char **unve
 EXPORT const char *obs_get_latest_input_type_id(const char *unversioned_id);
 
 /**
+ * Resolves a source ID through registered aliases.
+ *
+ * @return  The ID of the registered source type that id creates: id's own type
+ *          if one is registered, otherwise the type its alias chain ends at.
+ *          NULL if id is unknown or its alias chain is broken.
+ */
+EXPORT const char *obs_source_alias_resolve(const char *id);
+
+/**
  * Enumerates all available filter source types.
  *
  *   Filters are sources that are used to modify the video/audio output of
@@ -1956,6 +1965,15 @@ EXPORT void obs_scene_prune_sources(obs_scene_t *scene);
 
 EXPORT const char *obs_output_get_display_name(const char *id);
 
+/**
+ * Resolves an output ID through registered aliases.
+ *
+ * @return  The ID of the registered output type that id creates: id's own type
+ *          if one is registered, otherwise the type its alias chain ends at.
+ *          NULL if id is unknown or its alias chain is broken.
+ */
+EXPORT const char *obs_output_alias_resolve(const char *id);
+
 /** Returns a pointer to the module which provides the output */
 EXPORT obs_module_t *obs_output_get_module(const char *id);
 
@@ -2293,6 +2311,15 @@ EXPORT uint64_t obs_output_get_pause_offset(obs_output_t *output);
 /* Encoders */
 
 EXPORT const char *obs_encoder_get_display_name(const char *id);
+
+/**
+ * Resolves an encoder ID through registered aliases.
+ *
+ * @return  The ID of the registered encoder type that id creates: id's own type
+ *          if one is registered, otherwise the type its alias chain ends at.
+ *          NULL if id is unknown or its alias chain is broken.
+ */
+EXPORT const char *obs_encoder_alias_resolve(const char *id);
 
 /** Returns a pointer to the module which provides the encoder */
 EXPORT obs_module_t *obs_encoder_get_module(const char *id);

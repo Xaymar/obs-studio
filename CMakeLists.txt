@@ -39,6 +39,7 @@ add_subdirectory(plugins)
 
 add_subdirectory(test/test-input)
 add_subdirectory(test/test-obs-mem)
+add_subdirectory(test/install-layout)
 
 if(ENABLE_UNIT_TESTS)
   enable_testing()

@@ -550,6 +550,49 @@ struct obs_core_hotkeys {
 
 typedef DARRAY(struct obs_source_info) obs_source_info_array_t;
 
+struct obs_source_alias {
+	char *old_id;
+	char *new_id;
+	obs_source_alias_migrate_t migrate;
+	void *param;
+};
+
+/* Aliases for encoder and output type IDs (obs-type-alias.c). */
+#define OBS_TYPE_ALIAS_MAX_HOPS 8
+
+typedef void (*obs_type_alias_migrate_t)(void *param, const char *old_id, obs_data_t *settings);
+
+struct obs_type_alias {
+	char *old_id;
+	char *new_id;
+	obs_type_alias_migrate_t migrate;
+	void *param;
+};
+
+struct obs_type_alias_hop {
+	const char *old_id;
+	obs_type_alias_migrate_t migrate;
+	void *param;
+};
+
+struct obs_type_alias_table {
+	pthread_mutex_t mutex;
+	DARRAY(struct obs_type_alias) aliases;
+};
+
+extern bool obs_type_alias_table_init(struct obs_type_alias_table *table);
+extern void obs_type_alias_table_free(struct obs_type_alias_table *table);
+extern bool obs_type_alias_register(struct obs_type_alias_table *table, const char *kind, const char *old_id,
+				    const char *new_id, obs_type_alias_migrate_t migrate, void *param,
+				    const void *(*lookup)(const char *id));
+/* Strings in hops stay valid until shutdown: aliases are never removed. */
+extern const void *obs_type_alias_resolve(struct obs_type_alias_table *table, const char *kind, const char *id,
+					  const void *(*lookup)(const char *id), struct obs_type_alias_hop *hops,
+					  size_t *num_hops);
+/* A private copy of settings with every hop's migration applied, or NULL
+ * when no alias was followed. */
+extern obs_data_t *obs_type_alias_migrate(obs_data_t *settings, const struct obs_type_alias_hop *hops, size_t num_hops);
+
 struct obs_core {
 	/* Guards the module lists and the registered type arrays, so modules can be
 	 * loaded from several threads at once. Recursive. */
@@ -566,8 +609,12 @@ struct obs_core {
 	obs_source_info_array_t input_types;
 	obs_source_info_array_t filter_types;
 	obs_source_info_array_t transition_types;
+	pthread_mutex_t source_aliases_mutex;
+	DARRAY(struct obs_source_alias) source_aliases;
 	DARRAY(struct obs_output_info) output_types;
 	DARRAY(struct obs_encoder_info) encoder_types;
+	struct obs_type_alias_table output_aliases;
+	struct obs_type_alias_table encoder_aliases;
 	DARRAY(struct obs_service_info) service_types;
 
 	signal_handler_t *signals;
@@ -959,6 +1006,7 @@ struct obs_source {
 
 extern struct obs_source_info *get_source_info(const char *id);
 extern struct obs_source_info *get_source_info2(const char *unversioned_id, uint32_t ver);
+extern void obs_free_source_aliases(void);
 extern bool obs_source_init_context(struct obs_source *source, obs_data_t *settings, const char *name, const char *uuid,
 				    obs_data_t *hotkey_data, bool private);
 
@@ -1270,6 +1318,9 @@ extern bool obs_output_actual_start(obs_output_t *output);
 extern void obs_output_actual_stop(obs_output_t *output, bool force, uint64_t ts);
 
 extern const struct obs_output_info *find_output(const char *id);
+/* find_output, following aliases; fills hops and num_hops when given. */
+extern const struct obs_output_info *find_output_resolved(const char *id, struct obs_type_alias_hop *hops,
+							  size_t *num_hops);
 
 extern void obs_output_remove_encoder(struct obs_output *output, struct obs_encoder *encoder);
 
@@ -1403,6 +1454,9 @@ struct obs_encoder {
 };
 
 extern struct obs_encoder_info *find_encoder(const char *id);
+/* find_encoder, following aliases; fills hops and num_hops when given. */
+extern struct obs_encoder_info *find_encoder_resolved(const char *id, struct obs_type_alias_hop *hops,
+						      size_t *num_hops);
 
 extern bool obs_encoder_initialize(obs_encoder_t *encoder);
 extern void obs_encoder_shutdown(obs_encoder_t *encoder);

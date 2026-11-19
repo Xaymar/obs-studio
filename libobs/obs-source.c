@@ -71,6 +71,150 @@ struct obs_source_info *get_source_info2(const char *unversioned_id, uint32_t ve
 	return NULL;
 }
 
+/* ------------------------------------------------------------------------- */
+/* Source ID aliases                                                         */
+
+#define MAX_ALIAS_HOPS 8
+
+struct alias_hop {
+	const char *old_id;
+	obs_source_alias_migrate_t migrate;
+	void *param;
+};
+
+/* Exact ID first, then the latest version of an unversioned ID. Only used for
+ * alias targets, so plain source creation keeps its exact-ID semantics. */
+static struct obs_source_info *find_alias_target(const char *id)
+{
+	struct obs_source_info *info = get_source_info(id);
+	if (info)
+		return info;
+
+	for (size_t i = 0; i < obs->source_types.num; i++) {
+		struct obs_source_info *cur = &obs->source_types.array[i];
+		if (strcmp(cur->unversioned_id, id) == 0 && (!info || cur->version > info->version))
+			info = cur;
+	}
+	return info;
+}
+
+/* Caller holds source_aliases_mutex. */
+static struct obs_source_alias *find_alias(const char *old_id)
+{
+	for (size_t i = 0; i < obs->source_aliases.num; i++) {
+		struct obs_source_alias *alias = &obs->source_aliases.array[i];
+		if (strcmp(alias->old_id, old_id) == 0)
+			return alias;
+	}
+	return NULL;
+}
+
+/* Resolves id to a registered source type, following aliases. Fills hops with
+ * the aliases that were followed, in order. Strings stored in hops stay valid
+ * until shutdown, because aliases are never removed before then. */
+static struct obs_source_info *resolve_source_info(const char *id, struct alias_hop *hops, size_t *num_hops)
+{
+	struct obs_source_info *info = get_source_info(id);
+	*num_hops = 0;
+	if (info || !id)
+		return info;
+
+	pthread_mutex_lock(&obs->source_aliases_mutex);
+	const char *cur = id;
+	for (size_t i = 0; i < MAX_ALIAS_HOPS; i++) {
+		struct obs_source_alias *alias = find_alias(cur);
+		if (!alias)
+			break;
+
+		hops[i].old_id = alias->old_id;
+		hops[i].migrate = alias->migrate;
+		hops[i].param = alias->param;
+		*num_hops = i + 1;
+
+		info = find_alias_target(alias->new_id);
+		if (info)
+			break;
+		cur = alias->new_id;
+	}
+	pthread_mutex_unlock(&obs->source_aliases_mutex);
+
+	if (!info && *num_hops)
+		blog(LOG_WARNING, "Source ID '%s' is an alias, but its target was not found", id);
+	return info;
+}
+
+bool obs_register_source_alias(const char *old_id, const char *new_id, obs_source_alias_migrate_t migrate,
+			       void *param)
+{
+	if (!obs || !old_id || !*old_id || !new_id || !*new_id || strcmp(old_id, new_id) == 0) {
+		blog(LOG_WARNING, "obs_register_source_alias: invalid arguments");
+		return false;
+	}
+
+	if (get_source_info(old_id)) {
+		blog(LOG_WARNING,
+		     "obs_register_source_alias: a source type named '%s' "
+		     "is already registered",
+		     old_id);
+		return false;
+	}
+
+	bool added = false;
+	pthread_mutex_lock(&obs->source_aliases_mutex);
+	if (!find_alias(old_id)) {
+		struct obs_source_alias *alias = da_push_back_new(obs->source_aliases);
+		alias->old_id = bstrdup(old_id);
+		alias->new_id = bstrdup(new_id);
+		alias->migrate = migrate;
+		alias->param = param;
+		added = true;
+	}
+	pthread_mutex_unlock(&obs->source_aliases_mutex);
+
+	if (!added)
+		blog(LOG_WARNING, "obs_register_source_alias: '%s' is already an alias", old_id);
+	return added;
+}
+
+const char *obs_source_alias_resolve(const char *id)
+{
+	struct alias_hop hops[MAX_ALIAS_HOPS];
+	size_t num_hops;
+
+	if (!obs || !id)
+		return NULL;
+
+	const struct obs_source_info *info = resolve_source_info(id, hops, &num_hops);
+	return info ? info->id : NULL;
+}
+
+void obs_free_source_aliases(void)
+{
+	for (size_t i = 0; i < obs->source_aliases.num; i++) {
+		bfree(obs->source_aliases.array[i].old_id);
+		bfree(obs->source_aliases.array[i].new_id);
+	}
+	da_free(obs->source_aliases);
+}
+
+/* Settings for a source created through aliases: a private copy with every
+ * hop's migration applied in order. Returns NULL when no alias was used. */
+static obs_data_t *migrate_alias_settings(obs_data_t *settings, const struct alias_hop *hops, size_t num_hops)
+{
+	if (!num_hops)
+		return NULL;
+
+	obs_data_t *migrated = obs_data_create();
+	if (settings)
+		obs_data_apply(migrated, settings);
+
+	for (size_t i = 0; i < num_hops; i++) {
+		if (hops[i].migrate)
+			hops[i].migrate(hops[i].param, hops[i].old_id, migrated);
+	}
+	return migrated;
+}
+
 static const char *source_signals[] = {
 	"void destroy(ptr source)",
 	"void remove(ptr source)",
@@ -124,9 +268,16 @@ bool obs_source_init_context(struct obs_source *source, obs_data_t *settings, co
 	return signal_handler_add_array(source->context.signals, source_signals);
 }
 
+static const struct obs_source_info *get_source_info_resolved(const char *id)
+{
+	struct alias_hop hops[MAX_ALIAS_HOPS];
+	size_t num_hops;
+	return resolve_source_info(id, hops, &num_hops);
+}
+
 const char *obs_source_get_display_name(const char *id)
 {
-	const struct obs_source_info *info = get_source_info(id);
+	const struct obs_source_info *info = get_source_info_resolved(id);
 	return (info != NULL) ? info->get_name(info->type_data) : NULL;
 }
 
@@ -475,8 +626,17 @@ static obs_source_t *obs_source_create_internal(const char *id, const char *name
 						uint32_t last_obs_ver, obs_canvas_t *canvas)
 {
 	struct obs_source *source = bzalloc(sizeof(struct obs_source));
+	struct alias_hop hops[MAX_ALIAS_HOPS];
+	size_t num_hops = 0;
 
-	const struct obs_source_info *info = get_source_info(id);
+	const struct obs_source_info *info = resolve_source_info(id, hops, &num_hops);
+	obs_data_t *migrated = NULL;
+	if (info && num_hops) {
+		blog(LOG_INFO, "Source ID '%s' is an alias, creating '%s'", id, info->id);
+		migrated = migrate_alias_settings(settings, hops, num_hops);
+		settings = migrated;
+	}
+
 	if (!info) {
 		blog(LOG_ERROR, "Source ID '%s' not found", id);
 
@@ -500,7 +660,9 @@ static obs_source_t *obs_source_create_internal(const char *id, const char *name
 	source->push_to_talk_key = OBS_INVALID_HOTKEY_ID;
 	source->last_obs_ver = last_obs_ver;
 
-	if (!obs_source_init_context(source, settings, name, uuid, hotkey_data, private))
+	bool context_ok = obs_source_init_context(source, settings, name, uuid, hotkey_data, private);
+	obs_data_release(migrated);
+	if (!context_ok)
 		goto fail;
 
 	if (info) {
@@ -999,19 +1161,19 @@ static inline obs_data_t *get_defaults(const struct obs_source_info *info)
 
 obs_data_t *obs_source_settings(const char *id)
 {
-	const struct obs_source_info *info = get_source_info(id);
+	const struct obs_source_info *info = get_source_info_resolved(id);
 	return (info) ? get_defaults(info) : NULL;
 }
 
 obs_data_t *obs_get_source_defaults(const char *id)
 {
-	const struct obs_source_info *info = get_source_info(id);
+	const struct obs_source_info *info = get_source_info_resolved(id);
 	return info ? get_defaults(info) : NULL;
 }
 
 obs_properties_t *obs_get_source_properties(const char *id)
 {
-	const struct obs_source_info *info = get_source_info(id);
+	const struct obs_source_info *info = get_source_info_resolved(id);
 	if (info && (info->get_properties || info->get_properties2)) {
 		obs_data_t *defaults = get_defaults(info);
 		obs_properties_t *props;
@@ -1050,7 +1212,7 @@ void obs_source_replace_missing_file(obs_missing_file_cb cb, obs_source_t *sourc
 
 bool obs_is_source_configurable(const char *id)
 {
-	const struct obs_source_info *info = get_source_info(id);
+	const struct obs_source_info *info = get_source_info_resolved(id);
 	return info && (info->get_properties || info->get_properties2);
 }
 
@@ -1088,7 +1250,7 @@ uint32_t obs_source_get_output_flags(const obs_source_t *source)
 
 uint32_t obs_get_source_output_flags(const char *id)
 {
-	const struct obs_source_info *info = get_source_info(id);
+	const struct obs_source_info *info = get_source_info_resolved(id);
 	return info ? info->output_flags : 0;
 }
 
@@ -5794,7 +5956,7 @@ uint32_t obs_source_get_last_obs_version(const obs_source_t *source)
 
 enum obs_icon_type obs_source_get_icon_type(const char *id)
 {
-	const struct obs_source_info *info = get_source_info(id);
+	const struct obs_source_info *info = get_source_info_resolved(id);
 	return (info) ? info->icon_type : OBS_ICON_TYPE_UNKNOWN;
 }
 
@@ -5803,7 +5965,7 @@ const char *obs_source_get_dark_icon(const char *id)
 	if (obs_source_get_icon_type(id) != OBS_ICON_TYPE_CUSTOM)
 		return NULL;
 
-	const struct obs_source_info *info = get_source_info(id);
+	const struct obs_source_info *info = get_source_info_resolved(id);
 	return (info && info->get_dark_icon) ? info->get_dark_icon(info->type_data) : NULL;
 }
 
@@ -5812,7 +5974,7 @@ const char *obs_source_get_light_icon(const char *id)
 	if (obs_source_get_icon_type(id) != OBS_ICON_TYPE_CUSTOM)
 		return NULL;
 
-	const struct obs_source_info *info = get_source_info(id);
+	const struct obs_source_info *info = get_source_info_resolved(id);
 	return (info && info->get_light_icon) ? info->get_light_icon(info->type_data) : NULL;
 }
 

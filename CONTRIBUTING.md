@@ -1,138 +1,105 @@
-OBS Studio Contribution Guidelines
-============
+Contributing to Knurbs
+======================
 
-OBS Studio accepts contributions via public **pull requests**, which encompass changes made to the project as well as a written description of the changes made and the motivation behind them.
+Knurbs accepts contributions as pull requests on
+[Xaymar/knurbs](https://github.com/Xaymar/knurbs), against the `root` branch.
+Bugs and feature requests go to the
+[issue tracker](https://github.com/Xaymar/knurbs/issues) there, and security
+issues go through the [security policy](SECURITY.md).
 
-Pull requests can be opened by any user with sufficient contribution permissions on the platform chosen by the project. Likewise, any user with sufficient access permissions is able to read, comment, and suggest changes to a pull request, but the ultimate decision for or against adopting the suggested changes lies with **project members**.
+Knurbs is not OBS Studio. Please do not send Knurbs issues or pull requests to
+the OBS Project, and do not send OBS Studio issues here.
 
-OBS Studio has shown steady growth of popularity, complexity, and scope throughout its existence. Contributions that demonstrate they have taken the aspects outlined in this document into account (including the impact to the maintainability of the project) will potentially, but not necessarily, have a higher chance of adoption.
+Knurbs is under heavy development and changes direction quickly. If you plan a
+larger change, open an issue first, so we can check that it fits where the
+project is going (see the [README](README.rst)).
 
-> [!NOTE]
-> Past acceptance of a change, including “prior art” that exists in the codebase, does not guarantee that future, similar, changes will be accepted, as the “state of the art” (code style guidelines, best practices, language standard) is constantly evolving and the project consciously chooses to evolve with them.
+## What we look for
 
-These guidelines attempt to provide a set of general rules that any contributor can choose to follow and implement before opening a pull request to reduce review effort and increase its chances for adoption.
+- **Fixes come with tests.** A bug fix goes in its own commit, together with a
+  regression test that fails without the fix. If a fix changes behaviour that
+  plugins or users may rely on, say so in the commit message.
+- **New code goes in new places.** Fixes from upstream OBS Studio are still
+  merged into Knurbs. Large new code belongs in new files or directories,
+  rather than in rewrites of upstream code in place, so those merges stay
+  manageable.
+- **Features as plugins.** Where a feature can live in a plugin instead of the
+  application shell or libobs, it should, so that alternatives can replace it.
+- **The same behaviour everywhere.** A feature should work the same way on
+  every supported platform. Platform specific code belongs behind a common
+  interface.
 
-## General Contribution Guidelines
+The canonical language for source code and other untranslated material is
+American English. That covers commit messages, identifiers, comments and file
+names.
 
-The canonical language used by the project is “American English”, which mainly applies to source code and non-translated material. Examples include:
+## Naming
 
-* Commit messages
-* Names of constants, variables, and types
-* Source code comments
-* File names
+Identifiers that people type, such as plugin IDs, source type IDs and setting
+names, are lowercase and use only `-` or `.` as separators: no uppercase and no
+`_`, so they never need Shift. C identifiers are the only exception. Knurbs' own
+plugins and source types use a `knurbs` prefix and a descriptive name. When a
+source replaces an OBS one, register the old OBS ID as an alias and migrate its
+settings.
 
-Appropriate templates are presented to the user when opening a new issue report or pull request on GitHub which are required to be fully filled out to be taken into consideration by the project.
-The template might require checking off items that might not be applicable e.g., the requirement to have the code properly formatted does not apply when the contribution has not changed any source code. **It is permissible and preferred to tick the box regardless**.
+## Code style
 
-Authors of contributions to the OBS Project are expected to abide by the “OBS Project Code of Conduct” available at https://github.com/obsproject/obs-studio/blob/master/COC.rst.
+Code style is defined by the formatter configurations in the repository root:
+`.clang-format` for C, C++, Objective-C and Objective-C++, `.swift-format` for
+Swift and `.gersemirc` for CMake. Run the matching formatter before you commit;
+the scripts in `build-aux` do that for you, and CI checks it.
 
-## Pull Request Review Guidelines
+## Commits
 
-In general reviews of pull requests are not limited to project members and can be undertaken by contributors and other GitHub users. Project members commonly coordinate reviews of pull requests at their own discretion in line with project needs and available bandwidth.
-
-To reduce possible friction of the review process, a simple set of rules should be followed:
-
-* **Do not** request reviews from specific community or project members yourself.
-    * It is permitted to ping other GitHub users to notify them of a PR and kindly ask them if they are willing (and able) to review it, all within reason.
-* Reviewers might leave comments or ask for changes on specific lines of changed code. Once the comment has been addressed **do not unilaterally resolve** the comment.
-    * It is entirely the reviewer's decision whether they would consider the changes to be sufficient to address their concerns. Just having addressed a comment, does not resolve it.
-    * As a reviewer, make sure to regularly review the comments received on your reviews, check the code changes, and resolve your comments once they have been addressed. **Don't leave pull request authors hanging.**
-    * Project members will usually ping reviewers about unresolved review comments and resolve such comments themselves to unblock PRs from being merged.
-* When addressing review comments through code changes, try to avoid force-pushes and use temporary commits which can be squashed later (see below).
-    * Unless necessary, avoid rebasing a pull request branch unless it is absolutely necessary. Rebasing will pull in changes from the base branch into the "changes since last push" of the pull request, making it harder for reviewers to check what changes have been pushed.
-
-## Commit Authoring Guidelines
-
-The project uses the “50/72” standard for commit messages, which requires that a commit title uses no more than 50 characters, while any consecutive line used for the commit description is allowed to use a maximum of 72 characters (with long lines manually broken up).
-
-The “anatomy” of a correct commit message with description looks like this:
-
-```
-prefix: This is a commit title using 50 characters
-
-This is a commit description line that is allowed to use up to 72 chars
-```
-
-Prefixes are commonly defined by the “module” the commit applies changes to, which has repercussions as to how commit contents are authored (see below).
-
-* Changes made to code for “libobs” should use the “libobs” prefix, similarly changes made to “obs-ffmpeg” use “obs-ffmpeg”.
-* Changes made to multiple modules in the “plugins” directory can use the “plugins” prefix, particularly if the changes are of a similar nature
-* Changes made to files involved in continuous integration (CI) should use the “CI” prefix regardless of the directory name.
-* Changes made to files used by the CMake build system should use the “cmake” prefix”
-
-When in doubt about what the correct prefix for a change might be, the existing commit history might be of help, however project guidelines might have changed in the interim and thus a “past” commit message might not be acceptable for new contributions.
-
-### Commit Messages
-
-The commit message is the primary place for documentation of changes, not only as a summary of “what” was changed, but even more importantly “why” the changes were made and “why” specifically in the way they have been made.
-
-As such the commit message should be written in such a way that it could easily pass as the “Description” and “Motivation and Context” required when opening a new pull request (and indeed platforms like GitHub will automatically copy the commit message into the opening post for a pull request with a single commit).
-
-This ensures that documentation and context are encoded within the source tree and do not require external documents or platforms to ensure this information is not lost.
-
-Many of these ideas match the ideas outlined in https://chris.beams.io/git-commit.
-
-### Commit Content Authoring Guidelines
-
-#### Code Style
-
-All code contributions to the project need to follow code style guidelines appropriate to the languages used by the changed files. For C and C++ the project has chosen to adopt well-established code style guidelines as its baseline with specific exceptions and changes outlined in a [separate document](https://github.com/obsproject/obs-studio/blob/master/CODESTYLE.md).
-
-The baseline rules for the common languages used by the project are:
-
-* C code needs to follow the Linux Kernel Coding Style (https://github.com/torvalds/linux/blob/master/Documentation/process/coding-style.rst)
-* C++ code needs to follow OBS Studios’ style guide. Familiarity with the Google C++ Style Guide (https://google.github.io/styleguide/cppguide.html) can serve as a baseline.
-* Objective-C and Objective-C++ code needs to follow Apple’s ObjectiveC Conventions (https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ProgrammingWithObjectiveC/Conventions/Conventions.html)
-* Swift code needs to follow the API Design Guidelines (https://www.swift.org/documentation/api-design-guidelines/)
-* **The column size limit for all code is 120 characters**
-
-To help with the formatting of code, the project contains configuration files for code-formatters of several languages:
-
-* `clang-format` can be used to correctly format C, C++, Objective-C, and Objective-C++ soure code
-* `swift-format` can be used to correctly format Swift source code
-* `gersemi` can be used to correctly format CMake source code
-
-> [!NOTE]
-> The “build-aux” directory in the project’s root directory contains scripts that can automate this process and are used by the project’s CI infrastructure to automatically check all contributions that changed corresponding source code files.
-
-#### Commit Contents
-
-The changes contained in a commit should attempt to represent logical “units of change” that make sense in isolation and do not necessarily require any preceding or following commits to work. Indeed if a single commit would potentially leave the project in a broken state (e.g., the project cannot be compiled, the application not run, or basic application functionality cannot function) then it is not a full “unit of change”.
-
-* Changes to misspelled words or purely aesthetic changes should in principle not be individually capable of breaking the project in such a way and are permitted to be grouped into a single “large” commit
-* If a larger change requires some foundation of fixes to the existing code to make sense, those fixes represent a “unit of change” that should be decoupled from the functional changes made on top of them. Even better, such a change should be encapsulated in its own, separate, pull request.
-
-> [!IMPORTANT]
-> During review and collaboration the need for additional changes can arise quickly. It is permitted (and preferred) to temporarily ignore these guidelines to quickly provide changes required to address review comments and add many small, iterative, commits to the pull request.
->
-> Once all review comments have been addressed, the changes need to be squashed into existing commits or alternatively a new set of commits can be created from all accumulated changes to restore compliance with the guidelines again.
-
-#### Co-Authorship
-
-Sometimes an open pull request might have been "lost to time" even though its contents might still be a meaningful and positive change. When picking up such a change and authoring a new pull request to "finish it", the original author should be retained as much as possible:
-
-* The original commit can be cherry-picked, which will retain the author information and only change the committer information
-* If the original commit needs to be adjusted and changed as it will not apply to an updated code-base, its original author should be added as a "Co-Author" to the commit message.
+Commit messages follow the "50/72" rule: a title of at most 50 characters, a
+blank line, then a description wrapped at 72 characters.
 
 ```
-libobs: Refactor audio implementation
+libobs: Fix a race when releasing a source
 
-
-Additional commit description
-<..>
-Co-authored-by: Name <git@address.TLD>
+Explain what was wrong, why it happened, and why it is fixed this way.
 ```
 
-## AI/Machine Learning Policy
+The prefix names the module the commit changes, such as `libobs`,
+`libobs-vulkan` or `obs-ffmpeg`. Use `plugins` for similar changes across
+several plugins, `CI` for continuous integration files and `cmake` for the
+build system. The commit history is a good guide when in doubt.
 
-AI/machine learning systems such as Copilot, ChatGPT, and Claude, are prone to generating plausible-sounding, but wrong code that makes incorrect assumptions about OBS internals or APIs it interfaces with.
+The commit message is the main documentation of a change. Describe what
+changed and, more importantly, why, and why in this way. A pull request with a
+single commit should be able to use its message as the description.
 
-This means code generated by such systems will require human review and is likely to require human intervention. If the submitter is unable to undertake that work themselves due to a lack of understanding of the OBS codebase and/or programming, the submission has a high likelihood of being invalid. Such invalid submissions end up taking maintainers' time to review and respond away from legitimate submissions.
+Each commit is one logical unit of change that builds and runs on its own. If a
+change needs some fixes to existing code first, those fixes are their own
+commits, or better, their own pull request. Spelling and purely cosmetic
+changes may be grouped into one commit.
 
-Additionally, such systems have been demonstrated to reproduce code contained in the training data, which may have been originally published under a license that would prohibit its inclusion in OBS.
+During review it is fine to push small fixup commits. Squash them into the
+commits they belong to before the pull request is merged.
 
-Because of the above concerns, we have opted to take the following policy towards submissions with regard to the use of these AI tools:
+When you pick up someone else's unfinished work, keep them as the author:
+cherry-pick their commits, or add them with a `Co-authored-by:` trailer when the
+commits had to be rewritten.
 
-* All text and content submitted to our project, which includes code, descriptions, issues, and comments, must be **human written**.
-* The use of GitHub Copilot and other assistive AI technologies is heavily discouraged.
-* Low-effort or incorrect submissions that are determined to have been generated by, or created with aid of such systems may lead to a ban from contributing to the repository or project as a whole.
+## Pull requests
+
+- Describe what changed, why, and how you tested it.
+- Avoid force-pushing during review where you can, so reviewers can see what
+  changed since their last look. Rebase only when necessary.
+- Do not resolve review comments yourself. The reviewer resolves a comment once
+  they are satisfied with how it was addressed.
+
+## AI assisted contributions
+
+Contributions made with the help of AI tools are welcome, on the same terms as
+any other: you are responsible for the change. Review and understand
+everything you submit, make sure it is tested, and make sure it does not copy
+code under an incompatible licence. Credit the tool with a `Co-Authored-By:`
+trailer that names it and its model. Unreviewed, low effort submissions will be
+closed.
+
+## Licence
+
+Knurbs is licensed under the GNU General Public License, version 2 or later
+(see [LICENSE](LICENSE)). By contributing, you agree that your contribution is
+licensed under the same terms.

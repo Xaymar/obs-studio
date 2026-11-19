@@ -22,6 +22,25 @@ target_link_libraries(test_bitstream PRIVATE OBS::libobs cmocka::cmocka)
 
 add_test(test_bitstream test_bitstream)
 
+# Source ID aliases and settings migration
+add_executable(test_source_alias test_source_alias.c)
+target_include_directories(test_source_alias PRIVATE ${CMOCKA_INCLUDE_DIR})
+target_link_libraries(test_source_alias PRIVATE OBS::libobs cmocka::cmocka)
+
+add_test(test_source_alias test_source_alias)
+
+add_executable(test_no_video test_no_video.c)
+target_include_directories(test_no_video PRIVATE ${CMOCKA_INCLUDE_DIR})
+target_link_libraries(test_no_video PRIVATE OBS::libobs cmocka::cmocka)
+
+add_test(test_no_video test_no_video)
+
+add_executable(test_type_alias test_type_alias.c)
+target_include_directories(test_type_alias PRIVATE ${CMOCKA_INCLUDE_DIR})
+target_link_libraries(test_type_alias PRIVATE OBS::libobs cmocka::cmocka)
+
+add_test(test_type_alias test_type_alias)
+
 # Vulkan backend export test
 if(ENABLE_VULKAN)
   find_package(Vulkan REQUIRED)
