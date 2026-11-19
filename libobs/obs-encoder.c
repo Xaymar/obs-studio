@@ -2187,8 +2187,10 @@ bool obs_encoder_set_group(obs_encoder_t *encoder, obs_encoder_group_t *group)
 			return false;
 		}
 		da_erase_item(old_group->encoders, &encoder);
-		obs_encoder_release(encoder);
+		encoder->encoder_group = NULL;
 		pthread_mutex_unlock(&old_group->mutex);
+		/* the group's reference; after the unlock, the group may go with it */
+		obs_encoder_release(encoder);
 	}
 
 	if (!group)

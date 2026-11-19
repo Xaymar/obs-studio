@@ -849,6 +849,117 @@ static void captions_test(void **state)
 	core_stop();
 }
 
+static obs_output_t *make_encoded_output(const char *name, obs_encoder_t *venc, obs_encoder_t *aenc,
+					 obs_service_t *service)
+{
+	obs_output_t *out = obs_output_create("fake_encoded_output", name, NULL, NULL);
+	obs_output_set_video_encoder(out, venc);
+	obs_output_set_audio_encoder(out, aenc, 0);
+	obs_output_set_service(out, service);
+	return out;
+}
+
+/* encoders scaled on the GPU get their own video mix, shared by encoders with the same output; encoders in a
+ * group start together */
+static void gpu_rescale_group_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+	start();
+
+	obs_source_t *src = obs_source_create("fake_input", "src", NULL, NULL);
+	obs_set_output_source(0, src);
+	/* a service belongs to one output at a time */
+	obs_data_t *ss = obs_data_create();
+	obs_data_set_string(ss, "server", "fake://server");
+	obs_service_t *services[3];
+	for (int i = 0; i < 3; i++)
+		services[i] = obs_service_create("fake_service", "svc", ss, NULL);
+	obs_data_release(ss);
+
+	obs_encoder_t *v1 = obs_video_encoder_create("fake_video_enc", "v1", NULL, NULL);
+	obs_encoder_t *v2 = obs_video_encoder_create("fake_video_enc", "v2", NULL, NULL);
+	obs_encoder_t *v3 = obs_video_encoder_create("fake_video_enc", "v3", NULL, NULL);
+	obs_encoder_t *a1 = obs_audio_encoder_create("fake_audio_enc", "a1", NULL, 0, NULL);
+	obs_encoder_t *a2 = obs_audio_encoder_create("fake_audio_enc", "a2", NULL, 0, NULL);
+	obs_encoder_t *a3 = obs_audio_encoder_create("fake_audio_enc", "a3", NULL, 0, NULL);
+	obs_encoder_t *venc[] = {v1, v2, v3};
+	obs_encoder_t *aenc[] = {a1, a2, a3};
+	for (int i = 0; i < 3; i++) {
+		obs_encoder_set_video(venc[i], obs_get_video());
+		obs_encoder_set_audio(aenc[i], obs_get_audio());
+	}
+
+	/* v1 and v2 share a 320x180 mix, v3 gets an I444 one */
+	obs_encoder_set_scaled_size(v1, 320, 180);
+	obs_encoder_set_gpu_scale_type(v1, OBS_SCALE_BICUBIC);
+	assert_true(obs_encoder_gpu_scaling_enabled(v1));
+	obs_encoder_set_scaled_size(v2, 320, 180);
+	obs_encoder_set_gpu_scale_type(v2, OBS_SCALE_BICUBIC);
+	obs_encoder_set_gpu_scale_type(v3, OBS_SCALE_LANCZOS);
+	obs_encoder_set_preferred_video_format(v3, VIDEO_FORMAT_I444);
+	obs_encoder_set_preferred_color_space(v3, VIDEO_CS_601);
+	obs_encoder_set_preferred_range(v3, VIDEO_RANGE_FULL);
+	assert_true(obs_encoder_set_frame_rate_divisor(v3, 2));
+
+	/* v1 and v2 in a group */
+	obs_encoder_group_t *group = obs_encoder_group_create();
+	assert_true(obs_encoder_set_group(v1, group));
+	assert_true(obs_encoder_set_group(v2, group));
+
+	obs_output_t *outs[3];
+	for (int i = 0; i < 3; i++) {
+		char name[8];
+		snprintf(name, sizeof(name), "out%d", i);
+		outs[i] = make_encoded_output(name, venc[i], aenc[i], services[i]);
+	}
+	for (int i = 0; i < 3; i++)
+		assert_true(obs_output_start(outs[i]));
+	for (int i = 0; i < 3; i++)
+		assert_true(wait_for(&fake_output_of(outs[i])->video_packets, 5));
+
+	/* scaled encoders report their own video, with the main video as parent */
+	assert_ptr_not_equal(obs_encoder_video(v1), obs_get_video());
+	assert_non_null(obs_encoder_parent_video(v1));
+	assert_int_equal(obs_encoder_get_width(v1), 320);
+	assert_true(obs_encoder_scaling_enabled(v1));
+	/* settings cannot change while active */
+	obs_encoder_set_gpu_scale_type(v1, OBS_SCALE_POINT);
+	assert_int_equal(obs_encoder_get_scale_type(v1), OBS_SCALE_BICUBIC);
+	assert_false(obs_encoder_set_frame_rate_divisor(v1, 3));
+	assert_false(obs_encoder_set_group(v1, NULL));
+
+	/* an update while running is applied by the encoder thread */
+	obs_data_t *settings = obs_data_create();
+	obs_data_set_int(settings, "bitrate", 1234);
+	obs_encoder_update(v1, settings);
+	obs_encoder_update(v3, settings);
+	obs_data_release(settings);
+	long long before = fake_output_of(outs[0])->video_packets;
+	assert_true(wait_for(&fake_output_of(outs[0])->video_packets, before + 3));
+
+	for (int i = 0; i < 3; i++) {
+		obs_output_stop(outs[i]);
+		assert_true(wait_inactive(outs[i]));
+	}
+
+	/* Regression: leaving a group kept the group pointer, so leaving again (or destroying the encoder, which
+	 * leaves its group) released the encoder a second time and used the group after it was freed */
+	assert_true(obs_encoder_set_group(v1, NULL));
+	assert_true(obs_encoder_set_group(v1, NULL));
+	obs_encoder_group_destroy(group);
+	/* v2 still holds the group; it leaves it when it is destroyed */
+
+	for (int i = 0; i < 3; i++) {
+		obs_output_release(outs[i]);
+		obs_encoder_release(venc[i]);
+		obs_encoder_release(aenc[i]);
+		obs_service_release(services[i]);
+	}
+	obs_set_output_source(0, NULL);
+	obs_source_release(src);
+	core_stop();
+}
+
 static long long packet_callbacks;
 static void on_packet(obs_output_t *output, struct encoder_packet *pkt, struct encoder_packet_time *pkt_time,
 		      void *param)
@@ -1406,7 +1517,7 @@ int main(void)
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(raw_output_test),     cmocka_unit_test(encoder_test),
 		cmocka_unit_test(encoded_output_test), cmocka_unit_test(delay_reconnect_test),
-		cmocka_unit_test(service_test), cmocka_unit_test(service_extra_test), cmocka_unit_test(object_hotkeys_test), cmocka_unit_test(captions_test), cmocka_unit_test(gpu_encode_test),        cmocka_unit_test(null_test),
+		cmocka_unit_test(service_test), cmocka_unit_test(service_extra_test), cmocka_unit_test(object_hotkeys_test), cmocka_unit_test(captions_test), cmocka_unit_test(gpu_rescale_group_test), cmocka_unit_test(gpu_encode_test),        cmocka_unit_test(null_test),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);
