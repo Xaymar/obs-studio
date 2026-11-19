@@ -189,6 +189,7 @@ static void *race_thread_b(void *param)
 
 static void *race_thread_a(void *param)
 {
+	(void)param;
 	struct race_ctx ctx = {0};
 	pthread_t b;
 	pthread_create(&b, NULL, race_thread_b, &ctx);
