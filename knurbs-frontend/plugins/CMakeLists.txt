@@ -3,3 +3,4 @@
 # decklink-captions), which stay untouched so upstream fixes keep merging.
 
 add_subdirectory(device-output)
+add_subdirectory(captions)
