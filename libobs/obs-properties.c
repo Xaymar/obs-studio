@@ -751,7 +751,8 @@ obs_property_t *obs_properties_add_group(obs_properties_t *props, const char *na
 {
 	if (!props || has_prop(props, name))
 		return NULL;
-	if (!group)
+	/* the group takes ownership of its content, so it can only have one parent */
+	if (!group || group->parent)
 		return NULL;
 
 	/* Prevent recursion. */
