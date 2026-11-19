@@ -575,8 +575,8 @@ struct obs_type_alias_hop {
 	void *param;
 };
 
+/* Guarded by obs->registration_mutex, like the type arrays it points into. */
 struct obs_type_alias_table {
-	pthread_mutex_t mutex;
 	DARRAY(struct obs_type_alias) aliases;
 };
 
@@ -609,7 +609,7 @@ struct obs_core {
 	obs_source_info_array_t input_types;
 	obs_source_info_array_t filter_types;
 	obs_source_info_array_t transition_types;
-	pthread_mutex_t source_aliases_mutex;
+	/* Guarded by registration_mutex. */
 	DARRAY(struct obs_source_alias) source_aliases;
 	DARRAY(struct obs_output_info) output_types;
 	DARRAY(struct obs_encoder_info) encoder_types;

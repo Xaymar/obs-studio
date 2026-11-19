@@ -98,7 +98,7 @@ static struct obs_source_info *find_alias_target(const char *id)
 	return info;
 }
 
-/* Caller holds source_aliases_mutex. */
+/* Caller holds obs->registration_mutex. */
 static struct obs_source_alias *find_alias(const char *old_id)
 {
 	for (size_t i = 0; i < obs->source_aliases.num; i++) {
@@ -114,12 +114,14 @@ static struct obs_source_alias *find_alias(const char *old_id)
  * until shutdown, because aliases are never removed before then. */
 static struct obs_source_info *resolve_source_info(const char *id, struct alias_hop *hops, size_t *num_hops)
 {
-	struct obs_source_info *info = get_source_info(id);
 	*num_hops = 0;
-	if (info || !id)
+	pthread_mutex_lock(&obs->registration_mutex);
+	struct obs_source_info *info = get_source_info(id);
+	if (info || !id) {
+		pthread_mutex_unlock(&obs->registration_mutex);
 		return info;
+	}
 
-	pthread_mutex_lock(&obs->source_aliases_mutex);
 	const char *cur = id;
 	for (size_t i = 0; i < MAX_ALIAS_HOPS; i++) {
 		struct obs_source_alias *alias = find_alias(cur);
@@ -136,7 +138,7 @@ static struct obs_source_info *resolve_source_info(const char *id, struct alias_
 			break;
 		cur = alias->new_id;
 	}
-	pthread_mutex_unlock(&obs->source_aliases_mutex);
+	pthread_mutex_unlock(&obs->registration_mutex);
 
 	if (!info && *num_hops)
 		blog(LOG_WARNING, "Source ID '%s' is an alias, but its target was not found", id);
@@ -151,7 +153,11 @@ bool obs_register_source_alias(const char *old_id, const char *new_id, obs_sourc
 		return false;
 	}
 
+	/* One lock with type registration, so a type registered by another
+	 * module loading in parallel can't slip in between check and insert. */
+	pthread_mutex_lock(&obs->registration_mutex);
 	if (get_source_info(old_id)) {
+		pthread_mutex_unlock(&obs->registration_mutex);
 		blog(LOG_WARNING,
 		     "obs_register_source_alias: a source type named '%s' "
 		     "is already registered",
@@ -160,7 +166,6 @@ bool obs_register_source_alias(const char *old_id, const char *new_id, obs_sourc
 	}
 
 	bool added = false;
-	pthread_mutex_lock(&obs->source_aliases_mutex);
 	if (!find_alias(old_id)) {
 		struct obs_source_alias *alias = da_push_back_new(obs->source_aliases);
 		alias->old_id = bstrdup(old_id);
@@ -169,7 +174,7 @@ bool obs_register_source_alias(const char *old_id, const char *new_id, obs_sourc
 		alias->param = param;
 		added = true;
 	}
-	pthread_mutex_unlock(&obs->source_aliases_mutex);
+	pthread_mutex_unlock(&obs->registration_mutex);
 
 	if (!added)
 		blog(LOG_WARNING, "obs_register_source_alias: '%s' is already an alias", old_id);
