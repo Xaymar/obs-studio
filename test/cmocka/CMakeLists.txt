@@ -440,6 +440,7 @@ foreach(
     test_obs_scene
     test_obs_output
     test_obs_audio
+    test_obs_hotkey
 )
   obs_add_core_test(${test})
 endforeach()
