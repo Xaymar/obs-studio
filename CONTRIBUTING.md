@@ -44,22 +44,10 @@ settings.
 
 ## Code style
 
-Code follows the [code style guidelines](CODESTYLE.md). In short:
-
-- C follows the
-  [Linux kernel coding style](https://www.kernel.org/doc/html/latest/process/coding-style.html).
-- C++ follows `CODESTYLE.md`, with the
-  [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html)
-  as a baseline.
-- Objective-C follows Apple's
-  [conventions](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ProgrammingWithObjectiveC/Conventions/Conventions.html),
-  and Swift the
-  [API Design Guidelines](https://www.swift.org/documentation/api-design-guidelines/).
-- Lines are at most 120 characters long.
-
-Formatting is checked by CI. Use `clang-format` for C, C++, Objective-C and
-Objective-C++, `swift-format` for Swift and `gersemi` for CMake. The scripts in
-`build-aux` run them for you.
+Code style is defined by the formatter configurations in the repository root:
+`.clang-format` for C, C++, Objective-C and Objective-C++, `.swift-format` for
+Swift and `.gersemirc` for CMake. Run the matching formatter before you commit;
+the scripts in `build-aux` do that for you, and CI checks it.
 
 ## Commits
 

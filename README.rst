@@ -70,8 +70,9 @@ Contributing
 
 Issues and pull requests go to
 `Xaymar/knurbs <https://github.com/Xaymar/knurbs>`_, against the ``root``
-branch. Code follows the existing style (see ``CODESTYLE.md`` and
-``.clang-format``). Bug fixes come in their own commit with a regression test.
+branch. Code style is defined by ``.clang-format``, ``.swift-format`` and
+``.gersemirc``; see ``CONTRIBUTING.md``. Bug fixes come in their own commit
+with a regression test.
 
 Licence and attribution
 -----------------------
