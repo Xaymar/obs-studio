@@ -147,5 +147,5 @@ gs_texture_t *gs_texrender_get_texture(const gs_texrender_t *texrender)
 
 enum gs_color_format gs_texrender_get_format(const gs_texrender_t *texrender)
 {
-	return texrender->format;
+	return texrender ? texrender->format : GS_UNKNOWN;
 }
