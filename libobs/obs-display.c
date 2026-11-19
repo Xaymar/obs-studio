@@ -120,8 +120,16 @@ void obs_display_free(obs_display_t *display)
 
 void obs_display_destroy(obs_display_t *display)
 {
-	if (display)
-		obs_mem_release(display);
+	if (!display)
+		return;
+
+	/* Same order as the render thread: its temporary ref is dropped before it
+	 * unlocks, so the creator's release stays the last one and frees here. */
+	obs_enter_graphics();
+	pthread_mutex_lock(&obs->data.displays_mutex);
+	obs_mem_release(display);
+	pthread_mutex_unlock(&obs->data.displays_mutex);
+	obs_leave_graphics();
 }
 
 void obs_display_resize(obs_display_t *display, uint32_t cx, uint32_t cy)

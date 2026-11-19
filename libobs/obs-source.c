@@ -1511,6 +1511,9 @@ static void handle_ts_jump(obs_source_t *source, uint64_t expected, uint64_t ts,
 
 static void source_signal_audio_data(obs_source_t *source, const struct audio_data *in, bool muted)
 {
+	/* Lock order audio_cb_mutex -> signal mutex (a callback detaching a volmeter) cannot ABBA with
+	 * volmeter_source_destroyed: obs_source_destroy empties audio_cb_list under audio_cb_mutex before
+	 * the deferred task emits "destroy", so no callback can run here while that signal is in flight. */
 	pthread_mutex_lock(&source->audio_cb_mutex);
 
 	for (size_t i = source->audio_cb_list.num; i > 0; i--) {
@@ -1519,6 +1522,15 @@ static void source_signal_audio_data(obs_source_t *source, const struct audio_da
 			continue;
 		struct audio_cb_info info = source->audio_cb_list.array[i - 1];
 		info.callback(info.param, source, in, muted);
+
+		/* Removals only move entries down: continue below wherever the one just called is now. */
+		for (size_t j = i < source->audio_cb_list.num ? i : source->audio_cb_list.num; j > 0; j--) {
+			struct audio_cb_info *cur = &source->audio_cb_list.array[j - 1];
+			if (cur->callback == info.callback && cur->param == info.param) {
+				i = j;
+				break;
+			}
+		}
 	}
 
 	pthread_mutex_unlock(&source->audio_cb_mutex);

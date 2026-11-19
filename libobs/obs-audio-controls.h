@@ -104,7 +104,9 @@ EXPORT obs_fader_t *obs_fader_create(enum obs_fader_type type);
  * @brief Destroy a fader
  * @param fader pointer to the fader object
  *
- * Destroy the fader and free all related data
+ * Release the creator's reference and detach the fader from its source, so
+ * no callback of this fader runs after this returns. The fader is freed once
+ * any other reference taken with obs_mem_acquire is released as well.
  */
 EXPORT void obs_fader_destroy(obs_fader_t *fader);
 
@@ -196,7 +198,9 @@ EXPORT obs_volmeter_t *obs_volmeter_create(enum obs_fader_type type);
  * @brief Destroy a volume meter
  * @param volmeter pointer to the volmeter object
  *
- * Destroy the volume meter and free all related data
+ * Release the creator's reference and detach the volume meter from its
+ * source, so no callback of this volume meter runs after this returns. It is
+ * freed once any other reference taken with obs_mem_acquire is released too.
  */
 EXPORT void obs_volmeter_destroy(obs_volmeter_t *volmeter);
 

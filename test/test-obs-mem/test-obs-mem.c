@@ -56,6 +56,7 @@ static void test_header_layout(void)
 {
 	assert(sizeof(struct obs_mem_header) == 32);
 	assert(offsetof(struct test_obj, hdr) == 0);
+	/* bmalloc aligns to 32; brealloc may not, so the header itself does not require it */
 	assert(((uintptr_t)test_create() & 31) == 0);
 }
 
@@ -389,8 +390,10 @@ static volatile long fader_cb_ran;
 
 static void fader_release_cb(void *param, float db)
 {
-	if (os_atomic_inc_long(&fader_cb_ran) == 1)
-		obs_mem_release(cb_fader); /* the last reference, dropped mid-dispatch */
+	if (os_atomic_inc_long(&fader_cb_ran) == 1) {
+		obs_fader_destroy(cb_fader); /* the creator's ref, dropped mid-dispatch */
+		obs_mem_release(cb_fader);   /* the other holder's: only the dispatch's temporary ref is left */
+	}
 	(void)param;
 	(void)db;
 }
@@ -405,11 +408,42 @@ static void test_fader_release_in_callback(void)
 	assert(obs_fader_attach_source(cb_fader, src));
 	obs_mem_acquire(cb_fader);
 	obs_fader_add_callback(cb_fader, fader_release_cb, NULL);
-	obs_fader_destroy(cb_fader); /* the creator's ref; the callback holds the last one */
 
 	obs_source_set_volume(src, 0.5f);
 	assert(os_atomic_load_long(&fader_cb_ran) == 1);
+	obs_source_set_volume(src, 0.25f); /* freed and disconnected */
+	assert(os_atomic_load_long(&fader_cb_ran) == 1);
 
+	obs_scene_release(s);
+}
+
+static volatile long fader_count_ran;
+
+static void fader_count_cb(void *param, float db)
+{
+	os_atomic_inc_long(&fader_count_ran);
+	(void)param;
+	(void)db;
+}
+
+static void test_fader_destroy_detaches(void)
+{
+	obs_scene_t *s = obs_scene_create_private("fader2");
+	obs_source_t *src = obs_scene_get_source(s);
+
+	obs_fader_t *f = obs_fader_create(OBS_FADER_LOG);
+	assert(obs_fader_attach_source(f, src));
+	obs_mem_acquire(f); /* another holder */
+	obs_fader_add_callback(f, fader_count_cb, NULL);
+
+	obs_source_set_volume(src, 0.5f);
+	assert(os_atomic_load_long(&fader_count_ran) == 1);
+
+	obs_fader_destroy(f); /* the creator's destroy stops callbacks even though f lives on */
+	obs_source_set_volume(src, 0.25f);
+	assert(os_atomic_load_long(&fader_count_ran) == 1);
+
+	obs_mem_release(f);
 	obs_scene_release(s);
 }
 
@@ -452,13 +486,70 @@ static volatile long volmeter_cb_ran;
 static void volmeter_release_cb(void *param, const float magnitude[MAX_AUDIO_CHANNELS],
 				const float peak[MAX_AUDIO_CHANNELS], const float input_peak[MAX_AUDIO_CHANNELS])
 {
-	/* the last reference: the destroy detaches from the source while its audio callback lock is held */
-	if (os_atomic_inc_long(&volmeter_cb_ran) == 1)
-		obs_mem_release(cb_volmeter);
+	/* the destroy detaches from the source while its audio callback lock is held */
+	if (os_atomic_inc_long(&volmeter_cb_ran) == 1) {
+		obs_volmeter_destroy(cb_volmeter);
+		obs_mem_release(cb_volmeter); /* only the dispatch's temporary ref is left */
+	}
 	(void)param;
 	(void)magnitude;
 	(void)peak;
 	(void)input_peak;
+}
+
+static volatile long volmeter_count_ran;
+
+static void volmeter_count_cb(void *param, const float magnitude[MAX_AUDIO_CHANNELS],
+			      const float peak[MAX_AUDIO_CHANNELS], const float input_peak[MAX_AUDIO_CHANNELS])
+{
+	os_atomic_inc_long(&volmeter_count_ran);
+	(void)param;
+	(void)magnitude;
+	(void)peak;
+	(void)input_peak;
+}
+
+static long audio_a_ran, audio_b_ran, audio_c_ran;
+
+static void audio_a_cb(void *param, obs_source_t *source, const struct audio_data *data, bool muted)
+{
+	audio_a_ran++;
+	(void)param;
+	(void)source;
+	(void)data;
+	(void)muted;
+}
+
+static void audio_b_cb(void *param, obs_source_t *source, const struct audio_data *data, bool muted)
+{
+	if (audio_b_ran++ == 0)
+		obs_source_remove_audio_capture_callback(source, audio_a_cb, NULL); /* a lower entry */
+	(void)param;
+	(void)data;
+	(void)muted;
+}
+
+static void audio_c_cb(void *param, obs_source_t *source, const struct audio_data *data, bool muted)
+{
+	audio_c_ran++;
+	(void)param;
+	(void)source;
+	(void)data;
+	(void)muted;
+}
+
+static void output_test_audio(obs_source_t *src)
+{
+	static float samples[2][480];
+	struct obs_source_audio audio = {
+		.data = {(uint8_t *)samples[0], (uint8_t *)samples[1]},
+		.frames = 480,
+		.speakers = SPEAKERS_STEREO,
+		.format = AUDIO_FORMAT_FLOAT_PLANAR,
+		.samples_per_sec = 48000,
+		.timestamp = os_gettime_ns(),
+	};
+	obs_source_output_audio(src, &audio);
 }
 
 static void test_volmeter_release_in_callback(void)
@@ -483,19 +574,34 @@ static void test_volmeter_release_in_callback(void)
 	assert(obs_volmeter_attach_source(cb_volmeter, src));
 	obs_mem_acquire(cb_volmeter);
 	obs_volmeter_add_callback(cb_volmeter, volmeter_release_cb, NULL);
-	obs_volmeter_destroy(cb_volmeter); /* the creator's ref; the callback holds the last one */
 
-	static float samples[2][480];
-	struct obs_source_audio audio = {
-		.data = {(uint8_t *)samples[0], (uint8_t *)samples[1]},
-		.frames = 480,
-		.speakers = SPEAKERS_STEREO,
-		.format = AUDIO_FORMAT_FLOAT_PLANAR,
-		.samples_per_sec = 48000,
-		.timestamp = os_gettime_ns(),
-	};
-	obs_source_output_audio(src, &audio);
+	output_test_audio(src);
 	assert(os_atomic_load_long(&volmeter_cb_ran) == 1);
+	output_test_audio(src); /* freed and detached */
+	assert(os_atomic_load_long(&volmeter_cb_ran) == 1);
+
+	/* The creator's destroy stops callbacks even though another holder keeps the volmeter alive. */
+	obs_volmeter_t *v = obs_volmeter_create(OBS_FADER_LOG);
+	assert(obs_volmeter_attach_source(v, src));
+	obs_mem_acquire(v);
+	obs_volmeter_add_callback(v, volmeter_count_cb, NULL);
+	output_test_audio(src);
+	assert(os_atomic_load_long(&volmeter_count_ran) == 1);
+	obs_volmeter_destroy(v);
+	output_test_audio(src);
+	assert(os_atomic_load_long(&volmeter_count_ran) == 1);
+	obs_mem_release(v);
+
+	/* Dispatch runs top-down; b removing the lower a must not make b run twice. */
+	obs_source_add_audio_capture_callback(src, audio_a_cb, NULL);
+	obs_source_add_audio_capture_callback(src, audio_b_cb, NULL);
+	obs_source_add_audio_capture_callback(src, audio_c_cb, NULL);
+	output_test_audio(src);
+	assert(audio_c_ran == 1 && audio_b_ran == 1 && audio_a_ran == 0);
+	output_test_audio(src);
+	assert(audio_c_ran == 2 && audio_b_ran == 2 && audio_a_ran == 0);
+	obs_source_remove_audio_capture_callback(src, audio_b_cb, NULL);
+	obs_source_remove_audio_capture_callback(src, audio_c_cb, NULL);
 
 	obs_source_release(src);
 }
@@ -518,6 +624,7 @@ static void test_context_objects(void)
 	test_source_weak_basic();
 	test_sceneitem_survives_remove();
 	test_fader_release_in_callback();
+	test_fader_destroy_detaches();
 	test_properties_group_outlives_parent();
 	test_volmeter_release_in_callback();
 	obs_wait_for_destroy_queue(); /* no-op without video; the tests poll where they must */

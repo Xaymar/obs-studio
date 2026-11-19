@@ -598,6 +598,9 @@ void obs_fader_destroy(obs_fader_t *fader)
 	if (!fader)
 		return;
 
+	/* Detach first: it waits for an in-flight dispatch, whose temporary ref is
+	 * dropped under the source lock detach takes, so no callback runs after this. */
+	obs_fader_detach_source(fader);
 	obs_mem_release(fader);
 }
 
@@ -795,6 +798,9 @@ void obs_volmeter_destroy(obs_volmeter_t *volmeter)
 	if (!volmeter)
 		return;
 
+	/* Detach first: it waits for an in-flight dispatch, whose temporary ref is
+	 * dropped under the source lock detach takes, so no callback runs after this. */
+	obs_volmeter_detach_source(volmeter);
 	obs_mem_release(volmeter);
 }
 
