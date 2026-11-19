@@ -170,6 +170,72 @@ static void deinterlace_buffered_test(void **state)
 	core_stop();
 }
 
+/* every async video format through obs_source_output_video2(), with both ranges and every transfer function, on an
+ * SDR and on an HDR canvas; then preloading and setting frames the same way */
+static void async_formats_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+	core_start();
+
+	obs_source_t *src = obs_source_create("fake_async", "formats", NULL, NULL);
+	obs_source_set_async_unbuffered(src, true);
+	obs_set_output_source(0, src);
+
+	static const uint8_t trcs[] = {VIDEO_TRC_DEFAULT, VIDEO_TRC_SRGB, VIDEO_TRC_PQ, VIDEO_TRC_HLG};
+	for (int f = VIDEO_FORMAT_I420; f <= VIDEO_FORMAT_R10L; f++) {
+		for (int variant = 0; variant < 2; variant++) {
+			struct video_frame planes;
+			video_frame_init(&planes, (enum video_format)f, FRAME_W, FRAME_H);
+			struct obs_source_frame2 frame = {0};
+			for (size_t p = 0; p < MAX_AV_PLANES; p++) {
+				frame.data[p] = planes.data[p];
+				frame.linesize[p] = planes.linesize[p];
+			}
+			frame.width = FRAME_W;
+			frame.height = FRAME_H;
+			frame.format = (enum video_format)f;
+			frame.range = variant ? VIDEO_RANGE_FULL : VIDEO_RANGE_PARTIAL;
+			frame.trc = trcs[(f + variant) % 4];
+			frame.flip = variant != 0;
+			frame.timestamp = os_gettime_ns();
+			enum video_colorspace cs = frame.trc == VIDEO_TRC_PQ	? VIDEO_CS_2100_PQ
+						   : frame.trc == VIDEO_TRC_HLG ? VIDEO_CS_2100_HLG
+										: VIDEO_CS_709;
+			video_format_get_parameters_for_format(cs, frame.range, frame.format, frame.color_matrix,
+							       frame.color_range_min, frame.color_range_max);
+			obs_source_output_video2(src, &frame);
+			core_wait_frames(2);
+			video_frame_free(&planes);
+		}
+	}
+
+	/* preloading and setting frames */
+	struct video_frame planes;
+	video_frame_init(&planes, VIDEO_FORMAT_I420, FRAME_W, FRAME_H);
+	struct obs_source_frame2 frame = {0};
+	for (size_t p = 0; p < MAX_AV_PLANES; p++) {
+		frame.data[p] = planes.data[p];
+		frame.linesize[p] = planes.linesize[p];
+	}
+	frame.width = FRAME_W;
+	frame.height = FRAME_H;
+	frame.format = VIDEO_FORMAT_I420;
+	frame.range = VIDEO_RANGE_PARTIAL;
+	video_format_get_parameters_for_format(VIDEO_CS_601, frame.range, frame.format, frame.color_matrix,
+					       frame.color_range_min, frame.color_range_max);
+	obs_source_preload_video2(src, &frame);
+	obs_source_show_preloaded_video(src);
+	core_wait_frames(2);
+	obs_source_set_video_frame2(src, &frame);
+	core_wait_frames(2);
+	obs_source_output_video2(src, NULL);
+	video_frame_free(&planes);
+
+	obs_set_output_source(0, NULL);
+	obs_source_release(src);
+	core_stop();
+}
+
 static void get_frame_test(void **state)
 {
 	UNUSED_PARAMETER(state);
@@ -303,6 +369,7 @@ int main(void)
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(async_video_test),
 		cmocka_unit_test(get_frame_test),
+		cmocka_unit_test(async_formats_test),
 		cmocka_unit_test(deinterlace_buffered_test),
 		cmocka_unit_test(audio_test),
 	};
