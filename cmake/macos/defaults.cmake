@@ -41,7 +41,7 @@ list(APPEND CMAKE_IGNORE_PREFIX_PATH "/opt/homebrew" "/usr/local")
 
 # Used for library exports only (obs-frontend-api)
 set(OBS_LIBRARY_DESTINATION "lib")
-set(OBS_INCLUDE_DESTINATION "include/obs")
+set(OBS_INCLUDE_DESTINATION "include/knurbs")
 set(OBS_CMAKE_DESTINATION "lib/cmake")
 
 configure_file(

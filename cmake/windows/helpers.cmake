@@ -243,7 +243,7 @@ function(_target_install_obs target)
         set(_TIO_LIBRARY_DESTINATION ${_TIO_DESTINATION})
       endif()
       if(NOT _TIO_HEADER_DESTINATION)
-        set(_TIO_HEADER_DESTINATION include)
+        set(_TIO_HEADER_DESTINATION "${OBS_INCLUDE_DESTINATION}")
       endif()
       install(
         TARGETS ${target}

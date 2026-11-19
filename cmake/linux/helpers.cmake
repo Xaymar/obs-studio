@@ -305,6 +305,7 @@ function(target_export target)
 
     install(CODE "set(OBS_VERSION_CANONICAL ${OBS_VERSION_CANONICAL})" COMPONENT Development)
     install(CODE "set(CMAKE_C_STANDARD ${CMAKE_C_STANDARD})" COMPONENT Development)
+    install(CODE "set(OBS_INCLUDE_DESTINATION \"${OBS_INCLUDE_DESTINATION}\")" COMPONENT Development)
     install(
       CODE
         "configure_file(\"${CMAKE_CURRENT_SOURCE_DIR}/cmake/linux/${target}.pc.in\" \"${CMAKE_CURRENT_BINARY_DIR}/${target}.pc\" @ONLY)"
