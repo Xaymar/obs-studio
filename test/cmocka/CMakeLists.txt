@@ -359,3 +359,15 @@ foreach(
 )
   obs_add_unit_test(${test})
 endforeach()
+
+# graphics/ math
+foreach(
+  test
+  IN
+  ITEMS
+    test_graphics_vec
+    test_graphics_matrix
+    test_graphics_geometry
+)
+  obs_add_unit_test(${test})
+endforeach()
