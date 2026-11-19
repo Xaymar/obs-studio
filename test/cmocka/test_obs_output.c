@@ -5,6 +5,8 @@
 
 #include "obs-core-test.h"
 
+#include <util/dstr.h>
+
 /* ------------------------------------------------------------------------- */
 /* fake encoders: a video encoder that emits a keyframe every 10 frames and an audio encoder */
 
@@ -1168,6 +1170,158 @@ static void service_extra_test(void **state)
 	core_stop();
 }
 
+static void on_object_hotkey(void *data, obs_hotkey_id id, obs_hotkey_t *hotkey, bool pressed)
+{
+	UNUSED_PARAMETER(data);
+	UNUSED_PARAMETER(id);
+	UNUSED_PARAMETER(hotkey);
+	UNUSED_PARAMETER(pressed);
+}
+
+static bool on_object_pair(void *data, obs_hotkey_pair_id id, obs_hotkey_t *hotkey, bool pressed)
+{
+	UNUSED_PARAMETER(data);
+	UNUSED_PARAMETER(id);
+	UNUSED_PARAMETER(hotkey);
+	return pressed;
+}
+
+struct hotkey_find {
+	const char *name;
+	const char *description;
+	obs_hotkey_registerer_t type;
+	void *registerer;
+};
+
+static bool find_named_hotkey(void *data, obs_hotkey_id id, obs_hotkey_t *key)
+{
+	UNUSED_PARAMETER(id);
+	struct hotkey_find *find = data;
+	if (strcmp(obs_hotkey_get_name(key), find->name) != 0)
+		return true;
+	find->description = obs_hotkey_get_description(key);
+	find->type = obs_hotkey_get_registerer_type(key);
+	find->registerer = obs_hotkey_get_registerer(key);
+	return false;
+}
+
+static struct hotkey_find find_hotkey_named(const char *name)
+{
+	struct hotkey_find find = {.name = name};
+	obs_enum_hotkeys(find_named_hotkey, &find);
+	return find;
+}
+
+/* hotkeys of encoders, outputs and services, saved and loaded with them; translated key and built-in names */
+static void object_hotkeys_test(void **state)
+{
+	UNUSED_PARAMETER(state);
+	start();
+
+	struct obs_hotkeys_translations t = {
+		.insert = "Einfg",       .del = "Entf",          .home = "Pos1",
+		.end = "Ende",           .page_up = "Bild auf",  .page_down = "Bild ab",
+		.num_lock = "Num",       .scroll_lock = "Rollen", .caps_lock = "Feststell",
+		.backspace = "Ruecktaste", .tab = "Tabulator",   .print = "Druck",
+		.pause = "Pause",        .left = "Links",        .right = "Rechts",
+		.up = "Hoch",            .down = "Runter",       .shift = "Umschalt",
+		.alt = "Alt",            .control = "Strg",      .meta = "Win",
+		.menu = "Menue",         .space = "Leer",        .numpad_num = "Ziffernblock %1",
+		.numpad_divide = "ZB /", .numpad_multiply = "ZB *", .numpad_minus = "ZB -",
+		.numpad_plus = "ZB +",   .numpad_decimal = "ZB ,", .apple_keypad_num = "%1 (Keypad)",
+		.apple_keypad_divide = "/ (Keypad)", .apple_keypad_multiply = "* (Keypad)",
+		.apple_keypad_minus = "- (Keypad)", .apple_keypad_plus = "+ (Keypad)",
+		.apple_keypad_decimal = ". (Keypad)", .apple_keypad_equal = "= (Keypad)",
+		.mouse_num = "Maus %1",  .escape = "Esc",
+	};
+	obs_hotkeys_set_translations(&t);
+	obs_hotkeys_set_translations_s(NULL, 0);
+	struct dstr str = {0};
+	obs_key_to_str(OBS_KEY_MOUSE3, &str);
+	assert_string_equal(str.array, "Maus 3");
+	dstr_free(&str);
+
+	obs_hotkeys_set_audio_hotkeys_translations("Stumm", "Laut", "Druecken zum Stummschalten", "Druecken zum Sprechen",
+						   "Mithoeren an", "Mithoeren aus");
+	obs_hotkeys_set_sceneitem_hotkeys_translations("Zeigen '%1'", "Verbergen '%1'");
+
+	obs_encoder_t *enc = obs_video_encoder_create("fake_video_enc", "enc", NULL, NULL);
+	obs_output_t *out = obs_output_create("fake_raw_output", "out", NULL, NULL);
+	obs_service_t *svc = obs_service_create("fake_service", "svc", NULL, NULL);
+
+	obs_hotkey_id eid = obs_hotkey_register_encoder(enc, "enc.key", "Encoder key", on_object_hotkey, NULL);
+	obs_hotkey_id oid = obs_hotkey_register_output(out, "out.key", "Output key", on_object_hotkey, NULL);
+	obs_hotkey_id sid = obs_hotkey_register_service(svc, "svc.key", "Service key", on_object_hotkey, NULL);
+	assert_true(eid != OBS_INVALID_HOTKEY_ID && oid != OBS_INVALID_HOTKEY_ID && sid != OBS_INVALID_HOTKEY_ID);
+	assert_true(obs_hotkey_pair_register_encoder(enc, "enc.on", "On", "enc.off", "Off", on_object_pair,
+						     on_object_pair, NULL, NULL) != OBS_INVALID_HOTKEY_PAIR_ID);
+	assert_true(obs_hotkey_pair_register_output(out, "out.on", "On", "out.off", "Off", on_object_pair,
+						    on_object_pair, NULL, NULL) != OBS_INVALID_HOTKEY_PAIR_ID);
+	assert_true(obs_hotkey_pair_register_service(svc, "svc.on", "On", "svc.off", "Off", on_object_pair,
+						     on_object_pair, NULL, NULL) != OBS_INVALID_HOTKEY_PAIR_ID);
+
+	struct hotkey_find found = find_hotkey_named("enc.key");
+	assert_int_equal(found.type, OBS_HOTKEY_REGISTERER_ENCODER);
+	found = find_hotkey_named("out.key");
+	assert_int_equal(found.type, OBS_HOTKEY_REGISTERER_OUTPUT);
+	found = find_hotkey_named("svc.key");
+	assert_int_equal(found.type, OBS_HOTKEY_REGISTERER_SERVICE);
+	assert_non_null(found.registerer);
+
+	/* bindings save and load per object */
+	obs_key_combination_t f20 = {INTERACT_CONTROL_KEY, OBS_KEY_F20};
+	obs_hotkey_load_bindings(eid, &f20, 1);
+	obs_hotkey_load_bindings(oid, &f20, 1);
+	obs_hotkey_load_bindings(sid, &f20, 1);
+	obs_data_t *eh = obs_hotkeys_save_encoder(enc);
+	obs_data_t *oh = obs_hotkeys_save_output(out);
+	obs_data_t *sh = obs_hotkeys_save_service(svc);
+	assert_true(obs_data_has_user_value(eh, "enc.key"));
+	assert_true(obs_data_has_user_value(oh, "out.key"));
+	assert_true(obs_data_has_user_value(sh, "svc.key"));
+	obs_hotkeys_load_encoder(enc, eh);
+	obs_hotkeys_load_output(out, oh);
+	obs_hotkeys_load_service(svc, sh);
+	obs_data_release(eh);
+	obs_data_release(oh);
+	obs_data_release(sh);
+	/* Regression: the save functions dereferenced NULL */
+	assert_null(obs_hotkeys_save_encoder(NULL));
+	assert_null(obs_hotkeys_save_source(NULL));
+	assert_null(obs_hotkeys_save_output(NULL));
+	assert_null(obs_hotkeys_save_service(NULL));
+	obs_hotkeys_load_encoder(NULL, NULL);
+	obs_hotkeys_load_output(NULL, NULL);
+	obs_hotkeys_load_service(NULL, NULL);
+	assert_int_equal(obs_hotkey_register_encoder(NULL, "x", "x", on_object_hotkey, NULL), OBS_INVALID_HOTKEY_ID);
+	assert_int_equal(obs_hotkey_register_output(NULL, "x", "x", on_object_hotkey, NULL), OBS_INVALID_HOTKEY_ID);
+	assert_int_equal(obs_hotkey_register_service(NULL, "x", "x", on_object_hotkey, NULL), OBS_INVALID_HOTKEY_ID);
+
+	/* a source with audio gets the translated built-in hotkeys, a scene item the show/hide ones */
+	obs_source_t *src = obs_source_create("fake_input", "mic", NULL, NULL);
+	found = find_hotkey_named("libobs.mute");
+	assert_string_equal(found.description, "Stumm");
+	found = find_hotkey_named("libobs.push-to-talk");
+	assert_string_equal(found.description, "Druecken zum Sprechen");
+	obs_scene_t *scene = obs_scene_create("scene");
+	obs_scene_add(scene, src);
+	found = find_hotkey_named("libobs.show_scene_item.1");
+	assert_non_null(found.description);
+	assert_string_equal(found.description, "Zeigen 'mic'");
+	obs_scene_release(scene);
+	obs_source_release(src);
+
+	/* the objects' hotkeys go with them */
+	obs_encoder_release(enc);
+	obs_output_release(out);
+	obs_service_release(svc);
+	obs_wait_for_destroy_queue();
+	assert_null(find_hotkey_named("enc.key").description);
+	assert_null(find_hotkey_named("svc.on").description);
+
+	core_stop();
+}
+
 static void null_test(void **state)
 {
 	UNUSED_PARAMETER(state);
@@ -1198,7 +1352,7 @@ int main(void)
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(raw_output_test),     cmocka_unit_test(encoder_test),
 		cmocka_unit_test(encoded_output_test), cmocka_unit_test(delay_reconnect_test),
-		cmocka_unit_test(service_test), cmocka_unit_test(service_extra_test), cmocka_unit_test(gpu_encode_test),        cmocka_unit_test(null_test),
+		cmocka_unit_test(service_test), cmocka_unit_test(service_extra_test), cmocka_unit_test(object_hotkeys_test), cmocka_unit_test(gpu_encode_test),        cmocka_unit_test(null_test),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);
