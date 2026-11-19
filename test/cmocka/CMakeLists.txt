@@ -351,6 +351,8 @@ foreach(
     test_media_format_conversion
     test_media_video_frame
     test_media_video_formats
+    test_media_audio_resampler
+    test_media_video_scaler
 )
   obs_add_unit_test(${test})
 endforeach()
