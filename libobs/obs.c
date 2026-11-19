@@ -1390,6 +1390,9 @@ void obs_shutdown(void)
 {
 	struct obs_module *module;
 
+	if (!obs)
+		return;
+
 	obs_wait_for_destroy_queue();
 
 	for (size_t i = 0; i < obs->source_types.num; i++) {
