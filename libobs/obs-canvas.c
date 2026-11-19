@@ -362,8 +362,9 @@ static bool remove_groups_enum_cb(void *param, obs_source_t *scene_source)
 void obs_canvas_remove_source(obs_source_t *source)
 {
 	obs_canvas_t *canvas = obs_weak_canvas_get_canvas(source->canvas);
+	/* the weak reference is the source's own, so it goes even if the canvas already went */
+	obs_weak_canvas_release(source->canvas);
 	if (canvas) {
-		obs_weak_canvas_release(source->canvas);
 		obs_context_data_remove_name(&source->context, &canvas->sources_mutex, &canvas->sources);
 
 		canvas_dosignal_source("source_remove", canvas, source);
