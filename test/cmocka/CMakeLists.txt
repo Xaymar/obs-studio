@@ -406,6 +406,7 @@ foreach(
   ITEMS
     test_obs_data
     test_obs_properties
+    test_callback
 )
   obs_add_graphics_test(${test})
 endforeach()
