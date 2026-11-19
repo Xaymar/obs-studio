@@ -667,7 +667,8 @@ struct obs_core_video_mix *obs_create_video_mix(struct obs_video_info *ovi)
 {
 	struct obs_core_video_mix *video = bzalloc(sizeof(struct obs_core_video_mix));
 	if (obs_init_video_mix(ovi, video) != OBS_VIDEO_SUCCESS) {
-		bfree(video);
+		/* the video output and textures created before the failure */
+		obs_free_video_mix(video);
 		video = NULL;
 	}
 	return video;
