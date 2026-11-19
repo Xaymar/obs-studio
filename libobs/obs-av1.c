@@ -52,12 +52,21 @@ static void parse_obu_header(const uint8_t *buf, size_t size, size_t *obu_start,
 
 	(*obu_start)++;
 
+	/* a truncated packet: the OBU is just what is left of it */
+	if (*obu_start >= size) {
+		*obu_start = size;
+		return;
+	}
+
 	if (has_size_field)
 		*obu_size = (size_t)leb128(buf + *obu_start, size - *obu_start, &size_len);
 	else
 		*obu_size = size - *obu_start;
 
 	*obu_start += size_len;
+
+	if (*obu_size > size - *obu_start)
+		*obu_size = size - *obu_start;
 }
 
 // Pass a static 10 byte buffer in. The max size for a leb128.
