@@ -311,7 +311,7 @@ obs_property_t *obs_properties_get(obs_properties_t *props, const char *name)
 {
 	struct obs_property *property, *tmp;
 
-	if (!props)
+	if (!props || !name)
 		return NULL;
 
 	HASH_FIND_STR(props->properties, name, property);
@@ -342,7 +342,7 @@ obs_properties_t *obs_properties_get_parent(obs_properties_t *props)
 
 void obs_properties_remove_by_name(obs_properties_t *props, const char *name)
 {
-	if (!props)
+	if (!props || !name)
 		return;
 
 	struct obs_property *cur, *tmp;
@@ -504,7 +504,8 @@ static inline bool contains_prop(struct obs_properties *props, const char *name)
 
 static inline bool has_prop(struct obs_properties *props, const char *name)
 {
-	return contains_prop(get_topmost_parent(props), name);
+	/* properties are keyed by name, so a NULL name can never be added */
+	return !name || contains_prop(get_topmost_parent(props), name);
 }
 
 static inline void *get_property_data(struct obs_property *prop)
