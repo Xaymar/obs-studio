@@ -1538,6 +1538,29 @@ static inline bool size_valid(uint32_t width, uint32_t height)
 	return (width >= OBS_SIZE_MIN && height >= OBS_SIZE_MIN && width <= OBS_SIZE_MAX && height <= OBS_SIZE_MAX);
 }
 
+/* Without GPU conversion the output frames are copied from the RGBA output texture as they are
+ * (copy_rgbx_frame()), so only 4-byte RGB formats work then. The YUV formats need the conversion shaders,
+ * and the other formats have neither. */
+static bool output_format_supported(const struct obs_video_info *ovi)
+{
+	switch (ovi->output_format) {
+	case VIDEO_FORMAT_RGBA:
+	case VIDEO_FORMAT_BGRA:
+	case VIDEO_FORMAT_BGRX:
+		return true;
+	case VIDEO_FORMAT_I420:
+	case VIDEO_FORMAT_NV12:
+	case VIDEO_FORMAT_I444:
+	case VIDEO_FORMAT_I010:
+	case VIDEO_FORMAT_P010:
+	case VIDEO_FORMAT_P216:
+	case VIDEO_FORMAT_P416:
+		return ovi->gpu_conversion;
+	default:
+		return false;
+	}
+}
+
 int obs_reset_video(struct obs_video_info *ovi)
 {
 	if (!obs)
@@ -1549,6 +1572,11 @@ int obs_reset_video(struct obs_video_info *ovi)
 
 	if (!size_valid(ovi->output_width, ovi->output_height) || !size_valid(ovi->base_width, ovi->base_height))
 		return OBS_VIDEO_INVALID_PARAM;
+	if (!output_format_supported(ovi)) {
+		blog(LOG_ERROR, "obs_reset_video: output format %s is not supported %s GPU conversion",
+		     get_video_format_name(ovi->output_format), ovi->gpu_conversion ? "with" : "without");
+		return OBS_VIDEO_INVALID_PARAM;
+	}
 
 	stop_video();
 	obs_free_canvas_mixes();
