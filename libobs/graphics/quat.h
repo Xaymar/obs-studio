@@ -111,6 +111,7 @@ static inline void quat_inv(struct quat *dst, const struct quat *q)
 	dst->x = -q->x;
 	dst->y = -q->y;
 	dst->z = -q->z;
+	dst->w = q->w;
 }
 
 static inline void quat_neg(struct quat *dst, const struct quat *q)
@@ -118,6 +119,7 @@ static inline void quat_neg(struct quat *dst, const struct quat *q)
 	dst->x = -q->x;
 	dst->y = -q->y;
 	dst->z = -q->z;
+	dst->w = q->w;
 	dst->w = -q->w;
 }
 
