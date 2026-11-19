@@ -212,7 +212,7 @@ static void migrate_dshow_custom(void **state)
 	assert_string_equal(obs_data_get_string(s, VD_DEVICE_NAME), "Cam: Pro# 1");
 	assert_string_equal(obs_data_get_string(s, VD_RESOLUTION), "1920x1080");
 	assert_string_equal(obs_data_get_string(s, VD_FRAME_RATE), "10000000/166666");
-	assert_int_equal(obs_data_get_int(s, "dshow.video-format"), 200);
+	assert_string_equal(obs_data_get_string(s, VD_PIXEL_FORMAT), "YU12"); /* I420 */
 	assert_string_equal(obs_data_get_string(s, VD_COLOR_SPACE), "709");
 	assert_string_equal(obs_data_get_string(s, VD_COLOR_RANGE), "full");
 	assert_string_equal(obs_data_get_string(s, VD_BUFFERING), "off");
@@ -241,7 +241,7 @@ static void migrate_dshow_preferred_and_matching(void **state)
 	vd_migrate_dshow(NULL, "dshow_input", s);
 	assert_new_style_keys(s, NULL);
 	assert_false(obs_data_has_user_value(s, VD_RESOLUTION));
-	assert_false(obs_data_has_user_value(s, "dshow.video-format"));
+	assert_false(obs_data_has_user_value(s, VD_PIXEL_FORMAT));
 	assert_string_equal(obs_data_get_string(s, VD_COLOR_SPACE), "auto");
 	assert_string_equal(obs_data_get_string(s, VD_DEVICE_NAME), "Cam");
 	obs_data_release(s);
@@ -251,7 +251,38 @@ static void migrate_dshow_preferred_and_matching(void **state)
 		 "\"frame_interval\":-1}");
 	vd_migrate_dshow(NULL, "dshow_input", s);
 	assert_string_equal(obs_data_get_string(s, VD_FRAME_RATE), VD_FRAME_RATE_MATCH);
+	assert_false(obs_data_has_user_value(s, VD_PIXEL_FORMAT));
 	obs_data_release(s);
+
+	/* Custom with Any (0) and an unknown format: automatic. */
+	s = json("{\"video_device_id\":\"Cam:path\",\"res_type\":1,\"resolution\":\"1280x720\","
+		 "\"video_format\":0}");
+	vd_migrate_dshow(NULL, "dshow_input", s);
+	assert_false(obs_data_has_user_value(s, VD_PIXEL_FORMAT));
+	assert_false(obs_data_has_user_value(s, "video_format"));
+	obs_data_release(s);
+	s = json("{\"video_device_id\":\"Cam:path\",\"res_type\":1,\"resolution\":\"1280x720\","
+		 "\"video_format\":999}");
+	vd_migrate_dshow(NULL, "dshow_input", s);
+	assert_false(obs_data_has_user_value(s, VD_PIXEL_FORMAT));
+	obs_data_release(s);
+
+	/* Each saved format maps to its FourCC. */
+	static const struct {
+		int value;
+		const char *fourcc;
+	} formats[] = {{100, "AR24"}, {101, "XR24"}, {201, "NV12"}, {204, "P010"},
+		       {301, "YUYV"}, {303, "HDYC"}, {400, "MJPG"}, {402, "HEVC"}};
+	for (size_t i = 0; i < sizeof(formats) / sizeof(formats[0]); i++) {
+		s = obs_data_create();
+		obs_data_set_string(s, "video_device_id", "Cam:path");
+		obs_data_set_int(s, "res_type", 1);
+		obs_data_set_string(s, "resolution", "640x480");
+		obs_data_set_int(s, "video_format", formats[i].value);
+		vd_migrate_dshow(NULL, "dshow_input", s);
+		assert_string_equal(obs_data_get_string(s, VD_PIXEL_FORMAT), formats[i].fourcc);
+		obs_data_release(s);
+	}
 }
 
 static void migrate_v4l2_packed_formats(void **state)

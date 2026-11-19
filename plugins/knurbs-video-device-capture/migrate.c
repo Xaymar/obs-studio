@@ -6,6 +6,7 @@
  */
 #include "migrate.h"
 #include "video-device.h"
+#include "backends/dshow/dshow-formats.h"
 
 #include <util/darray.h>
 #include <util/dstr.h>
@@ -314,11 +315,16 @@ void vd_migrate_dshow(void *param, const char *old_id, obs_data_t *s)
 			set_fps(s, 10000000, interval);
 		}
 
-		move_backend_key(s, "dshow", "video_format");
+		/* The DShow::VideoFormat number; Any and unknown ones mean
+		 * automatic. */
+		const char *fourcc = vd_dshow_format_fourcc((int)obs_data_get_int(s, "video_format"));
+		if (fourcc) {
+			obs_data_set_string(s, VD_PIXEL_FORMAT, fourcc);
+		}
 	} else {
 		obs_data_erase(s, VD_RESOLUTION);
-		obs_data_erase(s, "video_format");
 	}
+	obs_data_erase(s, "video_format");
 	obs_data_erase(s, "res_type");
 	obs_data_erase(s, "frame_interval");
 	obs_data_erase(s, "last_resolution");
