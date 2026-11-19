@@ -16,7 +16,7 @@
 extern "C" {
 #endif
 
-#define VIDEO_DEVICE_SOURCE_ID "video-device-capture"
+#define VIDEO_DEVICE_SOURCE_ID "knurbs-video-device-capture"
 
 /* ------------------------------------------------------------------------- */
 /* Common settings, the same on every platform.                              */

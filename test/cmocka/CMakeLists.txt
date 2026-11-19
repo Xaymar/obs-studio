@@ -33,12 +33,12 @@ add_test(test_source_alias test_source_alias)
 add_executable(
   test_video_device
   test_video_device.c
-  ${CMAKE_SOURCE_DIR}/plugins/capture-video-device/migrate.c
-  ${CMAKE_SOURCE_DIR}/plugins/capture-video-device/video-device.c
+  ${CMAKE_SOURCE_DIR}/plugins/knurbs-video-device-capture/migrate.c
+  ${CMAKE_SOURCE_DIR}/plugins/knurbs-video-device-capture/video-device.c
 )
 target_include_directories(
   test_video_device
-  PRIVATE ${CMOCKA_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/plugins/capture-video-device
+  PRIVATE ${CMOCKA_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/plugins/knurbs-video-device-capture
 )
 target_link_libraries(test_video_device PRIVATE OBS::libobs cmocka::cmocka)
 
