@@ -59,6 +59,8 @@ EXPORT void matrix3_from_matrix4(struct matrix3 *dst, const struct matrix4 *m);
 EXPORT void matrix3_mul(struct matrix3 *dst, const struct matrix3 *m1, const struct matrix3 *m2);
 static inline void matrix3_translate(struct matrix3 *dst, const struct matrix3 *m, const struct vec3 *v)
 {
+	if (dst != m)
+		matrix3_copy(dst, m);
 	vec3_sub(&dst->t, &m->t, v);
 }
 
