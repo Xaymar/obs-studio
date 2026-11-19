@@ -22,9 +22,17 @@ static void create_device_test(void **state)
 	assert_int_equal(gs_create(&graphics, NULL_GRAPHICS_MODULE, 0), GS_ERROR_FAIL);
 	assert_null(graphics);
 
-	/* the immediate and sprite vertex buffers are created with the device */
-	null_fail_next("device_vertexbuffer_create", 1);
-	assert_int_equal(gs_create(&graphics, NULL_GRAPHICS_MODULE, 0), GS_ERROR_FAIL);
+	/* the immediate and sprite vertex buffers are created with the device. Regression: this left the
+	 * context current with no reference, and gs_destroy() then counted the reference down from 0 to wrap
+	 * around (seconds per failure); it must be quick now */
+	for (long n = 1; n <= 3; n++) {
+		uint64_t start = os_gettime_ns();
+		null_fail_next("device_vertexbuffer_create", n);
+		assert_int_equal(gs_create(&graphics, NULL_GRAPHICS_MODULE, 0), GS_ERROR_FAIL);
+		assert_null(gs_get_context());
+		assert_true(os_gettime_ns() - start < 1000000000ULL);
+	}
+	null_reset_failures();
 	null_reset_failures();
 
 	assert_int_equal(gs_create(&graphics, NULL_GRAPHICS_MODULE, 0), GS_SUCCESS);

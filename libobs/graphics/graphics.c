@@ -168,14 +168,13 @@ static bool graphics_init(struct graphics_subsystem *graphics)
 
 	thread_graphics = graphics;
 
-	if (!graphics_init_immediate_vb(graphics))
+	/* on failure, leave the context too: gs_destroy() would otherwise count graphics->ref down from 0 */
+	if (!graphics_init_immediate_vb(graphics) || !graphics_init_sprite_vbs(graphics) ||
+	    pthread_mutex_init(&graphics->mutex, NULL) != 0 || pthread_mutex_init(&graphics->effect_mutex, NULL) != 0) {
+		graphics->exports.device_leave_context(graphics->device);
+		thread_graphics = NULL;
 		return false;
-	if (!graphics_init_sprite_vbs(graphics))
-		return false;
-	if (pthread_mutex_init(&graphics->mutex, NULL) != 0)
-		return false;
-	if (pthread_mutex_init(&graphics->effect_mutex, NULL) != 0)
-		return false;
+	}
 
 	graphics->exports.device_blend_function_separate(graphics->device, GS_BLEND_SRCALPHA, GS_BLEND_INVSRCALPHA,
 							 GS_BLEND_ONE, GS_BLEND_INVSRCALPHA);
