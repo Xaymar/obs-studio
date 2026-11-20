@@ -46,6 +46,7 @@ private:
 	std::unique_ptr<MainWindow> window_;
 	bool shuttingDown_ = false;
 	bool quitRequested_ = false;
+	bool failed_ = false;
 };
 
 } // namespace knurbs

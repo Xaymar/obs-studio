@@ -88,6 +88,7 @@ void Application::status(const QString &text)
 void Application::fail(const QString &message)
 {
 	blog(LOG_ERROR, "[knurbs] %s", message.toUtf8().constData());
+	failed_ = true;
 	if (splash_) {
 		splash_->hide();
 	}
@@ -226,6 +227,9 @@ int Application::run()
 		result = exec();
 	}
 	shutdown();
+	if (failed_) {
+		result = 1;
+	}
 	return result;
 }
 
