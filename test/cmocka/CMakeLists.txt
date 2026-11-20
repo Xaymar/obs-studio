@@ -264,3 +264,10 @@ target_include_directories(test_os_path PRIVATE ${CMOCKA_INCLUDE_DIR})
 target_link_libraries(test_os_path PRIVATE OBS::libobs cmocka::cmocka)
 
 add_test(test_os_path test_os_path)
+
+# Config file test
+add_executable(test_config_file test_config_file.c)
+target_include_directories(test_config_file PRIVATE ${CMOCKA_INCLUDE_DIR})
+target_link_libraries(test_config_file PRIVATE OBS::libobs cmocka::cmocka)
+
+add_test(test_config_file test_config_file)

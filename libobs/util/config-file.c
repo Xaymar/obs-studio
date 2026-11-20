@@ -379,7 +379,8 @@ int config_save(config_t *config)
 	if (fwrite("\xEF\xBB\xBF", 3, 1, f) != 1)
 		goto cleanup;
 #endif
-	if (fwrite(str.array, str.len, 1, f) != 1)
+	/* An empty config is valid; fwrite of zero bytes "writes" 0 items. */
+	if (str.len && fwrite(str.array, str.len, 1, f) != 1)
 		goto cleanup;
 
 	ret = CONFIG_SUCCESS;
