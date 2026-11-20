@@ -1,0 +1,23 @@
+device: Tesla P100-PCIE-16GB, driver NVIDIA 580.196.07, Vulkan 1.4.312, validation not installed
+CUDA driver API 13.0, NVENC API max 13.0 (headers 12.1)
+PASS CUDA device matched to the Vulkan device by UUID
+--- buffer-devptr
+PASS buffer-devptr: cuImportExternalMemory(OPAQUE_FD, 423936 bytes) = 0
+PASS buffer-devptr: cuImportExternalSemaphore(TIMELINE_SEMAPHORE_FD) = 0
+PASS buffer-devptr: cuExternalMemoryGetMappedBuffer = 0
+PASS buffer-devptr: NVENC session (CUDA device) opened
+PASS buffer-devptr: nvEncRegisterResource(CUDADEVICEPTR)
+PASS buffer-devptr: 30 frames encoded with GPU-side semaphore handoff Vulkan -> CUDA/NVENC -> Vulkan
+  wrote /tmp/claude-1000/spk/results/e/buffer-devptr.h264
+--- image-cuarray
+PASS image-cuarray: cuImportExternalMemory(OPAQUE_FD, 409600 bytes) = 0
+PASS image-cuarray: cuImportExternalSemaphore(TIMELINE_SEMAPHORE_FD) = 0
+PASS image-cuarray: cuExternalMemoryGetMappedMipmappedArray = 0
+PASS image-cuarray: cuMipmappedArrayGetLevel = 0
+PASS image-cuarray: NVENC session (CUDA device) opened
+PASS image-cuarray: nvEncRegisterResource(CUDAARRAY)
+PASS image-cuarray: 30 frames encoded with GPU-side semaphore handoff Vulkan -> CUDA/NVENC -> Vulkan
+  wrote /tmp/claude-1000/spk/results/e/image-cuarray.h264
+spike E: OK (0 failure(s))
+buffer-devptr: 30 frames decoded (ref 30); PSNR Y avg 50.41 dB, UV avg 50.83 dB, worst Y 47.99 dB at frame 1
+image-cuarray: 30 frames decoded (ref 30); PSNR Y avg 50.41 dB, UV avg 50.83 dB, worst Y 47.99 dB at frame 1

@@ -1,0 +1,14 @@
+tracker    rc=0    15 ok   0 failed   0 skipped
+exports    rc=1     4 ok   1 failed   0 skipped
+           optional export must be absent: gs_get_adapter_count
+           [  ERROR   ] --- 2 != 0 (exported != 0)
+device     rc=0     6 ok   0 failed   1 skipped
+priority   rc=0     6 ok   0 failed   0 skipped
+readback   rc=0     6 ok   0 failed   0 skipped
+upload     rc=0    14 ok   0 failed   0 skipped
+shader     rc=0     8 ok   0 failed   0 skipped
+draw       rc=0    26 ok   0 failed   0 skipped
+depth      rc=0    11 ok   0 failed   0 skipped
+effects    rc=0     4 ok   0 failed   0 skipped
+swapchain  rc=0     0 ok   0 failed   6 skipped
+video      rc=0   [  PASSED  ] 1 test(s).

@@ -1,0 +1,35 @@
+# Linux Vulkan interop spikes (Knurbs Vulkan-only backend plan, phase 1). Throwaway, standalone:
+#   cmake -S . -B build -G Ninja && ninja -C build
+# Spike A (building libobs-vulkan and its tests) lives in a-build/ and is configured separately.
+cmake_minimum_required(VERSION 3.28)
+project(knurbs-vulkan-interop-spikes-linux C CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(Vulkan REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GBM IMPORTED_TARGET gbm)
+pkg_check_modules(LIBDRM IMPORTED_TARGET libdrm)
+pkg_check_modules(FFNVCODEC IMPORTED_TARGET ffnvcodec)
+pkg_check_modules(WAYLAND IMPORTED_TARGET wayland-client wayland-server)
+
+set(SPIKE_COMMON "${CMAKE_CURRENT_SOURCE_DIR}/common")
+include(common/shaders.cmake)
+add_library(spike_common INTERFACE)
+target_include_directories(spike_common INTERFACE "${SPIKE_COMMON}")
+target_link_libraries(spike_common INTERFACE Vulkan::Vulkan ${CMAKE_DL_LIBS})
+
+add_subdirectory(b-plane-views)
+if(GBM_FOUND AND LIBDRM_FOUND)
+  add_subdirectory(c-dmabuf)
+endif()
+if(LIBDRM_FOUND)
+  add_subdirectory(d-sync)
+endif()
+if(FFNVCODEC_FOUND)
+  add_subdirectory(e-cuda-nvenc)
+endif()
+add_subdirectory(f-cross-process)
+if(WAYLAND_FOUND)
+  add_subdirectory(g-wayland)
+endif()

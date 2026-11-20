@@ -1,0 +1,66 @@
+device: Tesla P100-PCIE-16GB, driver NVIDIA 580.196.07, Vulkan 1.4.312, validation not installed
+--- NV12 64x48, clear via loadOp CLEAR
+  NV12 image format props (usage 0x15): VK_SUCCESS, max 32768x32768
+  view format 9 optimal features: colour attachment yes
+  view format 16 optimal features: colour attachment yes
+  NV12 optimal features 0x40001ecfd001 (sampled yes, ycbcr-linear yes, disjoint yes)
+PASS NV12: MUTABLE|EXTENDED_USAGE image with colour-attachment usage supported
+  Y(0,0) got 0 want 16
+  Y(1,0) got 0 want 16
+  Y(2,0) got 0 want 16
+  Y(3,0) got 0 want 16
+FAIL NV12: luma plane via R8 view: clear + pattern exact (2304 bad texels)
+PASS NV12: chroma plane via RG8 view: clear + pattern exact (0 bad texels)
+--- P010 64x48, clear via loadOp CLEAR
+  P010 image format props (usage 0x15): VK_SUCCESS, max 32768x32768
+  view format 70 optimal features: colour attachment yes
+  view format 77 optimal features: colour attachment yes
+  P010 optimal features 0x40001ecfd001 (sampled yes, ycbcr-linear yes, disjoint yes)
+PASS P010: MUTABLE|EXTENDED_USAGE image with colour-attachment usage supported
+  Y(0,0) got 0 want 4096
+  Y(1,0) got 0 want 4096
+  Y(2,0) got 0 want 4096
+  Y(3,0) got 0 want 4096
+FAIL P010: luma plane via R16 view: clear + pattern exact (2304 bad texels)
+PASS P010: chroma plane via RG16 view: clear + pattern exact (0 bad texels)
+--- NV12 64x48, clear via vkCmdClearAttachments
+  NV12 image format props (usage 0x15): VK_SUCCESS, max 32768x32768
+  view format 9 optimal features: colour attachment yes
+  view format 16 optimal features: colour attachment yes
+  NV12 optimal features 0x40001ecfd001 (sampled yes, ycbcr-linear yes, disjoint yes)
+PASS NV12: MUTABLE|EXTENDED_USAGE image with colour-attachment usage supported
+PASS NV12: luma plane via R8 view: clear + pattern exact (0 bad texels)
+PASS NV12: chroma plane via RG8 view: clear + pattern exact (0 bad texels)
+--- P010 64x48, clear via vkCmdClearAttachments
+  P010 image format props (usage 0x15): VK_SUCCESS, max 32768x32768
+  view format 70 optimal features: colour attachment yes
+  view format 77 optimal features: colour attachment yes
+  P010 optimal features 0x40001ecfd001 (sampled yes, ycbcr-linear yes, disjoint yes)
+PASS P010: MUTABLE|EXTENDED_USAGE image with colour-attachment usage supported
+PASS P010: luma plane via R16 view: clear + pattern exact (0 bad texels)
+PASS P010: chroma plane via RG16 view: clear + pattern exact (0 bad texels)
+--- NV12 64x48, clear via loadOp CLEAR, no draw
+  NV12 image format props (usage 0x15): VK_SUCCESS, max 32768x32768
+  view format 9 optimal features: colour attachment yes
+  view format 16 optimal features: colour attachment yes
+  NV12 optimal features 0x40001ecfd001 (sampled yes, ycbcr-linear yes, disjoint yes)
+PASS NV12: MUTABLE|EXTENDED_USAGE image with colour-attachment usage supported
+  Y(0,0) got 0 want 16
+  Y(1,0) got 0 want 16
+  Y(2,0) got 0 want 16
+  Y(3,0) got 0 want 16
+FAIL NV12: luma plane via R8 view: clear + pattern exact (3072 bad texels)
+PASS NV12: chroma plane via RG8 view: clear + pattern exact (0 bad texels)
+--- P010 64x48, clear via loadOp CLEAR, no draw
+  P010 image format props (usage 0x15): VK_SUCCESS, max 32768x32768
+  view format 70 optimal features: colour attachment yes
+  view format 77 optimal features: colour attachment yes
+  P010 optimal features 0x40001ecfd001 (sampled yes, ycbcr-linear yes, disjoint yes)
+PASS P010: MUTABLE|EXTENDED_USAGE image with colour-attachment usage supported
+  Y(0,0) got 0 want 4096
+  Y(1,0) got 0 want 4096
+  Y(2,0) got 0 want 4096
+  Y(3,0) got 0 want 4096
+FAIL P010: luma plane via R16 view: clear + pattern exact (3072 bad texels)
+PASS P010: chroma plane via RG16 view: clear + pattern exact (0 bad texels)
+spike B: FAILED (4 failure(s))

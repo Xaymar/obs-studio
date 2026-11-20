@@ -1,0 +1,34 @@
+device: Tesla P100-PCIE-16GB, driver NVIDIA 580.196.07, Vulkan 1.4.312, validation not installed
+--- external semaphore properties
+  binary   OPAQUE_FD export y import y
+  binary   SYNC_FD   export y import y
+  timeline OPAQUE_FD export y import y
+  timeline SYNC_FD   export n import n
+--- timeline semaphore, OPAQUE_FD, device A <-> device B
+PASS export timeline OPAQUE_FD (VK_SUCCESS)
+  is the OPAQUE_FD a DRM syncobj? drmSyncobjFDToHandle: Operation not permitted
+PASS import timeline OPAQUE_FD into device B (VK_SUCCESS)
+PASS host signal 5 on A seen by B
+PASS B's GPU submit blocked on 10 (value still 5)
+PASS A GPU-signals 10 -> B GPU waits, signals 11 -> A sees 11
+--- SYNC_FD
+  timeline semaphore SYNC_FD export: VK_SUCCESS (properties say not exportable; the spec only allows binary)
+PASS binary SYNC_FD export of a pending signal (VK_SUCCESS, fd 26)
+PASS sync_file not signalled while the gate is closed (poll 0)
+PASS import SYNC_FD (temporary) into device B (VK_SUCCESS)
+PASS B blocked on the sync_file
+PASS sync_file signalled after the gate opens (poll 1)
+PASS B's submit ran after the sync_file signalled
+--- DRM syncobj timeline (PipeWire explicit sync shape)
+PASS DRM_CAP_SYNCOBJ_TIMELINE on renderD128 (ok, 1)
+PASS drmSyncobjCreate x2
+  direct: import syncobj fd as timeline OPAQUE_FD: VK_ERROR_INITIALIZATION_FAILED
+  (direct import not supported: use the sync_file bridge)
+PASS acquire point 3 available (ok)
+PASS acquire point -> sync_file (ok)
+PASS acquire sync_file imported into Vulkan (VK_SUCCESS)
+PASS release semaphore exported as sync_file (VK_SUCCESS)
+PASS release sync_file -> syncobj point 4 (ok)
+PASS release point 4 signalled by the GPU (ok)
+PASS Vulkan submit completed after the acquire point
+spike D: OK (0 failure(s))

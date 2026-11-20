@@ -1,0 +1,17 @@
+[child pid 12315] device: Tesla P100-PCIE-16GB, driver NVIDIA 580.196.07, Vulkan 1.4.312, validation not installed
+PASS [child] received 4 fds over SCM_RIGHTS
+PASS [child] device/driver UUID match (required for OPAQUE_FD)
+PASS [child] dmabuf imported (ok)
+PASS [child] timeline semaphore imported (VK_SUCCESS)
+PASS [child] sync_file imported (VK_SUCCESS)
+[parent pid 12314] device: Tesla P100-PCIE-16GB, driver NVIDIA 580.196.07, Vulkan 1.4.312, validation not installed
+[parent] sent dmabuf (modifier 0x3000000004fe014), opaque image (131072 bytes), timeline, sync_file
+PASS [parent] nothing signalled while gated
+[child] timeline value at import: 0 (parent's work still gated)
+PASS [child] dmabuf pixels written by the parent (0 bad bytes)
+PASS [child] OPAQUE_FD image pixels written by the parent (0 bad bytes)
+PASS [parent] child's GPU signal of value 2 received (VK_SUCCESS)
+spike F child: OK (0 failure(s))
+PASS [parent] dmabuf pixels written back by the child (0 bad bytes)
+PASS [parent] child exited cleanly (0, 0 failures)
+spike F: OK (0 failure(s))

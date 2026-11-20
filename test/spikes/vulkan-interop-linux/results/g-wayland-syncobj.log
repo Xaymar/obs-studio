@@ -1,0 +1,31 @@
+device: Tesla P100-PCIE-16GB, driver NVIDIA 580.196.07, Vulkan 1.4.312, validation not installed
+PASS client: wl_display_connect(knurbs-spike-12358)
+PASS client: vkGetPhysicalDeviceWaylandPresentationSupportKHR
+PASS client: vkCreateWaylandSurfaceKHR (VK_SUCCESS)
+PASS client: queue family can present to the surface
+client: surface caps: images 2..8, usage 0x9f; 2 formats: 50/0 44/0; present modes: 1 1000361000 2
+PASS client: vkCreateSwapchainKHR(256x128, format 44, present mode 2) (VK_SUCCESS)
+client: 3 swapchain images
+PASS client: presented 6/6 frames
+globals/requests used by the client + WSI:
+  wl_compositor v4
+  zwp_linux_dmabuf_v1 v4
+    zwp_linux_dmabuf_v1.get_surface_feedback v0
+  zwp_linux_dmabuf_v1 v4
+    zwp_linux_dmabuf_v1.get_surface_feedback v0
+  zwp_linux_dmabuf_v1 v4
+    zwp_linux_dmabuf_v1.get_surface_feedback v0
+  zwp_linux_dmabuf_v1 v4
+  wp_linux_drm_syncobj_manager_v1 v1
+    wp_linux_drm_syncobj_manager_v1.get_surface v0
+    zwp_linux_dmabuf_v1.get_surface_feedback v0
+    wp_linux_drm_syncobj_manager_v1.import_timeline v0
+    wp_linux_drm_syncobj_manager_v1.import_timeline v0
+    wp_linux_drm_syncobj_manager_v1.import_timeline v0
+compositor: 6 commits, 0 import failures; colours: ffff0000 ff00ff00 ff0000ff ffffff00 ff00ffff ffff00ff
+PASS compositor received 6 commits of dmabuf wl_buffers, all imported
+PASS compositor saw all 6 client colours, uniform, in its own VkDevice (6)
+explicit sync: 6 acquire waits (0 already signalled at commit, 0 failed), 6 release signals
+PASS WSI used wp_linux_drm_syncobj: acquire point per commit, release point per buffer
+client buffer modifier: 0x3000000004fe014
+spike G: OK (0 failure(s))

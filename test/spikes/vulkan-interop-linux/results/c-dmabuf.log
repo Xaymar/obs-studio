@@ -1,0 +1,74 @@
+device: Tesla P100-PCIE-16GB, driver NVIDIA 580.196.07, Vulkan 1.4.312, validation not installed
+--- modifiers for BGRA8 (AR24) (usage 0x17, 256x128)
+  0x03000000004fe015 BLOCK_LINEAR_2D,HEIGHT=5,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0 planes 1  attach y sampled y xfer y/y  import y export y
+  0x03000000004fe014 BLOCK_LINEAR_2D,HEIGHT=4,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0 planes 1  attach y sampled y xfer y/y  import y export y
+  0x03000000004fe013 BLOCK_LINEAR_2D,HEIGHT=3,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0 planes 1  attach y sampled y xfer y/y  import y export y
+  0x03000000004fe012 BLOCK_LINEAR_2D,HEIGHT=2,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0 planes 1  attach y sampled y xfer y/y  import y export y
+  0x03000000004fe011 BLOCK_LINEAR_2D,HEIGHT=1,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0 planes 1  attach y sampled y xfer y/y  import y export y
+  0x03000000004fe010 BLOCK_LINEAR_2D,HEIGHT=0,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0 planes 1  attach y sampled y xfer y/y  import y export y
+  0x0000000000000000 LINEAR                                planes 1  attach n sampled y xfer y/y  import y export y
+--- modifiers for NV12 (usage 0x7, 256x128)
+  0x0000000000000000 LINEAR                                planes 2  attach n sampled y xfer y/y  import y export y
+--- Vulkan export -> Vulkan import
+  exported BGRA8 (AR24) 256x128: modifier 0x03000000004fe014 BLOCK_LINEAR_2D,HEIGHT=4,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0, 1 memory plane(s): [off 0 pitch 1024 size 131072]
+PASS BGRA8 (AR24) driver-chosen modifier: import into second VkDevice (ok)
+PASS BGRA8 (AR24) driver-chosen modifier: pixels match after export -> import (0 bad bytes)
+  exported NV12 256x128: modifier 0x0000000000000000 LINEAR, 2 memory plane(s): [off 0 pitch 256 size 65536] [off 65536 pitch 256 size 65536]
+FAIL NV12 driver-chosen modifier: CPU mmap of the exported dmabuf matches (192 bad rows)
+PASS NV12 driver-chosen modifier: import into second VkDevice (ok)
+PASS NV12 driver-chosen modifier: pixels match after export -> import (0 bad bytes)
+  exported BGRA8 (AR24) 256x128: modifier 0x03000000004fe015 BLOCK_LINEAR_2D,HEIGHT=5,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0, 1 memory plane(s): [off 0 pitch 1024 size 131072]
+PASS BGRA8 (AR24) 0x03000000004fe015 BLOCK_LINEAR_2D,HEIGHT=5,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0: import into second VkDevice (ok)
+PASS BGRA8 (AR24) 0x03000000004fe015 BLOCK_LINEAR_2D,HEIGHT=5,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0: pixels match after export -> import (0 bad bytes)
+  exported BGRA8 (AR24) 256x128: modifier 0x03000000004fe014 BLOCK_LINEAR_2D,HEIGHT=4,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0, 1 memory plane(s): [off 0 pitch 1024 size 131072]
+PASS BGRA8 (AR24) 0x03000000004fe014 BLOCK_LINEAR_2D,HEIGHT=4,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0: import into second VkDevice (ok)
+PASS BGRA8 (AR24) 0x03000000004fe014 BLOCK_LINEAR_2D,HEIGHT=4,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0: pixels match after export -> import (0 bad bytes)
+  exported BGRA8 (AR24) 256x128: modifier 0x03000000004fe013 BLOCK_LINEAR_2D,HEIGHT=3,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0, 1 memory plane(s): [off 0 pitch 1024 size 131072]
+PASS BGRA8 (AR24) 0x03000000004fe013 BLOCK_LINEAR_2D,HEIGHT=3,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0: import into second VkDevice (ok)
+PASS BGRA8 (AR24) 0x03000000004fe013 BLOCK_LINEAR_2D,HEIGHT=3,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0: pixels match after export -> import (0 bad bytes)
+  exported BGRA8 (AR24) 256x128: modifier 0x03000000004fe012 BLOCK_LINEAR_2D,HEIGHT=2,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0, 1 memory plane(s): [off 0 pitch 1024 size 131072]
+PASS BGRA8 (AR24) 0x03000000004fe012 BLOCK_LINEAR_2D,HEIGHT=2,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0: import into second VkDevice (ok)
+PASS BGRA8 (AR24) 0x03000000004fe012 BLOCK_LINEAR_2D,HEIGHT=2,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0: pixels match after export -> import (0 bad bytes)
+  exported BGRA8 (AR24) 256x128: modifier 0x03000000004fe011 BLOCK_LINEAR_2D,HEIGHT=1,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0, 1 memory plane(s): [off 0 pitch 1024 size 131072]
+PASS BGRA8 (AR24) 0x03000000004fe011 BLOCK_LINEAR_2D,HEIGHT=1,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0: import into second VkDevice (ok)
+PASS BGRA8 (AR24) 0x03000000004fe011 BLOCK_LINEAR_2D,HEIGHT=1,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0: pixels match after export -> import (0 bad bytes)
+  exported BGRA8 (AR24) 256x128: modifier 0x03000000004fe010 BLOCK_LINEAR_2D,HEIGHT=0,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0, 1 memory plane(s): [off 0 pitch 1024 size 131072]
+PASS BGRA8 (AR24) 0x03000000004fe010 BLOCK_LINEAR_2D,HEIGHT=0,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0: import into second VkDevice (ok)
+PASS BGRA8 (AR24) 0x03000000004fe010 BLOCK_LINEAR_2D,HEIGHT=0,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0: pixels match after export -> import (0 bad bytes)
+  exported BGRA8 (AR24) 256x128: modifier 0x0000000000000000 LINEAR, 1 memory plane(s): [off 0 pitch 1024 size 131072]
+PASS BGRA8 (AR24) 0x0000000000000000 LINEAR: CPU mmap of the exported dmabuf matches (0 bad rows)
+PASS BGRA8 (AR24) 0x0000000000000000 LINEAR: import into second VkDevice (ok)
+PASS BGRA8 (AR24) 0x0000000000000000 LINEAR: pixels match after export -> import (0 bad bytes)
+  exported NV12 256x128: modifier 0x0000000000000000 LINEAR, 2 memory plane(s): [off 0 pitch 256 size 65536] [off 65536 pitch 256 size 65536]
+FAIL NV12 0x0000000000000000 LINEAR: CPU mmap of the exported dmabuf matches (192 bad rows)
+PASS NV12 0x0000000000000000 LINEAR: import into second VkDevice (ok)
+PASS NV12 0x0000000000000000 LINEAR: pixels match after export -> import (0 bad bytes)
+  exported NV12 256x128: modifier 0x0000000000000000 LINEAR, 2 memory plane(s): [off 0 pitch 256 size 65536] [off 32768 pitch 256 size 65536]
+FAIL NV12 LINEAR, explicit pitch layout on export: CPU mmap of the exported dmabuf matches (192 bad rows)
+PASS NV12 LINEAR, explicit pitch layout on export: import into second VkDevice (ok)
+  byte 0: got 0 want 1
+  byte 1: got 0 want 8
+  byte 2: got 0 want 15
+FAIL NV12 LINEAR, explicit pitch layout on export: pixels match after export -> import (48962 bad bytes)
+GBM backend: nvidia
+--- GBM BGRA8 (AR24) 256x128
+  gbm_device_is_format_supported(AR24, RENDERING): yes
+PASS BGRA8 (AR24): GBM allocation with Vulkan's modifier list
+  bo: modifier 0x03000000004fe014 BLOCK_LINEAR_2D,HEIGHT=4,KIND=254,GEN=0,SECTOR=1,COMPRESSION=0, 1 plane(s), same dmabuf for all planes: yes: [off 0 pitch 1024]
+PASS BGRA8 (AR24): GBM bo imported into VkDevice A (ok)
+PASS BGRA8 (AR24): same GBM bo imported into VkDevice B (ok)
+PASS BGRA8 (AR24): GBM bo pixels written by A, read by B (0 bad bytes)
+  gbm_bo_map: failed (No such file or directory)
+--- GBM NV12 256x128
+  gbm_device_is_format_supported(NV12, RENDERING): yes
+  gbm_bo_create_with_modifiers2(RENDERING): Invalid argument
+  gbm_bo_create(RENDERING|LINEAR): Invalid argument
+  gbm_bo_create(LINEAR): ok
+PASS NV12: GBM allocation LINEAR
+  bo: modifier 0x0000000000000000 LINEAR, 2 plane(s), same dmabuf for all planes: yes: [off 0 pitch 256] [off 65536 pitch 256]
+PASS NV12: GBM bo imported into VkDevice A (ok)
+PASS NV12: same GBM bo imported into VkDevice B (ok)
+PASS NV12: GBM bo pixels written by A, read by B (0 bad bytes)
+  gbm_bo_map: failed (Function not implemented)
+PASS NV12: CPU mmap of the GBM LINEAR dmabuf matches what Vulkan wrote (0 bad rows)
+spike C: FAILED (4 failure(s))
