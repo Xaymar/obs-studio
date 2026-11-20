@@ -86,6 +86,7 @@ target_include_directories(test_source_alias PRIVATE ${CMOCKA_INCLUDE_DIR})
 target_link_libraries(test_source_alias PRIVATE OBS::libobs cmocka::cmocka)
 
 add_test(test_source_alias test_source_alias)
+set_tests_properties(test_source_alias PROPERTIES ENVIRONMENT_MODIFICATION "${_obs_runtime_env}")
 
 # Video Device Capture: migrations and backend selection, with fake backends
 add_executable(
@@ -101,6 +102,7 @@ target_include_directories(
 target_link_libraries(test_video_device PRIVATE OBS::libobs cmocka::cmocka)
 
 add_test(test_video_device test_video_device)
+set_tests_properties(test_video_device PROPERTIES ENVIRONMENT_MODIFICATION "${_obs_runtime_env}")
 
 # PipeWire async frame plane layout
 if(OS_LINUX OR OS_FREEBSD OR OS_OPENBSD)
@@ -115,6 +117,7 @@ if(OS_LINUX OR OS_FREEBSD OR OS_OPENBSD)
     )
     target_link_libraries(test_pipewire_formats PRIVATE OBS::libobs PipeWire::PipeWire cmocka::cmocka)
     add_test(test_pipewire_formats test_pipewire_formats)
+    set_tests_properties(test_pipewire_formats PROPERTIES ENVIRONMENT_MODIFICATION "${_obs_runtime_env}")
   endif()
 endif()
 
