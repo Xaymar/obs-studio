@@ -66,7 +66,9 @@ NV12 variants: 128x64 and 1920x1080; Vulkan flags none or `MUTABLE|EXTENDED_USAG
 * The import uses an acquire from `VK_QUEUE_FAMILY_EXTERNAL` with `oldLayout = GENERAL`. The validation layers accept this.
 * **NVIDIA NV12 bug:** luma is correct in every variant, but chroma is wrong.
   * At 1920x1080, Vulkan's plane-1 row 0 contains D3D11's chroma row 64, so the plane-1 offset disagrees between
-    the APIs by 64 chroma rows.
+    the APIs by 64 chroma rows. (The standalone reproducer in `repro/d3d11-nv12-vulkan-import/` uses a hashed
+    pattern and shows more: received chroma byte 0 is D3D11 chroma row 64 + 1024 bytes, and the rest of the plane is
+    made of 64-byte pieces from scattered rows. That points to a tiling/swizzle mismatch, not just an offset.)
   * At 128x64 the chroma reads come from outside the texture (0xCD, zeros, or bytes from the previously freed BGRA texture).
   * When all 16 NV12 cases run in one process, the device is lost (`VK_ERROR_DEVICE_LOST`) after a few of them
     (`results/spike2.log`). Run one per process (`results/spike2-nv12-isolated.log`), they fail the same way but
