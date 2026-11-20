@@ -144,7 +144,7 @@ void DeviceOutput::handleFrontendEvent(obs_frontend_event event)
 void DeviceOutput::followScene()
 {
 	obs_source_t *scene = obs_frontend_preview_program_mode_active() ? obs_frontend_get_current_preview_scene()
-									  : obs_frontend_get_current_scene();
+									 : obs_frontend_get_current_scene();
 	setFollowedSource(scene);
 	obs_source_release(scene);
 }
