@@ -390,7 +390,8 @@ static void add_common_properties(obs_properties_t *props, const struct vd_backe
 
 	static const char *const buf_values[] = {VD_AUTO, "on", "off"};
 	static const char *const buf_labels[] = {"auto", "buffering.on", "buffering.off"};
-	obs_property_t *p = add_string_list(props, VD_BUFFERING, obs_module_text("buffering"), buf_values, buf_labels, 3);
+	obs_property_t *p =
+		add_string_list(props, VD_BUFFERING, obs_module_text("buffering"), buf_values, buf_labels, 3);
 	obs_property_set_long_description(p, obs_module_text("buffering.tooltip"));
 
 	obs_properties_add_bool(props, VD_FLIP_VERTICAL, obs_module_text("flip-vertical"));

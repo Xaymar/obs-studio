@@ -271,7 +271,10 @@ static void migrate_dshow_preferred_and_matching(void **state)
 	static const struct {
 		long long interval;
 		const char *rate;
-	} rates[] = {{166833, "60000/1001"}, {166834, "60000/1001"}, {333333, "30/1"}, {400000, "25/1"},
+	} rates[] = {{166833, "60000/1001"},
+		     {166834, "60000/1001"},
+		     {333333, "30/1"},
+		     {400000, "25/1"},
 		     {123456, "10000000/123456"}};
 	for (size_t i = 0; i < sizeof(rates) / sizeof(rates[0]); i++) {
 		s = obs_data_create();
