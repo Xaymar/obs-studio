@@ -88,3 +88,10 @@ set_target_properties_obs(
              SOVERSION ${OBS_VERSION_MAJOR}
              COMPILE_WARNING_AS_ERROR FALSE
 )
+
+# libobs dlopens "libobs-vulkan.so" by that exact name, and nothing links against it, so on Linux it carries no
+# version suffix (set_target_properties_obs versions every shared library).
+if(NOT OS_WINDOWS)
+  set_property(TARGET libobs-vulkan PROPERTY VERSION)
+  set_property(TARGET libobs-vulkan PROPERTY SOVERSION)
+endif()
