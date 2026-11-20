@@ -12,7 +12,6 @@
 !/plugins
 !/shared
 !/test
-!.cirrus.xml
 !.clang-format
 !.editorconfig
 !.gersemirc
@@ -25,12 +24,9 @@
 !buildspec.json
 !CMakeLists.txt
 !CMakePresets.json
-!COC.rst
 !COMMITMENT
 !CONTRIBUTING.md
-!CODESTYLE.md
-!COPYING
-!INSTALL
+!LICENSE
 !README.rst
 
 # Exclude lock files

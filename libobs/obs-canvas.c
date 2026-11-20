@@ -143,8 +143,10 @@ static obs_canvas_t *obs_canvas_create_internal(const char *name, const char *uu
 	struct obs_canvas *canvas = bzalloc(sizeof(struct obs_canvas));
 	canvas->flags = flags;
 
-	if (!obs_context_data_init(&canvas->context, OBS_OBJ_TYPE_CANVAS, NULL, name, uuid, NULL, private))
+	if (!obs_context_data_init(&canvas->context, OBS_OBJ_TYPE_CANVAS, NULL, name, uuid, NULL, private)) {
+		bfree(canvas);
 		return NULL;
+	}
 
 	if (!signal_handler_add_array(canvas->context.signals, canvas_signals)) {
 		obs_context_data_free(&canvas->context);
@@ -212,14 +214,23 @@ void obs_canvas_destroy(obs_canvas_t *canvas)
 
 	obs_canvas_clear_mix(canvas);
 
-	obs_source_t *source = canvas->sources;
-	while (source) {
-		/* Canvases can hold strong refs to scene sources, release them here. */
+	/* Take every source out of the canvas: once the canvas is gone they cannot remove themselves,
+	 * and the hash table would leak. Canvases can hold strong refs to scene sources; release those
+	 * after the walk, since a release can destroy the scene. */
+	DARRAY(obs_source_t *) scenes;
+	da_init(scenes);
+	pthread_mutex_lock(&canvas->sources_mutex);
+	struct obs_context_data *ctx, *tmp;
+	HASH_ITER (hh, *(struct obs_context_data **)&canvas->sources, ctx, tmp) {
+		obs_source_t *source = (obs_source_t *)ctx;
+		HASH_DELETE(hh, *(struct obs_context_data **)&canvas->sources, ctx);
 		if (canvas->flags & SCENE_REF && obs_source_is_scene(source))
-			obs_source_release(source);
-
-		source = source->context.hh.next;
+			da_push_back(scenes, &source);
 	}
+	pthread_mutex_unlock(&canvas->sources_mutex);
+	for (size_t i = 0; i < scenes.num; i++)
+		obs_source_release(scenes.array[i]);
+	da_free(scenes);
 
 	obs_context_data_remove_uuid(&canvas->context, &obs->data.canvases_mutex, &obs->data.canvases);
 	if (!canvas->context.private) {
@@ -360,8 +371,9 @@ static bool remove_groups_enum_cb(void *param, obs_source_t *scene_source)
 void obs_canvas_remove_source(obs_source_t *source)
 {
 	obs_canvas_t *canvas = obs_weak_canvas_get_canvas(source->canvas);
+	/* the weak reference is the source's own, so it goes even if the canvas already went */
+	obs_weak_canvas_release(source->canvas);
 	if (canvas) {
-		obs_weak_canvas_release(source->canvas);
 		obs_context_data_remove_name(&source->context, &canvas->sources_mutex, &canvas->sources);
 
 		canvas_dosignal_source("source_remove", canvas, source);

@@ -43,6 +43,7 @@ add_subdirectory(test/install-layout)
 
 if(ENABLE_UNIT_TESTS)
   enable_testing()
+  add_subdirectory(test/null-graphics)
   add_subdirectory(test/cmocka)
 endif()
 

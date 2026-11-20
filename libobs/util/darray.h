@@ -367,8 +367,8 @@ static inline void darray_split(const size_t element_size, struct darray *dst1, 
 
 	if (da->num) {
 		if (idx)
-			darray_copy_array(element_size, dst1, temp.array, temp.num);
-		if (idx < temp.num - 1)
+			darray_copy_array(element_size, dst1, temp.array, idx);
+		if (idx < temp.num)
 			darray_copy_array(element_size, dst2, darray_item(element_size, &temp, idx), temp.num - idx);
 	}
 

@@ -89,7 +89,8 @@ config_t *config_create(const char *file)
 
 static bool config_parse_string(struct lexer *lex, struct strref *ref, char end)
 {
-	bool success = end != 0;
+	/* the end of the text only ends a string that runs to the end of the line */
+	bool success = end == 0;
 	struct base_token token;
 	base_token_clear(&token);
 
@@ -148,9 +149,18 @@ static void config_add_item(struct config_item **items, struct strref *name, str
 {
 	struct config_item *item;
 	struct dstr item_value;
+	char *item_name = bstrdup_n(name->array, name->len);
 
-	item = bzalloc(sizeof(struct config_item));
-	item->name = bstrdup_n(name->array, name->len);
+	/* a repeated key replaces the earlier value */
+	HASH_FIND_STR(*items, item_name, item);
+	if (item) {
+		bfree(item_name);
+		bfree(item->value);
+	} else {
+		item = bzalloc(sizeof(struct config_item));
+		item->name = item_name;
+		HASH_ADD_STR(*items, name, item);
+	}
 
 	if (!strref_is_empty(value)) {
 		dstr_init_copy_strref(&item_value, value);
@@ -160,8 +170,6 @@ static void config_add_item(struct config_item **items, struct strref *name, str
 	} else {
 		item->value = bzalloc(1);
 	}
-
-	HASH_ADD_STR(*items, name, item);
 }
 
 static void config_parse_section(struct config_section *section, struct lexer *lex)
@@ -225,16 +233,24 @@ static void parse_config_data(struct config_section **sections, struct lexer *le
 		}
 
 		strref_clear(&section_name);
-		config_parse_string(lex, &section_name, ']');
+		/* skip a header without ']' and the items under it */
+		if (!config_parse_string(lex, &section_name, ']'))
+			continue;
 		if (!section_name.len)
 			return;
 
-		section = bzalloc(sizeof(struct config_section));
-		section->name = bstrdup_n(section_name.array, section_name.len);
+		/* a repeated section adds its items to the earlier one */
+		char *name = bstrdup_n(section_name.array, section_name.len);
+		HASH_FIND_STR(*sections, name, section);
+		if (section) {
+			bfree(name);
+		} else {
+			section = bzalloc(sizeof(struct config_section));
+			section->name = name;
+			HASH_ADD_STR(*sections, name, section);
+		}
 
 		config_parse_section(section, lex);
-
-		HASH_ADD_STR(*sections, name, section);
 	}
 }
 
@@ -379,7 +395,8 @@ int config_save(config_t *config)
 	if (fwrite("\xEF\xBB\xBF", 3, 1, f) != 1)
 		goto cleanup;
 #endif
-	if (fwrite(str.array, str.len, 1, f) != 1)
+	/* an empty config writes nothing, and fwrite() of 0 bytes returns 0 */
+	if (str.len && fwrite(str.array, str.len, 1, f) != 1)
 		goto cleanup;
 
 	ret = CONFIG_SUCCESS;

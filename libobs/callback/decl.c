@@ -154,8 +154,11 @@ static void parse_params(struct cf_parser *cfp, struct decl_info *decl)
 
 		if (cf_token_is(cfp, ")"))
 			break;
-		else if (cf_token_should_be(cfp, ",", ",", NULL) == PARSE_EOF)
+		else if (cf_token_should_be(cfp, ",", ",", NULL) == PARSE_EOF) {
+			/* cf_token_should_be() reports nothing when it finds no ',' to skip to */
+			cf_adderror_expecting(cfp, ",");
 			return;
+		}
 
 		if (!cf_peek_valid_token(cfp, &peek))
 			return;

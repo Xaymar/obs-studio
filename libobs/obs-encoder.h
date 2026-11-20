@@ -360,6 +360,38 @@ EXPORT void obs_register_encoder_s(const struct obs_encoder_info *info, size_t s
  */
 #define obs_register_encoder(info) obs_register_encoder_s(info, sizeof(struct obs_encoder_info))
 
+/**
+ * Called when an encoder is created through an alias, before the new encoder
+ * type sees the settings. Rename or convert keys here so the new encoder type
+ * understands settings that were saved for the old one.
+ *
+ * @param  param     The param given to obs_register_encoder_alias
+ * @param  old_id    The ID the encoder was requested with
+ * @param  settings  A private copy of the settings, safe to modify
+ */
+typedef void (*obs_encoder_alias_migrate_t)(void *param, const char *old_id, obs_data_t *settings);
+
+/**
+ * Registers an alias, so that encoders requested with an old encoder ID are
+ * created as another, registered encoder type instead. Queries by ID
+ * (display name, codec, type, caps, defaults, properties) follow aliases too.
+ *
+ * Aliases are resolved when used, never at registration, so the target may be
+ * registered by another module and in any order. Encoder types registered
+ * under old_id always win over the alias. An alias may point at another alias.
+ *
+ * The created encoder reports the new ID through obs_encoder_get_id.
+ *
+ * @param  old_id   ID to replace
+ * @param  new_id   ID of the replacement
+ * @param  migrate  Optional settings migration, run once per created encoder
+ * @param  param    Passed to migrate
+ * @return          false if the arguments are invalid, old_id is already an
+ *                  alias, or an encoder type is already registered as old_id
+ */
+EXPORT bool obs_register_encoder_alias(const char *old_id, const char *new_id, obs_encoder_alias_migrate_t migrate,
+				       void *param);
+
 #ifdef __cplusplus
 }
 #endif

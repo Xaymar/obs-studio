@@ -767,10 +767,15 @@ static void process_found_module(struct obs_module_path *omp, const char *path, 
 	if (strcmp(file, ".") == 0 || strcmp(file, "..") == 0)
 		return;
 
+	/* only a module file has an extension to strip: a folder's name is the module name, dots and all
+	 * (plugins/com.example.plugin/), and so is a file name with dots before its extension */
 	dstr_copy(&name, file);
-	char *ext = strrchr(name.array, '.');
-	if (ext)
-		dstr_resize(&name, ext - name.array);
+	if (!directory) {
+		const char *module_ext = get_module_extension();
+		size_t ext_len = strlen(module_ext);
+		if (name.len > ext_len && astrcmpi(name.array + name.len - ext_len, module_ext) == 0)
+			dstr_resize(&name, name.len - ext_len);
+	}
 
 	if (!directory) {
 		dstr_copy(&parsed_bin_path, path);
@@ -1063,12 +1068,6 @@ void obs_register_source_s(const struct obs_source_info *info, size_t size)
 		goto error;
 	}
 
-	/* NOTE: The assignment of data.module must occur before memcpy! */
-	if (loadingModule) {
-		char *source_id = bstrdup(info->id);
-		da_push_back(loadingModule->sources, &source_id);
-	}
-
 	memcpy(&data, info, size);
 
 	/* mark audio-only filters as an async filter categorically */
@@ -1126,6 +1125,12 @@ void obs_register_source_s(const struct obs_source_info *info, size_t size)
 		data.id = versioned_id.array;
 	} else {
 		data.id = bstrdup(data.id);
+	}
+
+	/* only once it is registered: obs_source_get_module() finds sources by these ids */
+	if (loadingModule) {
+		char *source_id = bstrdup(info->id);
+		da_push_back(loadingModule->sources, &source_id);
 	}
 
 	if (array)

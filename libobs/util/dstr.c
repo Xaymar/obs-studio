@@ -378,7 +378,9 @@ void dstr_ncopy(struct dstr *dst, const char *array, const size_t len)
 	if (!len)
 		return;
 
-	dst->array = bmemdup(array, len + 1);
+	/* array need not be terminated after len */
+	dst->array = bmalloc(len + 1);
+	memcpy(dst->array, array, len);
 	dst->len = len;
 	dst->capacity = len + 1;
 
@@ -501,7 +503,7 @@ void dstr_insert_ch(struct dstr *dst, const size_t idx, const char ch)
 	}
 
 	dstr_ensure_capacity(dst, (++dst->len + 1));
-	memmove(dst->array + idx + 1, dst->array + idx, dst->len - idx + 1);
+	memmove(dst->array + idx + 1, dst->array + idx, dst->len - idx);
 	dst->array[idx] = ch;
 }
 

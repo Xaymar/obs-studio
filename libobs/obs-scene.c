@@ -345,8 +345,9 @@ static inline void get_scene_dimensions(const obs_sceneitem_t *item, float *x, f
 {
 	obs_scene_t *parent = item->parent;
 	if (!parent || (parent->is_group && !parent->source->canvas)) {
-		*x = (float)obs->data.main_canvas->mix->ovi.base_width;
-		*y = (float)obs->data.main_canvas->mix->ovi.base_height;
+		struct obs_core_video_mix *mix = obs->data.main_canvas->mix;
+		*x = mix ? (float)mix->ovi.base_width : 0.0f;
+		*y = mix ? (float)mix->ovi.base_height : 0.0f;
 	} else if (parent->is_group) {
 		*x = (float)canvas_getwidth(parent->source->canvas);
 		*y = (float)canvas_getheight(parent->source->canvas);
@@ -2807,7 +2808,7 @@ void obs_sceneitem_set_order_position(obs_sceneitem_t *item, int position)
 
 	detach_sceneitem(item);
 
-	if (!scene->first_item || position == 0) {
+	if (!scene->first_item || position <= 0) {
 		attach_sceneitem(scene, item, NULL);
 	} else {
 		struct obs_scene_item *next = scene->first_item;

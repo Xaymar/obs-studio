@@ -125,7 +125,7 @@ bool os_task_queue_wait(os_task_queue_t *tq)
 
 bool os_task_queue_inside(os_task_queue_t *tq)
 {
-	return tq->id == thread_id;
+	return tq && tq->id == thread_id;
 }
 
 static void *tiny_tubular_task_thread(void *param)

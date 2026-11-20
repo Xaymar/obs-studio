@@ -4911,17 +4911,17 @@ void OBSBasicSettings::FillSimpleRecordingValues()
 	if (EncoderAvailable("obs_qsv11_av1")) {
 		ui->simpleOutRecEncoder->addItem(ENCODER_STR("Hardware.QSV.AV1"), QString(SIMPLE_ENCODER_QSV_AV1));
 	}
-	if (EncoderAvailable("ffmpeg_nvenc")) {
+	if (EncoderAvailable("com.xaymar.knurbs.nvenc.h264")) {
 		ui->simpleOutRecEncoder->addItem(ENCODER_STR("Hardware.NVENC.H264"), QString(SIMPLE_ENCODER_NVENC));
 	}
-	if (EncoderAvailable("obs_nvenc_av1_tex")) {
+	if (EncoderAvailable("com.xaymar.knurbs.nvenc.av1")) {
 		ui->simpleOutRecEncoder->addItem(ENCODER_STR("Hardware.NVENC.AV1"), QString(SIMPLE_ENCODER_NVENC_AV1));
 	}
 #ifdef ENABLE_HEVC
 	if (EncoderAvailable("h265_texture_amf")) {
 		ui->simpleOutRecEncoder->addItem(ENCODER_STR("Hardware.AMD.HEVC"), QString(SIMPLE_ENCODER_AMD_HEVC));
 	}
-	if (EncoderAvailable("ffmpeg_hevc_nvenc")) {
+	if (EncoderAvailable("com.xaymar.knurbs.nvenc.hevc")) {
 		ui->simpleOutRecEncoder->addItem(ENCODER_STR("Hardware.NVENC.HEVC"),
 						 QString(SIMPLE_ENCODER_NVENC_HEVC));
 	}

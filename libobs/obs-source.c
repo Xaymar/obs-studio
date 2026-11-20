@@ -235,7 +235,7 @@ static const char *source_signals[] = {
 	"void volume(ptr source, in out float volume)",
 	"void update_properties(ptr source)",
 	"void update_flags(ptr source, int flags)",
-	"void audio_sync(ptr source, int out int offset)",
+	"void audio_sync(ptr source, out int offset)",
 	"void audio_balance(ptr source, in out float balance)",
 	"void audio_mixers(ptr source, in out int mixers)",
 	"void audio_monitoring(ptr source, int type)",
@@ -963,6 +963,10 @@ void obs_source_destroy(struct obs_source *source)
 			obs_context_data_remove_name(&source->context, &obs->data.sources_mutex,
 						     &obs->data.public_sources);
 		}
+	} else if (source->canvas) {
+		/* private scenes are not in their canvas, but hold a weak reference to it */
+		obs_weak_canvas_release(source->canvas);
+		source->canvas = NULL;
 	}
 
 	source_profiler_remove_source(source);
@@ -3300,6 +3304,10 @@ void obs_source_filter_add(obs_source_t *source, obs_source_t *filter)
 		return;
 	if (!obs_ptr_valid(filter, "obs_source_filter_add"))
 		return;
+	if (filter->info.type != OBS_SOURCE_TYPE_FILTER) {
+		blog(LOG_WARNING, "Tried to add '%s', which is not a filter, as a filter", obs_source_get_name(filter));
+		return;
+	}
 
 	pthread_mutex_lock(&source->filter_mutex);
 
@@ -3511,7 +3519,7 @@ int obs_source_filter_get_index(obs_source_t *source, obs_source_t *filter)
 static bool set_filter_index(obs_source_t *source, obs_source_t *filter, size_t index)
 {
 	size_t idx = da_find(source->filters, &filter, 0);
-	if (idx == DARRAY_INVALID)
+	if (idx == DARRAY_INVALID || index >= source->filters.num)
 		return false;
 
 	da_move_item(source->filters, idx, index);

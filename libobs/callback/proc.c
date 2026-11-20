@@ -39,6 +39,9 @@ struct proc_handler {
 
 static struct proc_info *getproc(proc_handler_t *handler, const char *name)
 {
+	if (!name)
+		return NULL;
+
 	for (size_t i = 0; i < handler->procs.num; i++) {
 		struct proc_info *info = handler->procs.array + i;
 

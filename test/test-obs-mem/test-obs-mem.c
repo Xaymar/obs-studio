@@ -249,13 +249,14 @@ static void test_data_item_release_quirk(void)
 	obs_data_item_release(&item); /* data still holds a ref: not destroyed, pointer kept */
 	assert(item != NULL);
 
-	/* Today's remove() detaches and drops one ref but keeps the data's ref: item survives, pointer kept. */
+	/* remove() detaches the item and drops both the caller's and the data's reference (it used to keep
+	 * the data's, which leaked): the item is destroyed and the pointer cleared. `item` no longer owns a
+	 * reference, so it is not released again. */
 	obs_data_item_t *second = obs_data_item_byname(d, "a");
 	assert(second == item);
 	obs_data_item_remove(&second);
-	assert(second != NULL);
-	obs_data_item_release(&item); /* last ref: destroyed, pointer cleared */
-	assert(item == NULL);
+	assert(second == NULL);
+	assert(obs_data_item_byname(d, "a") == NULL);
 
 	obs_data_release(d);
 }

@@ -169,13 +169,16 @@ static void lookup_addfiledata(struct text_lookup *lookup, const char *file_data
 		struct text_item *old;
 		bool got_eq = false;
 
-		if (*name.array == '\n')
+		/* spaces and tabs around the name and '=' are not part of either */
+		if (is_whitespace(*name.array))
 			continue;
 	getval:
 		if (!lookup_gettoken(&lex, &value))
 			break;
-		if (*value.array == '\n')
+		if (is_newline(*value.array))
 			continue;
+		else if (is_space_or_tab(*value.array))
+			goto getval;
 		else if (!got_eq && *value.array == '=') {
 			got_eq = true;
 			goto getval;

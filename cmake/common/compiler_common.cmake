@@ -82,8 +82,10 @@ if(CMAKE_CXX_STANDARD GREATER_EQUAL 20)
   list(APPEND _obs_clang_cxx_options -fno-char8_t)
 endif()
 
+# Warnings are not errors by default; most of them aren't worth failing a build
+# over. Pass -DCMAKE_COMPILE_WARNING_AS_ERROR=ON to opt in.
 if(NOT DEFINED CMAKE_COMPILE_WARNING_AS_ERROR)
-  set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
+  set(CMAKE_COMPILE_WARNING_AS_ERROR OFF)
 endif()
 
 # Enable interprocedural optimization

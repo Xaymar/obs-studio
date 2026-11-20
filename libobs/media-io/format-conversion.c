@@ -241,7 +241,8 @@ void decompress_nv12(const uint8_t *const input[], const uint32_t in_linesize[],
 void decompress_422(const uint8_t *input, uint32_t in_linesize, uint32_t start_y, uint32_t end_y, uint8_t *output,
 		    uint32_t out_linesize, bool leading_lum)
 {
-	uint32_t width_d2 = min_uint32(in_linesize, out_linesize) / 2;
+	/* one 4:2:2 dword (two pixels) becomes two packed 4:4:4 dwords */
+	uint32_t width_d2 = min_uint32(in_linesize / 4, out_linesize / 8);
 	uint32_t y;
 
 	register const uint32_t *input32;

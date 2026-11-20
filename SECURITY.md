@@ -1,70 +1,61 @@
-## Introduction
-The OBS Project is an open source project, which develops and distributes the open source application OBS Studio
+Security Policy
+===============
 
-Official Channels are our [Discord Server](https://obsproject.com/discord) or security@obsproject.com email address.
+Knurbs is an independent fork of OBS Studio and is not supported by the OBS
+Project. Please report security issues in Knurbs to Knurbs, not to the OBS
+Project. If an issue also affects OBS Studio, you may report it to them
+separately, following their own policy.
 
-## Guidelines
-We require all security researchers to:
+Supported versions
+------------------
 
-- Act in good faith to avoid privacy violations;
-- Perform research only within the scope set out below;
-- Be clear and succinct, a short proof-of-concept link is invaluable; and
-- Keep information about any vulnerabilities you’ve discovered confidential between us until we’ve had 120 days to resolve the issue.
+Knurbs is under heavy development and has no stable releases yet. Only the
+`root` branch is supported; fixes land there.
 
-If you follow these guidelines when reporting an issue to us, we commit to:
+Reporting a vulnerability
+-------------------------
 
-- Not pursue or support any legal action related to your research;
-- Work with you to understand and resolve the issue quickly (including an initial confirmation of your report within 72 hours of submission);
+Report vulnerabilities privately through GitHub's
+[private vulnerability reporting](https://github.com/Xaymar/knurbs/security/advisories/new)
+on [Xaymar/knurbs](https://github.com/Xaymar/knurbs). Please do **not** open a
+public issue or pull request for a vulnerability until it has been fixed.
 
-## Expectations
-When working with us according to this policy, you can expect us to:
+A good report contains:
 
-- Work with you to understand and validate your report, including a timely initial response to the submission;
-- Work to remediate discovered vulnerabilities in a timely manner; and
-- Recognize your contribution to improving our security if you are the first to report a unique vulnerability, and your report triggers a code or configuration change.
+- the affected commit or build, and the platform it runs on;
+- what an attacker can do, and what they need to be able to do it;
+- steps to reproduce, ideally with a short proof of concept.
 
-## In-Scope Vulnerabilities
-The vulnerabilities listed here are explicitly eligible for our security program. Any design or implementation issue that substantially affects the confidentiality or integrity of user data is likely to be in scope for the program. Common examples include:
+What to expect:
 
-- Remote Code Execution (RCE)
+- an acknowledgement as soon as the report has been read;
+- a discussion of the issue in the private advisory, and credit in the fix and
+  the advisory if you want it;
+- a fix, with a regression test, on `root`, after which the advisory is
+  published.
 
-While this list represents areas we focus on, we are interested in reports for all of our software and dependencies especially if it impacts reasonably sensitive user data. 
+Knurbs is a small project without a fixed response time. Please give it a
+reasonable amount of time to fix an issue before you disclose it publicly.
 
-This can include any open source libraries, software, or third-party components. We do, however, recommend reporting dependency vulnerabilities to the dependency vendor.
+Scope
+-----
 
-## Out-of-Scope Vulnerabilities
-The following are considered out of scope for our security program and should not be submitted:
+In scope is the code in this repository: libobs, the graphics backends, the
+frontends and the bundled plugins, plus the way the build bundles third-party
+code. Vulnerabilities in third-party dependencies are best reported to their
+maintainers first; tell us as well if Knurbs is affected.
 
-- Password, email and account policies, such as email id verification, reset link expiration, and password complexity.
-- Attacks requiring physical access to a user's device.
-- Vulnerabilities that require a potential victim to install non-standard software or otherwise take active steps to make themselves susceptible (this includes “DLL planting”).
-- Reports from automated tools or scans that haven't been manually verified.
-- UI and UX bugs and spelling mistakes.
-- Web server “security headers”, TLS cipher choices, email SPF / DKIM / DMARC or similar (lack of) best practices that do not actively lead to a vulnerability.
+Out of scope:
 
-## Ground Rules
-To encourage vulnerability research and to avoid any confusion between legitimate research and malicious attack, we ask that you attempt, in good faith, to:
+- attacks that need physical access to the user's device, or that need the
+  user to install untrusted software or plugins first (including DLL planting);
+- reports from automated tools or scanners that have not been verified by hand;
+- bugs without a security impact; please open a regular
+  [issue](https://github.com/Xaymar/knurbs/issues) for those.
 
-- Play by the rules. This includes following this policy and any other relevant agreements;
-- Report any vulnerability you’ve discovered promptly;
-- Avoid violating the privacy of others, disrupting our systems, destroying data, and/or harming user experience;
-- Use only the Official Channels to discuss vulnerability information with us;
-- Handle the confidentiality of details of any discovered vulnerabilities according to our Disclosure Policy;
-- Perform testing only on in-scope systems, and respect systems and activities which are out-of-scope;
-- Do not run crawlers or other automated tools against our infrastructure; and
-- Do not engage in extortion.
+Good faith
+----------
 
-## Safe Harbor
-When conducting vulnerability research according to this policy, we consider this research conducted under this policy to be:
-
-- Authorized in view of any applicable anti-hacking laws, and we will not initiate or support legal action against you for accidental, good faith violations of this policy;
-- Authorized in view of relevant anti-circumvention laws, and we will not bring a claim against you for circumvention of technology controls;
-- Exempt from restrictions in our Acceptable Usage Policy that would interfere with conducting security research, and we waive those restrictions on a limited basis; and
-- Lawful, helpful to the overall security of the Internet, and conducted in good faith.
-
-You are expected, as always, to comply with all applicable laws. If legal action is initiated by a third party against you and you have complied with this policy, we will take steps to make it known that your actions were conducted in compliance with this policy.
-
-If at any time you have concerns or are uncertain whether your security research is consistent with this policy, please submit a report through one of our Official Channels before going any further.
-
-## Bug Bounty
-The OBS Project does not have the resources to maintain an active bug bounty program, and all reports are made in good faith, for responsible disclosure and the overall safety of the application and our community. Requests for payment or refusal to provide details until a payment is provided are unwelcome.
+Research done in good faith under this policy is welcome. Do not access or
+change other people's data, do not disrupt other people's systems, and keep the
+details private until the issue is fixed. Knurbs has no bug bounty.

@@ -169,7 +169,8 @@ struct cf_preprocessor {
 	struct error_data *ed;
 	DARRAY(struct cf_def) defines;
 	DARRAY(char *) sys_include_dirs;
-	DARRAY(struct cf_lexer) dependencies;
+	/* pointers: the tokens of an included file point at its lexer, which must not move */
+	DARRAY(struct cf_lexer *) dependencies;
 	cf_token_array_t tokens;
 	bool ignore_state;
 };

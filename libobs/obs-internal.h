@@ -557,6 +557,42 @@ struct obs_source_alias {
 	void *param;
 };
 
+/* Aliases for encoder and output type IDs (obs-type-alias.c). */
+#define OBS_TYPE_ALIAS_MAX_HOPS 8
+
+typedef void (*obs_type_alias_migrate_t)(void *param, const char *old_id, obs_data_t *settings);
+
+struct obs_type_alias {
+	char *old_id;
+	char *new_id;
+	obs_type_alias_migrate_t migrate;
+	void *param;
+};
+
+struct obs_type_alias_hop {
+	const char *old_id;
+	obs_type_alias_migrate_t migrate;
+	void *param;
+};
+
+struct obs_type_alias_table {
+	pthread_mutex_t mutex;
+	DARRAY(struct obs_type_alias) aliases;
+};
+
+extern bool obs_type_alias_table_init(struct obs_type_alias_table *table);
+extern void obs_type_alias_table_free(struct obs_type_alias_table *table);
+extern bool obs_type_alias_register(struct obs_type_alias_table *table, const char *kind, const char *old_id,
+				    const char *new_id, obs_type_alias_migrate_t migrate, void *param,
+				    const void *(*lookup)(const char *id));
+/* Strings in hops stay valid until shutdown: aliases are never removed. */
+extern const void *obs_type_alias_resolve(struct obs_type_alias_table *table, const char *kind, const char *id,
+					  const void *(*lookup)(const char *id), struct obs_type_alias_hop *hops,
+					  size_t *num_hops);
+/* A private copy of settings with every hop's migration applied, or NULL
+ * when no alias was followed. */
+extern obs_data_t *obs_type_alias_migrate(obs_data_t *settings, const struct obs_type_alias_hop *hops, size_t num_hops);
+
 struct obs_core {
 	struct obs_module *first_module;
 	struct obs_module *first_disabled_module;
@@ -573,6 +609,8 @@ struct obs_core {
 	DARRAY(struct obs_source_alias) source_aliases;
 	DARRAY(struct obs_output_info) output_types;
 	DARRAY(struct obs_encoder_info) encoder_types;
+	struct obs_type_alias_table output_aliases;
+	struct obs_type_alias_table encoder_aliases;
 	DARRAY(struct obs_service_info) service_types;
 
 	signal_handler_t *signals;
@@ -1276,6 +1314,9 @@ extern bool obs_output_actual_start(obs_output_t *output);
 extern void obs_output_actual_stop(obs_output_t *output, bool force, uint64_t ts);
 
 extern const struct obs_output_info *find_output(const char *id);
+/* find_output, following aliases; fills hops and num_hops when given. */
+extern const struct obs_output_info *find_output_resolved(const char *id, struct obs_type_alias_hop *hops,
+							  size_t *num_hops);
 
 extern void obs_output_remove_encoder(struct obs_output *output, struct obs_encoder *encoder);
 
@@ -1376,6 +1417,8 @@ struct obs_encoder {
 	 * up at the specific timestamp.  if this is the audio encoder,
 	 * it waits until it's ready to sync up with video */
 	bool first_received;
+	/* set by the GPU encode thread when an encode failed, until the encoder stops */
+	volatile bool gpu_encode_failed;
 	DARRAY(obs_weak_encoder_t *) paired_encoders;
 	int64_t offset_usec;
 	uint64_t first_raw_ts;
@@ -1409,6 +1452,9 @@ struct obs_encoder {
 };
 
 extern struct obs_encoder_info *find_encoder(const char *id);
+/* find_encoder, following aliases; fills hops and num_hops when given. */
+extern struct obs_encoder_info *find_encoder_resolved(const char *id, struct obs_type_alias_hop *hops,
+						      size_t *num_hops);
 
 extern bool obs_encoder_initialize(obs_encoder_t *encoder);
 extern void obs_encoder_shutdown(obs_encoder_t *encoder);

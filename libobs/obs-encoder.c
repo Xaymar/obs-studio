@@ -36,9 +36,45 @@ struct obs_encoder_info *find_encoder(const char *id)
 	return NULL;
 }
 
+static const void *lookup_encoder(const char *id)
+{
+	return find_encoder(id);
+}
+
+struct obs_encoder_info *find_encoder_resolved(const char *id, struct obs_type_alias_hop *hops, size_t *num_hops)
+{
+	struct obs_type_alias_hop local_hops[OBS_TYPE_ALIAS_MAX_HOPS];
+	size_t local_num_hops;
+
+	if (!hops || !num_hops) {
+		hops = local_hops;
+		num_hops = &local_num_hops;
+	}
+
+	return (struct obs_encoder_info *)obs_type_alias_resolve(&obs->encoder_aliases, "Encoder", id, lookup_encoder,
+								 hops, num_hops);
+}
+
+bool obs_register_encoder_alias(const char *old_id, const char *new_id, obs_encoder_alias_migrate_t migrate,
+				void *param)
+{
+	if (!obs)
+		return false;
+	return obs_type_alias_register(&obs->encoder_aliases, "encoder", old_id, new_id, migrate, param,
+				       lookup_encoder);
+}
+
+const char *obs_encoder_alias_resolve(const char *id)
+{
+	if (!obs)
+		return NULL;
+	const struct obs_encoder_info *info = find_encoder_resolved(id, NULL, NULL);
+	return info ? info->id : NULL;
+}
+
 const char *obs_encoder_get_display_name(const char *id)
 {
-	struct obs_encoder_info *ei = find_encoder(id);
+	struct obs_encoder_info *ei = find_encoder_resolved(id, NULL, NULL);
 	return ei ? ei->get_name(ei->type_data) : NULL;
 }
 
@@ -111,11 +147,20 @@ static struct obs_encoder *create_encoder(const char *id, enum obs_encoder_type 
 					  obs_data_t *settings, size_t mixer_idx, obs_data_t *hotkey_data)
 {
 	struct obs_encoder *encoder;
-	struct obs_encoder_info *ei = find_encoder(id);
+	struct obs_type_alias_hop hops[OBS_TYPE_ALIAS_MAX_HOPS];
+	size_t num_hops = 0;
+	struct obs_encoder_info *ei = find_encoder_resolved(id, hops, &num_hops);
+	obs_data_t *migrated = NULL;
 	bool success;
 
 	if (ei && ei->type != type)
 		return NULL;
+
+	if (ei && num_hops) {
+		blog(LOG_INFO, "Encoder ID '%s' is an alias, creating '%s'", id, ei->id);
+		migrated = obs_type_alias_migrate(settings, hops, num_hops);
+		settings = migrated;
+	}
 
 	encoder = bzalloc(sizeof(struct obs_encoder));
 	encoder->mixer_idx = mixer_idx;
@@ -133,6 +178,7 @@ static struct obs_encoder *create_encoder(const char *id, enum obs_encoder_type 
 	}
 
 	success = init_encoder(encoder, name, settings, hotkey_data);
+	obs_data_release(migrated);
 	if (!success) {
 		blog(LOG_ERROR, "creating encoder '%s' (%s) failed", name, id);
 		obs_encoder_destroy(encoder);
@@ -478,6 +524,10 @@ void obs_encoder_destroy(obs_encoder_t *encoder)
 
 		if (encoder->context.data)
 			encoder->info.destroy(encoder->context.data);
+		/* normally released by obs_encoder_shutdown(), which an encode error skips */
+		for (size_t i = 0; i < encoder->paired_encoders.num; i++)
+			obs_weak_encoder_release(encoder->paired_encoders.array[i]);
+		da_free(encoder->paired_encoders);
 		da_free(encoder->callbacks);
 		da_free(encoder->roi);
 		da_free(encoder->encoder_packet_times);
@@ -526,7 +576,7 @@ static inline obs_data_t *get_defaults(const struct obs_encoder_info *info)
 
 obs_data_t *obs_encoder_defaults(const char *id)
 {
-	const struct obs_encoder_info *info = find_encoder(id);
+	const struct obs_encoder_info *info = find_encoder_resolved(id, NULL, NULL);
 	return (info) ? get_defaults(info) : NULL;
 }
 
@@ -540,7 +590,7 @@ obs_data_t *obs_encoder_get_defaults(const obs_encoder_t *encoder)
 
 obs_properties_t *obs_get_encoder_properties(const char *id)
 {
-	const struct obs_encoder_info *ei = find_encoder(id);
+	const struct obs_encoder_info *ei = find_encoder_resolved(id, NULL, NULL);
 	if (ei && (ei->get_properties || ei->get_properties2)) {
 		obs_data_t *defaults = get_defaults(ei);
 		obs_properties_t *properties = NULL;
@@ -711,7 +761,7 @@ void *obs_encoder_create_rerouted(obs_encoder_t *encoder, const char *reroute_id
 	if (!can_reroute)
 		return NULL;
 
-	const struct obs_encoder_info *ei = find_encoder(reroute_id);
+	const struct obs_encoder_info *ei = find_encoder_resolved(reroute_id, NULL, NULL);
 	if (ei) {
 		if (ei->type != encoder->orig_info.type || astrcmpi(ei->codec, encoder->orig_info.codec) != 0) {
 			return NULL;
@@ -900,7 +950,7 @@ const char *obs_encoder_get_codec(const obs_encoder_t *encoder)
 
 const char *obs_get_encoder_codec(const char *id)
 {
-	struct obs_encoder_info *info = find_encoder(id);
+	struct obs_encoder_info *info = find_encoder_resolved(id, NULL, NULL);
 	return info ? info->codec : NULL;
 }
 
@@ -911,7 +961,7 @@ enum obs_encoder_type obs_encoder_get_type(const obs_encoder_t *encoder)
 
 enum obs_encoder_type obs_get_encoder_type(const char *id)
 {
-	struct obs_encoder_info *info = find_encoder(id);
+	struct obs_encoder_info *info = find_encoder_resolved(id, NULL, NULL);
 	return info ? info->type : OBS_ENCODER_AUDIO;
 }
 
@@ -2035,7 +2085,7 @@ const char *obs_encoder_get_id(const obs_encoder_t *encoder)
 
 uint32_t obs_get_encoder_caps(const char *encoder_id)
 {
-	struct obs_encoder_info *info = find_encoder(encoder_id);
+	struct obs_encoder_info *info = find_encoder_resolved(encoder_id, NULL, NULL);
 	return info ? info->caps : 0;
 }
 
@@ -2078,16 +2128,18 @@ uint64_t obs_encoder_get_pause_offset(const obs_encoder_t *encoder)
 
 bool obs_encoder_has_roi(const obs_encoder_t *encoder)
 {
-	return encoder->roi.num > 0;
+	return obs_encoder_valid(encoder, "obs_encoder_has_roi") && encoder->roi.num > 0;
 }
 
 bool obs_encoder_add_roi(obs_encoder_t *encoder, const struct obs_encoder_roi *roi)
 {
-	if (!roi)
+	if (!obs_encoder_valid(encoder, "obs_encoder_add_roi") || !roi)
 		return false;
 	if (!(encoder->info.caps & OBS_ENCODER_CAP_ROI))
 		return false;
-	/* Area smaller than the smallest possible block (16x16) */
+	/* Area smaller than the smallest possible block (16x16), or inverted (the edges are unsigned) */
+	if (roi->bottom < roi->top || roi->right < roi->left)
+		return false;
 	if (roi->bottom - roi->top < 16 || roi->right - roi->left < 16)
 		return false;
 	/* Other invalid ROIs */
@@ -2104,7 +2156,7 @@ bool obs_encoder_add_roi(obs_encoder_t *encoder, const struct obs_encoder_roi *r
 
 void obs_encoder_clear_roi(obs_encoder_t *encoder)
 {
-	if (!encoder->roi.num)
+	if (!obs_encoder_valid(encoder, "obs_encoder_clear_roi") || !encoder->roi.num)
 		return;
 	pthread_mutex_lock(&encoder->roi_mutex);
 	da_clear(encoder->roi);
@@ -2116,6 +2168,9 @@ void obs_encoder_enum_roi(obs_encoder_t *encoder, void (*enum_proc)(void *, stru
 {
 	float scale_x = 0;
 	float scale_y = 0;
+
+	if (!obs_encoder_valid(encoder, "obs_encoder_enum_roi") || !enum_proc)
+		return;
 
 	/* Scale ROI passed to callback to output size */
 	if (encoder->scaled_height && encoder->scaled_width) {
@@ -2155,7 +2210,7 @@ void obs_encoder_enum_roi(obs_encoder_t *encoder, void (*enum_proc)(void *, stru
 
 uint32_t obs_encoder_get_roi_increment(const obs_encoder_t *encoder)
 {
-	return encoder->roi_increment;
+	return obs_encoder_valid(encoder, "obs_encoder_get_roi_increment") ? encoder->roi_increment : 0;
 }
 
 bool obs_encoder_set_group(obs_encoder_t *encoder, obs_encoder_group_t *group)
@@ -2178,8 +2233,10 @@ bool obs_encoder_set_group(obs_encoder_t *encoder, obs_encoder_group_t *group)
 			return false;
 		}
 		da_erase_item(old_group->encoders, &encoder);
-		obs_encoder_release(encoder);
+		encoder->encoder_group = NULL;
 		pthread_mutex_unlock(&old_group->mutex);
+		/* the group's reference; after the unlock, the group may go with it */
+		obs_encoder_release(encoder);
 	}
 
 	if (!group)

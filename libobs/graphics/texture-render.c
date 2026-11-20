@@ -98,7 +98,8 @@ bool gs_texrender_begin_with_color_space(gs_texrender_t *texrender, uint32_t cx,
 	if (!cx || !cy)
 		return false;
 
-	if (texrender->cx != cx || texrender->cy != cy)
+	/* also without a target: the last attempt to create one failed */
+	if (texrender->cx != cx || texrender->cy != cy || !texrender->target)
 		if (!texrender_resetbuffer(texrender, cx, cy))
 			return false;
 
@@ -147,5 +148,5 @@ gs_texture_t *gs_texrender_get_texture(const gs_texrender_t *texrender)
 
 enum gs_color_format gs_texrender_get_format(const gs_texrender_t *texrender)
 {
-	return texrender->format;
+	return texrender ? texrender->format : GS_UNKNOWN;
 }

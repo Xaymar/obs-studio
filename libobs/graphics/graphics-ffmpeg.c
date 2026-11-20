@@ -8,6 +8,7 @@
 
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+#include <libavutil/display.h>
 #include <libavutil/imgutils.h>
 #include <libswscale/swscale.h>
 
@@ -334,6 +335,23 @@ static void *ffmpeg_image_orient(struct ffmpeg_image *info, void *in_data, int o
 	return data;
 }
 
+/* The EXIF orientation (1 to 8) of a display matrix, built the way FFmpeg's JPEG decoder exports it. Newer FFmpeg
+ * versions set this instead of the "Orientation" frame metadata. */
+static int orientation_from_display_matrix(const int32_t *matrix)
+{
+	for (int orient = 2; orient <= 8; orient++) {
+		int32_t ref[9];
+		static const double rotation[9] = {0.0, 0.0, 0.0, 180.0, 180.0, 90.0, 90.0, -90.0, -90.0};
+
+		av_display_rotation_set(ref, rotation[orient]);
+		if (orient == 2 || orient == 4 || orient == 5 || orient == 7)
+			av_display_matrix_flip(ref, 1, 0);
+		if (memcmp(ref, matrix, sizeof(ref)) == 0)
+			return orient;
+	}
+	return 1;
+}
+
 static void *ffmpeg_image_reformat_frame(struct ffmpeg_image *info, AVFrame *frame, enum gs_image_alpha_mode alpha_mode)
 {
 	struct SwsContext *sws_ctx = NULL;
@@ -351,6 +369,10 @@ static void *ffmpeg_image_reformat_frame(struct ffmpeg_image *info, AVFrame *fra
 			orient = atoi(entry->value);
 		}
 	}
+
+	AVFrameSideData *display = av_frame_get_side_data(frame, AV_FRAME_DATA_DISPLAYMATRIX);
+	if (!orient && display && display->size >= 9 * sizeof(int32_t))
+		orient = orientation_from_display_matrix((const int32_t *)display->data);
 
 	if (info->format == AV_PIX_FMT_BGR0) {
 		data = ffmpeg_image_copy_data_straight(info, frame);
@@ -715,7 +737,7 @@ static void *wic_image_init(const struct ffmpeg_image *info, const char *file, e
 	if (file_w) {
 		IWICImagingFactory *pFactory = NULL;
 		HRESULT hr = CoCreateInstance(&CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER,
-					      &IID_IWICImagingFactory, &pFactory);
+					      &IID_IWICImagingFactory, (void **)&pFactory);
 		if (SUCCEEDED(hr)) {
 			IWICBitmapDecoder *pDecoder = NULL;
 			hr = pFactory->lpVtbl->CreateDecoderFromFilename(pFactory, file_w, NULL, GENERIC_READ,

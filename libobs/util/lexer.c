@@ -131,8 +131,12 @@ bool valid_int_str(const char *str, size_t n)
 
 	if (!n)
 		n = strlen(str);
-	if (*str == '-' || *str == '+')
+	/* the sign counts toward n */
+	if (*str == '-' || *str == '+') {
 		++str;
+		if (!--n)
+			return false;
+	}
 
 	do {
 		if (*str > '9' || *str < '0')
@@ -157,8 +161,12 @@ bool valid_float_str(const char *str, size_t n)
 
 	if (!n)
 		n = strlen(str);
-	if (*str == '-' || *str == '+')
+	/* the sign counts toward n */
+	if (*str == '-' || *str == '+') {
 		++str;
+		if (!--n)
+			return false;
+	}
 
 	do {
 		if (*str == '.') {
@@ -175,7 +183,8 @@ bool valid_float_str(const char *str, size_t n)
 			found_num = false;
 
 		} else if (*str == '-' || *str == '+') {
-			if (!found_exp || !found_num)
+			/* only directly after the 'e' of an exponent */
+			if (!found_exp || found_num || str[-1] != 'e')
 				return false;
 
 		} else if (*str > '9' || *str < '0') {

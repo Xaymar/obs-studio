@@ -501,6 +501,10 @@ static int obs_init_graphics(struct obs_video_info *ovi)
 		}
 	}
 
+	/* the levels reported before graphics exist, until obs_set_video_levels() */
+	video->sdr_white_level = 300.f;
+	video->hdr_nominal_peak_level = 1000.f;
+
 	profile_start(shader_comp_name);
 	gs_enter_context(video->graphics);
 
@@ -663,7 +667,8 @@ struct obs_core_video_mix *obs_create_video_mix(struct obs_video_info *ovi)
 {
 	struct obs_core_video_mix *video = bzalloc(sizeof(struct obs_core_video_mix));
 	if (obs_init_video_mix(ovi, video) != OBS_VIDEO_SUCCESS) {
-		bfree(video);
+		/* the video output and textures created before the failure */
+		obs_free_video_mix(video);
 		video = NULL;
 	}
 	return video;
@@ -1058,10 +1063,15 @@ static void obs_free_data(void)
 	FREE_OBS_LINKED_LIST(display);
 	FREE_OBS_LINKED_LIST(service);
 
-	FREE_OBS_HASH_TABLE(hh, &data->public_sources, source);
-	FREE_OBS_HASH_TABLE(hh_uuid, &data->sources, source);
+	/* Canvases own their scenes, and scenes are destroyed on the destruction thread, releasing their items'
+	 * sources there. Let that finish before destroying the sources still left, or a source destroyed here is
+	 * released (and destroyed) again by a scene being destroyed. */
 	FREE_OBS_HASH_TABLE(hh, &data->named_canvases, canvas);
 	FREE_OBS_HASH_TABLE(hh_uuid, &data->canvases, canvas);
+	os_task_queue_wait(obs->destruction_task_thread);
+
+	FREE_OBS_HASH_TABLE(hh, &data->public_sources, source);
+	FREE_OBS_HASH_TABLE(hh_uuid, &data->sources, source);
 
 	os_task_queue_wait(obs->destruction_task_thread);
 
@@ -1236,6 +1246,10 @@ static bool obs_init(const char *locale, const char *module_config_path, profile
 	pthread_mutex_init_value(&obs->source_aliases_mutex);
 	if (pthread_mutex_init(&obs->source_aliases_mutex, NULL) != 0)
 		return false;
+	if (!obs_type_alias_table_init(&obs->encoder_aliases))
+		return false;
+	if (!obs_type_alias_table_init(&obs->output_aliases))
+		return false;
 
 	pthread_mutex_init_value(&obs->audio.monitoring_mutex);
 	pthread_mutex_init_value(&obs->audio.task_mutex);
@@ -1394,7 +1408,17 @@ void obs_shutdown(void)
 {
 	struct obs_module *module;
 
+	if (!obs)
+		return;
+
 	obs_wait_for_destroy_queue();
+
+	/* Stop the threads and destroy every object that is left before the types and modules go: their
+	 * destroy callbacks, ids and type data belong to the types and the modules that registered them. */
+	stop_video();
+	stop_audio();
+	stop_hotkeys();
+	obs_free_data();
 
 	for (size_t i = 0; i < obs->source_types.num; i++) {
 		struct obs_source_info *item = &obs->source_types.array[i];
@@ -1406,6 +1430,8 @@ void obs_shutdown(void)
 	da_free(obs->source_types);
 
 	obs_free_source_aliases();
+	obs_type_alias_table_free(&obs->encoder_aliases);
+	obs_type_alias_table_free(&obs->output_aliases);
 
 #define FREE_REGISTERED_TYPES(structure, list)                         \
 	do {                                                           \
@@ -1427,10 +1453,6 @@ void obs_shutdown(void)
 	da_free(obs->filter_types);
 	da_free(obs->transition_types);
 
-	stop_video();
-	stop_audio();
-	stop_hotkeys();
-
 	module = obs->first_module;
 	while (module) {
 		struct obs_module *next = module->next;
@@ -1447,7 +1469,6 @@ void obs_shutdown(void)
 	}
 	obs->first_disabled_module = NULL;
 
-	obs_free_data();
 	obs_free_audio();
 	obs_free_video();
 	os_task_queue_destroy(obs->destruction_task_thread);
@@ -1482,6 +1503,8 @@ void obs_shutdown(void)
 	bfree(obs);
 	obs = NULL;
 	bfree(cmdline_args.argv);
+	/* the arguments can be set again for the next startup */
+	memset(&cmdline_args, 0, sizeof(cmdline_args));
 
 #ifdef _WIN32
 	if (com_initialized)
@@ -1534,6 +1557,29 @@ static inline bool size_valid(uint32_t width, uint32_t height)
 	return (width >= OBS_SIZE_MIN && height >= OBS_SIZE_MIN && width <= OBS_SIZE_MAX && height <= OBS_SIZE_MAX);
 }
 
+/* Without GPU conversion the output frames are copied from the RGBA output texture as they are
+ * (copy_rgbx_frame()), so only 4-byte RGB formats work then. The YUV formats need the conversion shaders,
+ * and the other formats have neither. */
+static bool output_format_supported(const struct obs_video_info *ovi)
+{
+	switch (ovi->output_format) {
+	case VIDEO_FORMAT_RGBA:
+	case VIDEO_FORMAT_BGRA:
+	case VIDEO_FORMAT_BGRX:
+		return true;
+	case VIDEO_FORMAT_I420:
+	case VIDEO_FORMAT_NV12:
+	case VIDEO_FORMAT_I444:
+	case VIDEO_FORMAT_I010:
+	case VIDEO_FORMAT_P010:
+	case VIDEO_FORMAT_P216:
+	case VIDEO_FORMAT_P416:
+		return ovi->gpu_conversion;
+	default:
+		return false;
+	}
+}
+
 int obs_reset_video(struct obs_video_info *ovi)
 {
 	if (!obs)
@@ -1545,6 +1591,11 @@ int obs_reset_video(struct obs_video_info *ovi)
 
 	if (!size_valid(ovi->output_width, ovi->output_height) || !size_valid(ovi->base_width, ovi->base_height))
 		return OBS_VIDEO_INVALID_PARAM;
+	if (!output_format_supported(ovi)) {
+		blog(LOG_ERROR, "obs_reset_video: output format %s is not supported %s GPU conversion",
+		     get_video_format_name(ovi->output_format), ovi->gpu_conversion ? "with" : "without");
+		return OBS_VIDEO_INVALID_PARAM;
+	}
 
 	stop_video();
 	obs_free_canvas_mixes();
@@ -1673,7 +1724,7 @@ bool obs_reset_audio(const struct obs_audio_info *oai)
 
 bool obs_get_video_info(struct obs_video_info *ovi)
 {
-	if (!obs->video.graphics || !obs->data.main_canvas->mix)
+	if (!obs || !obs->video.graphics || !obs->data.main_canvas->mix)
 		return false;
 
 	*ovi = obs->data.main_canvas->mix->ovi;
@@ -1842,7 +1893,8 @@ audio_t *obs_get_audio(void)
 
 video_t *obs_get_video(void)
 {
-	return obs->data.main_canvas->mix->video;
+	struct obs_core_video_mix *mix = obs->data.main_canvas->mix;
+	return mix ? mix->video : NULL;
 }
 
 obs_source_t *obs_get_output_source(uint32_t channel)
@@ -2266,7 +2318,7 @@ gs_texture_t *obs_get_main_texture(void)
 	struct obs_core_video_mix *video;
 
 	video = obs->data.main_canvas->mix;
-	if (!video->texture_rendered)
+	if (!video || !video->texture_rendered)
 		return NULL;
 
 	return video->render_texture;
@@ -3158,12 +3210,16 @@ void obs_add_raw_video_callback2(const struct video_scale_info *conversion, uint
 				 void (*callback)(void *param, struct video_data *frame), void *param)
 {
 	struct obs_core_video_mix *video = obs->data.main_canvas->mix;
+	if (!video)
+		return;
 	start_raw_video(video->video, conversion, frame_rate_divisor, callback, param);
 }
 
 void obs_remove_raw_video_callback(void (*callback)(void *param, struct video_data *frame), void *param)
 {
 	struct obs_core_video_mix *video = obs->data.main_canvas->mix;
+	if (!video)
+		return;
 	stop_raw_video(video->video, callback, param);
 }
 
@@ -3216,10 +3272,12 @@ bool start_gpu_encode(obs_encoder_t *encoder)
 
 	if (!video->gpu_encoders.num)
 		success = init_gpu_encoding(video);
-	if (success)
+	if (success) {
+		os_atomic_set_bool(&encoder->gpu_encode_failed, false);
 		da_push_back(video->gpu_encoders, &encoder);
-	else
+	} else {
 		free_gpu_encoding(video);
+	}
 
 	pthread_mutex_unlock(&video->gpu_encoder_mutex);
 	obs_leave_graphics();
@@ -3281,13 +3339,13 @@ bool obs_video_active(void)
 bool obs_nv12_tex_active(void)
 {
 	struct obs_core_video_mix *video = obs->data.main_canvas->mix;
-	return video->using_nv12_tex;
+	return video && video->using_nv12_tex;
 }
 
 bool obs_p010_tex_active(void)
 {
 	struct obs_core_video_mix *video = obs->data.main_canvas->mix;
-	return video->using_p010_tex;
+	return video && video->using_p010_tex;
 }
 
 /* ------------------------------------------------------------------------- */
