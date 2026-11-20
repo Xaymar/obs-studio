@@ -80,6 +80,8 @@ struct video_output {
 	volatile long total_frames;
 
 	pthread_mutex_t input_mutex;
+	/* threads waiting for input_mutex, see lock_inputs() */
+	volatile long input_waiters;
 	DARRAY(struct video_input) inputs;
 
 	size_t available_frames;
@@ -96,6 +98,23 @@ struct video_output {
 };
 
 /* ------------------------------------------------------------------------- */
+
+/* The video thread holds input_mutex while the inputs encode a frame. An encoder slower than the frame rate keeps
+ * the thread busy, and it takes the mutex again right after letting go of it, so mutexes that are not fair (most
+ * are) let a thread that connects or disconnects an input wait forever, which froze stopping an output. Other
+ * threads therefore announce that they wait, and the video thread lets them go first. */
+static void lock_inputs(struct video_output *video)
+{
+	os_atomic_inc_long(&video->input_waiters);
+	pthread_mutex_lock(&video->input_mutex);
+	os_atomic_dec_long(&video->input_waiters);
+}
+
+static void yield_to_input_waiters(struct video_output *video)
+{
+	while (os_atomic_load_long(&video->input_waiters) > 0)
+		os_sleep_ms(1);
+}
 
 static inline bool scale_video_output(struct video_input *input, struct video_data *data)
 {
@@ -141,6 +160,7 @@ static inline bool video_output_cur_frame(struct video_output *video)
 
 	/* -------------------------------- */
 
+	yield_to_input_waiters(video);
 	pthread_mutex_lock(&video->input_mutex);
 
 	for (size_t i = 0; i < video->inputs.num; i++) {
@@ -408,7 +428,7 @@ bool video_output_connect2(video_t *video, const struct video_scale_info *conver
 
 	video = get_root(video);
 
-	pthread_mutex_lock(&video->input_mutex);
+	lock_inputs(video);
 
 	if (video_get_input_idx(video, callback, param) == DARRAY_INVALID) {
 		struct video_input input;
@@ -477,7 +497,7 @@ bool video_output_disconnect2(video_t *video, void (*callback)(void *param, stru
 
 	video = get_root(video);
 
-	pthread_mutex_lock(&video->input_mutex);
+	lock_inputs(video);
 
 	size_t idx = video_get_input_idx(video, callback, param);
 	if (idx != DARRAY_INVALID) {

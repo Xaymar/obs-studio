@@ -478,6 +478,7 @@ foreach(
     test_obs_video_failures
     test_obs_scene
     test_obs_output
+    test_obs_encoder_slow
     test_obs_audio
     test_obs_hotkey
     test_obs_canvas
