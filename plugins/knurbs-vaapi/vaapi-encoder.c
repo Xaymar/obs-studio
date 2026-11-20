@@ -1084,7 +1084,7 @@ static obs_properties_t *vaapi_properties_internal(enum codec_type codec)
 					blog(LOG_DEBUG, "knurbs-vaapi: A format truncation may have occurred."
 							" This can be ignored since it is quite improbable.");
 
-				if (!vaapi_device_h264_supported(path))
+				if (!vaapi_device_codec_supported(path, codec))
 					continue;
 
 				obs_property_list_add_string(list, card, path);
