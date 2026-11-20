@@ -20,7 +20,7 @@ add_custom_target(obs-unit-tests)
 function(obs_add_unit_test name)
   add_executable(${name} ${name}.c)
   target_include_directories(${name} PRIVATE ${CMOCKA_INCLUDE_DIR})
-  target_link_libraries(${name} PRIVATE OBS::libobs cmocka::cmocka)
+  target_link_libraries(${name} PRIVATE OBS::libobs cmocka::cmocka $<$<NOT:$<PLATFORM_ID:Windows>>:m>)
   set_target_properties(${name} PROPERTIES FOLDER "Tests and Examples")
   set(work_dir "${CMAKE_CURRENT_BINARY_DIR}/work/${name}")
   file(MAKE_DIRECTORY "${work_dir}")
@@ -43,8 +43,8 @@ function(obs_add_graphics_test name)
 endfunction()
 
 # obs_add_core_test(<name>): a graphics test that starts libobs (see obs-core-test.h). libobs finds its effects
-# in ../../data/libobs relative to the working directory, so the test runs in work/<name>/bin/64bit next to a
-# copy of the data.
+# in ../../data/libobs relative to the working directory on Windows and in share/obs/libobs on Linux, so the test
+# runs in work/<name>/bin/64bit next to a copy of the data.
 function(obs_add_core_test name)
   obs_add_graphics_test(${name})
   set(work_dir "${CMAKE_CURRENT_BINARY_DIR}/work/${name}/bin/64bit")
@@ -56,6 +56,7 @@ function(obs_add_core_test name)
     COMMAND
       "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_SOURCE_DIR}/libobs/data"
       "${CMAKE_CURRENT_BINARY_DIR}/work/${name}/data/libobs"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_SOURCE_DIR}/libobs/data" "${work_dir}/share/obs/libobs"
     VERBATIM
   )
 endfunction()
@@ -400,10 +401,12 @@ foreach(
     test_util_threading
     test_util_task
     test_util_spsc_fifo
-    test_util_windows
 )
   obs_add_unit_test(${test})
 endforeach()
+if(OS_WINDOWS)
+  obs_add_unit_test(test_util_windows)
+endif()
 
 # media-io/
 foreach(

@@ -3,6 +3,8 @@
 #include <setjmp.h>
 #include <cmocka.h>
 
+#include <sys/stat.h>
+
 #include "obs-test.h"
 
 #include <string.h>

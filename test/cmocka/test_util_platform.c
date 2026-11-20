@@ -2,6 +2,8 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
+
+#include <sys/stat.h>
 #include <math.h>
 
 #include "obs-test.h"

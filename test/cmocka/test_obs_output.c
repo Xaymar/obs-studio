@@ -735,7 +735,7 @@ static void encoded_output_test(void **state)
 static void gpu_encode_test(void **state)
 {
 	UNUSED_PARAMETER(state);
-	_putenv("NULL_GRAPHICS_YUV_TEXTURES=1");
+	core_set_env("NULL_GRAPHICS_YUV_TEXTURES", "1");
 	start();
 	texture_encodes = 0;
 	texture_encoder_fail = false;
@@ -796,7 +796,7 @@ static void gpu_encode_test(void **state)
 	obs_set_output_source(0, NULL);
 	obs_source_release(src);
 	core_stop();
-	_putenv("NULL_GRAPHICS_YUV_TEXTURES=");
+	core_set_env("NULL_GRAPHICS_YUV_TEXTURES", NULL);
 }
 
 /* captions are inserted into the H.264 packets as SEI NAL units */

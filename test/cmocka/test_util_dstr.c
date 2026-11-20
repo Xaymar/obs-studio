@@ -11,7 +11,12 @@
 
 #ifdef _MSC_VER
 #include <crtdbg.h>
+#endif
+#ifdef _WIN32
 #include <windows.h>
+#else
+#include <sys/mman.h>
+#include <unistd.h>
 #endif
 
 static void check_heap(void)
@@ -472,14 +477,22 @@ static void ncopy_guard_page_test(void **state)
 {
 	UNUSED_PARAMETER(state);
 
+#ifdef _WIN32
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
-	char *pages = VirtualAlloc(NULL, si.dwPageSize * 2, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	size_t page = si.dwPageSize;
+	char *pages = VirtualAlloc(NULL, page * 2, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	assert_non_null(pages);
 	DWORD old;
-	assert_true(VirtualProtect(pages + si.dwPageSize, si.dwPageSize, PAGE_NOACCESS, &old));
+	assert_true(VirtualProtect(pages + page, page, PAGE_NOACCESS, &old));
+#else
+	size_t page = (size_t)sysconf(_SC_PAGESIZE);
+	char *pages = mmap(NULL, page * 2, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	assert_true(pages != MAP_FAILED);
+	assert_int_equal(mprotect(pages + page, page, PROT_NONE), 0);
+#endif
 
-	char *abc = pages + si.dwPageSize - 3;
+	char *abc = pages + page - 3;
 	memcpy(abc, "abc", 3);
 
 	struct dstr str = {0};
@@ -487,7 +500,11 @@ static void ncopy_guard_page_test(void **state)
 	assert_string_equal(str.array, "abc");
 	dstr_free(&str);
 
+#ifdef _WIN32
 	VirtualFree(pages, 0, MEM_RELEASE);
+#else
+	munmap(pages, page * 2);
+#endif
 }
 
 int main(void)
