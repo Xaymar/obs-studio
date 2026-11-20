@@ -4905,10 +4905,10 @@ void OBSBasicSettings::FillSimpleRecordingValues()
 
 	ui->simpleOutRecEncoder->addItem(ENCODER_STR("Software"), QString(SIMPLE_ENCODER_X264));
 	ui->simpleOutRecEncoder->addItem(ENCODER_STR("SoftwareLowCPU"), QString(SIMPLE_ENCODER_X264_LOWCPU));
-	if (EncoderAvailable("obs_qsv11")) {
+	if (EncoderAvailable("com.xaymar.knurbs.qsv.h264")) {
 		ui->simpleOutRecEncoder->addItem(ENCODER_STR("Hardware.QSV.H264"), QString(SIMPLE_ENCODER_QSV));
 	}
-	if (EncoderAvailable("obs_qsv11_av1")) {
+	if (EncoderAvailable("com.xaymar.knurbs.qsv.av1")) {
 		ui->simpleOutRecEncoder->addItem(ENCODER_STR("Hardware.QSV.AV1"), QString(SIMPLE_ENCODER_QSV_AV1));
 	}
 	if (EncoderAvailable("com.xaymar.knurbs.nvenc.h264")) {

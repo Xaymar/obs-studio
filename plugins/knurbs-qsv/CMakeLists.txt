@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.28...3.30)
 
-option(ENABLE_QSV11 "Build Intel QSV11 Hardware Encoder." TRUE)
+option(ENABLE_QSV11 "Build Intel QSV Hardware Encoder Plugin" TRUE)
 if(NOT ENABLE_QSV11)
-  target_disable_feature(obs-qsv11 "Intel QSV11 Hardware Encoder")
+  target_disable_feature(knurbs-qsv "Intel QSV Hardware Encoder")
   return()
 endif()
 
-add_library(obs-qsv11 MODULE)
-add_library(OBS::qsv11 ALIAS obs-qsv11)
+add_library(knurbs-qsv MODULE)
+add_library(OBS::knurbs-qsv ALIAS knurbs-qsv)
 
 find_package(VPL 2.9 REQUIRED)
 
@@ -16,7 +16,7 @@ if(OS_LINUX)
 endif()
 
 target_sources(
-  obs-qsv11
+  knurbs-qsv
   PRIVATE
     $<$<PLATFORM_ID:Linux>:common_utils_linux.cpp>
     $<$<PLATFORM_ID:Windows>:common_directx11.cpp>
@@ -24,8 +24,11 @@ target_sources(
     $<$<PLATFORM_ID:Windows>:common_utils_windows.cpp>
     common_utils.cpp
     common_utils.h
-    obs-qsv11-plugin-main.c
-    obs-qsv11.c
+    knurbs-qsv-plugin-main.c
+    knurbs-qsv.c
+    qsv-aliases.c
+    qsv-migrate.c
+    qsv-migrate.h
     QSV_Encoder.cpp
     QSV_Encoder.h
     QSV_Encoder_Internal.cpp
@@ -33,14 +36,14 @@ target_sources(
 )
 
 target_compile_options(
-  obs-qsv11
+  knurbs-qsv
   PRIVATE
     $<$<COMPILE_LANG_AND_ID:C,GNU,Clang>:-Wno-error=switch>
     $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wno-error=switch>
 )
 
 target_link_libraries(
-  obs-qsv11
+  knurbs-qsv
   PRIVATE
     OBS::libobs
     VPL::VPL
@@ -51,13 +54,13 @@ target_link_libraries(
     $<$<PLATFORM_ID:Windows>:dxguid>
 )
 
-target_link_options(obs-qsv11 PRIVATE $<$<PLATFORM_ID:Windows>:/IGNORE:4099>)
+target_link_options(knurbs-qsv PRIVATE $<$<PLATFORM_ID:Windows>:/IGNORE:4099>)
 
 if(OS_WINDOWS)
-  add_subdirectory(obs-qsv-test)
+  add_subdirectory(knurbs-qsv-test)
 
-  configure_file(cmake/windows/obs-module.rc.in obs-qsv11.rc)
-  target_sources(obs-qsv11 PRIVATE obs-qsv11.rc)
+  configure_file(cmake/windows/obs-module.rc.in knurbs-qsv.rc)
+  target_sources(knurbs-qsv PRIVATE knurbs-qsv.rc)
 endif()
 
-set_target_properties_obs(obs-qsv11 PROPERTIES FOLDER plugins/obs-qsv11 PREFIX "")
+set_target_properties_obs(knurbs-qsv PROPERTIES FOLDER plugins/knurbs-qsv PREFIX "")

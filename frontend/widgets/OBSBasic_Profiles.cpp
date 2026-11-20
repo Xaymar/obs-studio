@@ -815,9 +815,9 @@ void OBSBasic::CheckForSimpleModeX264Fallback()
 	while (obs_enum_encoder_types(idx++, &id)) {
 		if (strcmp(id, "h264_texture_amf") == 0) {
 			amd_supported = true;
-		} else if (strcmp(id, "obs_qsv11") == 0) {
+		} else if (strcmp(id, "com.xaymar.knurbs.qsv.h264") == 0) {
 			qsv_supported = true;
-		} else if (strcmp(id, "obs_qsv11_av1") == 0) {
+		} else if (strcmp(id, "com.xaymar.knurbs.qsv.av1") == 0) {
 			qsv_av1_supported = true;
 		} else if (strcmp(id, "com.xaymar.knurbs.nvenc.h264") == 0) {
 			nve_supported = true;

@@ -160,7 +160,7 @@ static bool enum_luids(void *param, uint32_t idx, uint64_t luid)
 
 void check_adapters(struct adapter_info *adapters, size_t *adapter_count)
 {
-	char *test_exe = os_get_executable_path_ptr("obs-qsv-test.exe");
+	char *test_exe = os_get_executable_path_ptr("knurbs-qsv-test.exe");
 	struct dstr cmd = {0};
 	struct dstr caps_str = {0};
 	os_process_pipe_t *pp = nullptr;

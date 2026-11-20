@@ -49,6 +49,14 @@ target_link_libraries(test_nvenc_migrate PRIVATE OBS::libobs cmocka::cmocka)
 
 add_test(test_nvenc_migrate test_nvenc_migrate)
 
+# Settings migration of the QSV plugin; plain libobs code, so it builds without
+# oneVPL.
+add_executable(test_qsv_migrate test_qsv_migrate.c "${CMAKE_SOURCE_DIR}/plugins/knurbs-qsv/qsv-migrate.c")
+target_include_directories(test_qsv_migrate PRIVATE ${CMOCKA_INCLUDE_DIR} "${CMAKE_SOURCE_DIR}/plugins/knurbs-qsv")
+target_link_libraries(test_qsv_migrate PRIVATE OBS::libobs cmocka::cmocka)
+
+add_test(test_qsv_migrate test_qsv_migrate)
+
 # Vulkan backend export test
 if(ENABLE_VULKAN)
   find_package(Vulkan REQUIRED)

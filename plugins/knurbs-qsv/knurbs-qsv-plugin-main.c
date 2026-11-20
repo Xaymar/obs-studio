@@ -56,18 +56,17 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <obs-module.h>
 
 #include "common_utils.h"
+#include "qsv-migrate.h"
 
 OBS_DECLARE_MODULE()
-OBS_MODULE_USE_DEFAULT_LOCALE("obs-qsv11", "en-US")
+OBS_MODULE_USE_DEFAULT_LOCALE("knurbs-qsv", "en-US")
 MODULE_EXPORT const char *obs_module_description(void)
 {
 	return "Intel Quick Sync Video support for Windows";
 }
 
 extern struct obs_encoder_info obs_qsv_encoder;
-extern struct obs_encoder_info obs_qsv_encoder_v2;
 extern struct obs_encoder_info obs_qsv_encoder_tex;
-extern struct obs_encoder_info obs_qsv_encoder_tex_v2;
 extern struct obs_encoder_info obs_qsv_av1_encoder_tex;
 extern struct obs_encoder_info obs_qsv_av1_encoder;
 extern struct obs_encoder_info obs_qsv_hevc_encoder_tex;
@@ -89,9 +88,7 @@ bool obs_module_load(void)
 	}
 
 	if (avc_supported) {
-		obs_register_encoder(&obs_qsv_encoder_tex_v2);
 		obs_register_encoder(&obs_qsv_encoder_tex);
-		obs_register_encoder(&obs_qsv_encoder_v2);
 		obs_register_encoder(&obs_qsv_encoder);
 	}
 	if (av1_supported) {
@@ -105,5 +102,6 @@ bool obs_module_load(void)
 	}
 #endif
 
+	qsv_register_encoder_aliases();
 	return true;
 }

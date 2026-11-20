@@ -1524,8 +1524,8 @@ static QString get_adv_fallback(const QString &enc)
 	if (enc == "com.apple.videotoolbox.videoencoder.ave.hevc") {
 		return "com.apple.videotoolbox.videoencoder.ave.avc";
 	}
-	if (enc == "obs_qsv11_av1") {
-		return "obs_qsv11";
+	if (enc == "com.xaymar.knurbs.qsv.hevc" || enc == "com.xaymar.knurbs.qsv.av1") {
+		return "com.xaymar.knurbs.qsv.h264";
 	}
 	return "obs_x264";
 }
@@ -1748,10 +1748,10 @@ void OBSBasicSettings::ResetEncoders(bool streamOnly)
 
 	ui->simpleOutStrEncoder->addItem(ENCODER_STR("Software"), QString(SIMPLE_ENCODER_X264));
 #ifdef _WIN32
-	if (service_supports_encoder(vcodecs, "obs_qsv11")) {
+	if (service_supports_encoder(vcodecs, "com.xaymar.knurbs.qsv.h264")) {
 		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.QSV.H264"), QString(SIMPLE_ENCODER_QSV));
 	}
-	if (service_supports_encoder(vcodecs, "obs_qsv11_av1")) {
+	if (service_supports_encoder(vcodecs, "com.xaymar.knurbs.qsv.av1")) {
 		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.QSV.AV1"), QString(SIMPLE_ENCODER_QSV_AV1));
 	}
 #endif

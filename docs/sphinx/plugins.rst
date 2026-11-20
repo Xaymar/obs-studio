@@ -325,8 +325,8 @@ Examples of encoders:
 - Video encoders:
 
   - The `x264 encoder <https://github.com/obsproject/obs-studio/tree/master/plugins/obs-x264>`_
-  - The `FFmpeg NVENC encoder <https://github.com/obsproject/obs-studio/blob/master/plugins/obs-ffmpeg/obs-ffmpeg-nvenc.c>`_
-  - The `Quicksync encoder <https://github.com/obsproject/obs-studio/tree/master/plugins/obs-qsv11>`_
+  - The `NVENC encoder <https://github.com/Xaymar/knurbs/tree/root/plugins/knurbs-nvenc>`_
+  - The `Quicksync encoder <https://github.com/Xaymar/knurbs/tree/root/plugins/knurbs-qsv>`_
 
 - Audio encoders:
 
