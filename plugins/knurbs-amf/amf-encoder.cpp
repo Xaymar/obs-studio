@@ -30,6 +30,8 @@
 #include <util/pipe.h>
 #include <util/dstr.h>
 
+#include "amf-ids.h"
+
 using namespace amf;
 
 /* ========================================================================= */
@@ -1217,7 +1219,7 @@ static void check_texture_encode_capability(obs_encoder_t *encoder, amf_codec_ty
 	}
 }
 
-#include "texture-amf-opts.hpp"
+#include "amf-encoder-opts.hpp"
 
 /* These are initial recommended settings that may be lowered later once we know more info such as the resolution and
  * frame rate. */
@@ -1745,11 +1747,11 @@ try {
 
 } catch (const amf_error &err) {
 	blog(LOG_ERROR, "[texture-amf-h264] %s: %s: %ls", __FUNCTION__, err.str, amf_trace->GetResultText(err.res));
-	return obs_encoder_create_rerouted(encoder, "h264_fallback_amf");
+	return obs_encoder_create_rerouted(encoder, AMF_ID_H264_RAW);
 
 } catch (const char *err) {
 	blog(LOG_ERROR, "[texture-amf-h264] %s: %s", __FUNCTION__, err);
-	return obs_encoder_create_rerouted(encoder, "h264_fallback_amf");
+	return obs_encoder_create_rerouted(encoder, AMF_ID_H264_RAW);
 }
 
 static void *amf_avc_create_fallback(obs_data_t *settings, obs_encoder_t *encoder)
@@ -1799,7 +1801,7 @@ try {
 static void register_avc()
 {
 	struct obs_encoder_info amf_encoder_info = {};
-	amf_encoder_info.id = "h264_texture_amf";
+	amf_encoder_info.id = AMF_ID_H264;
 	amf_encoder_info.type = OBS_ENCODER_VIDEO;
 	amf_encoder_info.codec = "h264";
 	amf_encoder_info.get_name = amf_avc_get_name;
@@ -1815,7 +1817,7 @@ static void register_avc()
 
 	obs_register_encoder(&amf_encoder_info);
 
-	amf_encoder_info.id = "h264_fallback_amf";
+	amf_encoder_info.id = AMF_ID_H264_RAW;
 	amf_encoder_info.caps = OBS_ENCODER_CAP_INTERNAL | OBS_ENCODER_CAP_DYN_BITRATE |
 				OBS_ENCODER_CAP_MULTITRACK_DYN_BITRATE | OBS_ENCODER_CAP_ROI;
 	amf_encoder_info.encode_texture = nullptr;
@@ -2149,11 +2151,11 @@ try {
 
 } catch (const amf_error &err) {
 	blog(LOG_ERROR, "[texture-amf-h265] %s: %s: %ls", __FUNCTION__, err.str, amf_trace->GetResultText(err.res));
-	return obs_encoder_create_rerouted(encoder, "h265_fallback_amf");
+	return obs_encoder_create_rerouted(encoder, AMF_ID_HEVC_RAW);
 
 } catch (const char *err) {
 	blog(LOG_ERROR, "[texture-amf-h265] %s: %s", __FUNCTION__, err);
-	return obs_encoder_create_rerouted(encoder, "h265_fallback_amf");
+	return obs_encoder_create_rerouted(encoder, AMF_ID_HEVC_RAW);
 }
 
 static void *amf_hevc_create_fallback(obs_data_t *settings, obs_encoder_t *encoder)
@@ -2210,7 +2212,7 @@ static void amf_hevc_defaults(obs_data_t *settings)
 static void register_hevc()
 {
 	struct obs_encoder_info amf_encoder_info = {};
-	amf_encoder_info.id = "h265_texture_amf";
+	amf_encoder_info.id = AMF_ID_HEVC;
 	amf_encoder_info.type = OBS_ENCODER_VIDEO;
 	amf_encoder_info.codec = "hevc";
 	amf_encoder_info.get_name = amf_hevc_get_name;
@@ -2226,7 +2228,7 @@ static void register_hevc()
 
 	obs_register_encoder(&amf_encoder_info);
 
-	amf_encoder_info.id = "h265_fallback_amf";
+	amf_encoder_info.id = AMF_ID_HEVC_RAW;
 	amf_encoder_info.caps = OBS_ENCODER_CAP_INTERNAL | OBS_ENCODER_CAP_DYN_BITRATE |
 				OBS_ENCODER_CAP_MULTITRACK_DYN_BITRATE | OBS_ENCODER_CAP_ROI;
 	amf_encoder_info.encode_texture = nullptr;
@@ -2562,11 +2564,11 @@ try {
 
 } catch (const amf_error &err) {
 	blog(LOG_ERROR, "[texture-amf-av1] %s: %s: %ls", __FUNCTION__, err.str, amf_trace->GetResultText(err.res));
-	return obs_encoder_create_rerouted(encoder, "av1_fallback_amf");
+	return obs_encoder_create_rerouted(encoder, AMF_ID_AV1_RAW);
 
 } catch (const char *err) {
 	blog(LOG_ERROR, "[texture-amf-av1] %s: %s", __FUNCTION__, err);
-	return obs_encoder_create_rerouted(encoder, "av1_fallback_amf");
+	return obs_encoder_create_rerouted(encoder, AMF_ID_AV1_RAW);
 }
 
 static void *amf_av1_create_fallback(obs_data_t *settings, obs_encoder_t *encoder)
@@ -2625,7 +2627,7 @@ static void amf_av1_defaults(obs_data_t *settings)
 static void register_av1()
 {
 	struct obs_encoder_info amf_encoder_info = {};
-	amf_encoder_info.id = "av1_texture_amf";
+	amf_encoder_info.id = AMF_ID_AV1;
 	amf_encoder_info.type = OBS_ENCODER_VIDEO;
 	amf_encoder_info.codec = "av1";
 	amf_encoder_info.get_name = amf_av1_get_name;
@@ -2641,7 +2643,7 @@ static void register_av1()
 
 	obs_register_encoder(&amf_encoder_info);
 
-	amf_encoder_info.id = "av1_fallback_amf";
+	amf_encoder_info.id = AMF_ID_AV1_RAW;
 	amf_encoder_info.caps = OBS_ENCODER_CAP_INTERNAL | OBS_ENCODER_CAP_DYN_BITRATE |
 				OBS_ENCODER_CAP_MULTITRACK_DYN_BITRATE | OBS_ENCODER_CAP_ROI;
 	amf_encoder_info.encode_texture = nullptr;
@@ -2669,7 +2671,7 @@ try {
 	HMODULE amf_module_test;
 
 	/* Check if the DLL is present before running the more expensive */
-	/* obs-amf-test.exe, but load it as data so it can't crash us    */
+	/* knurbs-amf-test.exe, but load it as data so it can't crash us */
 	amf_module_test = LoadLibraryExW(AMF_DLL_NAME, nullptr, LOAD_LIBRARY_AS_DATAFILE);
 	if (!amf_module_test) {
 		throw "No AMF library";
@@ -2679,7 +2681,7 @@ try {
 	/* ----------------------------------- */
 	/* Check for supported codecs          */
 
-	BPtr<char> test_exe = os_get_executable_path_ptr("obs-amf-test.exe");
+	BPtr<char> test_exe = os_get_executable_path_ptr("knurbs-amf-test.exe");
 	std::stringstream cmd;
 	std::string caps_str;
 

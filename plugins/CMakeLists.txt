@@ -72,6 +72,7 @@ add_core_module(
     WITH_MESSAGE
 )
 add_core_module(image-source)
+add_core_module(knurbs-amf PLATFORMS WINDOWS ARCHITECTURES x64)
 add_core_module(knurbs-nvenc PLATFORMS WINDOWS LINUX)
 add_core_module(knurbs-qsv PLATFORMS WINDOWS LINUX ARCHITECTURES x64 x86_64)
 add_core_module(linux-alsa PLATFORMS LINUX FREEBSD OPENBSD)
