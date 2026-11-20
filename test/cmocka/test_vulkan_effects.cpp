@@ -133,7 +133,9 @@ static std::vector<std::string> all_effect_files()
 	add_effects(files, src + "/libobs/data");
 	add_effects(files, src + "/frontend/data");
 	add_effects(files, src + "/test/test-input/data");
-	os_dir_t *dir = os_opendir((src + "/plugins").c_str());
+	// platform-nix's os_opendir keeps the path pointer (no copy), so the string must outlive the walk.
+	const std::string plugins = src + "/plugins";
+	os_dir_t *dir = os_opendir(plugins.c_str());
 	if (dir) {
 		for (os_dirent *e; (e = os_readdir(dir));) {
 			if (e->directory && e->d_name[0] != '.') {

@@ -15,14 +15,38 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ******************************************************************************/
 
+#if !defined(_WIN32) && !defined(_GNU_SOURCE)
+#define _GNU_SOURCE /* dladdr */
+#endif
+
 #include "../util/base.h"
 #include "../util/dstr.h"
 #include "../util/platform.h"
 #include "graphics-internal.h"
 
+#ifndef _WIN32
+#include <dlfcn.h>
+#endif
+
+/* dlsym on a module handle also searches the module's dependencies, and libobs itself exports most gs_* names.
+ * A symbol the module does not define would then resolve to libobs's own wrapper, which calls itself through
+ * the export table (gs_texture_is_rect spins forever with libobs-vulkan on Linux). Only accept symbols that are
+ * defined inside the module. */
+static void *graphics_dlsym(void *module, const char *name)
+{
+	void *sym = os_dlsym(module, name);
+#ifndef _WIN32
+	Dl_info in_module, in_libobs;
+	if (sym && dladdr(sym, &in_module) && dladdr((void *)graphics_dlsym, &in_libobs) &&
+	    in_module.dli_fbase == in_libobs.dli_fbase)
+		return NULL;
+#endif
+	return sym;
+}
+
 #define GRAPHICS_IMPORT(func)                                     \
 	do {                                                      \
-		exports->func = os_dlsym(module, #func);          \
+		exports->func = graphics_dlsym(module, #func);    \
 		if (!exports->func) {                             \
 			success = false;                          \
 			blog(LOG_ERROR,                           \
@@ -34,7 +58,7 @@
 
 #define GRAPHICS_IMPORT_OPTIONAL(func)                   \
 	do {                                             \
-		exports->func = os_dlsym(module, #func); \
+		exports->func = graphics_dlsym(module, #func); \
 	} while (false)
 
 bool load_graphics_imports(struct gs_exports *exports, void *module, const char *module_name)

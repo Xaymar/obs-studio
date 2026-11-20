@@ -423,7 +423,11 @@ static void test_core_effects_translate(void **)
 	}
 
 	// Untimed second pass: every SPIR-V module goes through vkCreateShaderModule with the validation layer on.
+#ifdef _WIN32
 	void *loader = os_dlopen("vulkan-1");
+#else
+	void *loader = os_dlopen("libvulkan.so.1");
+#endif
 	assert_non_null(loader);
 	auto get_instance_proc = (PFN_vkGetInstanceProcAddr)os_dlsym(loader, "vkGetInstanceProcAddr");
 	auto get_device_proc = (PFN_vkGetDeviceProcAddr)get_instance_proc(device->instance, "vkGetDeviceProcAddr");

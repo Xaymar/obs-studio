@@ -49,7 +49,12 @@ if(OS_WINDOWS)
   # The SDK ships the static libs without their PDBs.
   target_link_options(libobs-vulkan PRIVATE /IGNORE:4099)
 else()
-  target_link_libraries(libobs-vulkan PRIVATE glslang-default-resource-limits SPIRV-Tools-opt)
+  # Static archives resolve left to right: SPIRV-Tools-opt needs SPIRV-Tools after it, and the module must not
+  # load with unresolved spvtools symbols.
+  target_link_libraries(libobs-vulkan PRIVATE glslang-default-resource-limits SPIRV-Tools-opt Vulkan::SPIRV-Tools)
+  # The module exports gs_* under the same names as libobs. Without -Bsymbolic its internal calls (e.g.
+  # gs_shader_set_val from device_draw) bind to libobs's wrappers, which drop them outside a graphics context.
+  target_link_options(libobs-vulkan PRIVATE LINKER:--no-undefined LINKER:-Bsymbolic)
 endif()
 
 # Windows delay-loads the loader so a machine without vulkan-1.dll still loads the module and device_create
