@@ -36,6 +36,7 @@ private:
 	void shutdown();
 	void fail(const QString &message);
 	void status(const QString &text);
+	void installSignalHandlers();
 
 	CommandLine options_;
 	Paths paths_;
@@ -44,6 +45,7 @@ private:
 	std::unique_ptr<Core> core_;
 	std::unique_ptr<MainWindow> window_;
 	bool shuttingDown_ = false;
+	bool quitRequested_ = false;
 };
 
 } // namespace knurbs

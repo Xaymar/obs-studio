@@ -31,6 +31,9 @@ add_executable(knurbs)
 
 set_target_properties(knurbs PROPERTIES AUTOMOC ON CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 
+# libobs loads the renderer at runtime, so nothing links it; build it with the frontend anyway.
+add_dependencies(knurbs libobs-vulkan)
+
 target_sources(
   knurbs
   PRIVATE

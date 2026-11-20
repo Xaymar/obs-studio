@@ -16,11 +16,60 @@
 
 #include <cstdio>
 
+#ifndef _WIN32
+#include <QSocketNotifier>
+
+#include <csignal>
+#include <fcntl.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#endif
+
 namespace knurbs {
+
+#ifndef _WIN32
+namespace {
+int signalFds[2] = {-1, -1};
+
+void onTerminationSignal(int)
+{
+	// Only async-signal-safe work here; the event loop picks it up.
+	const char byte = 1;
+	[[maybe_unused]] ssize_t written = ::write(signalFds[0], &byte, sizeof(byte));
+}
+} // namespace
+#endif
 
 Application::Application(int &argc, char **argv) : QApplication(argc, argv)
 {
 	setQuitOnLastWindowClosed(false);
+	installSignalHandlers();
+}
+
+void Application::installSignalHandlers()
+{
+#ifndef _WIN32
+	// SIGTERM and SIGINT shut down cleanly (save, EXIT event, libobs teardown)
+	// instead of killing the process with the lock file left behind.
+	if (::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, signalFds) != 0) {
+		blog(LOG_WARNING, "[knurbs] Could not set up signal handling");
+		return;
+	}
+	auto *notifier = new QSocketNotifier(signalFds[1], QSocketNotifier::Read, this);
+	connect(notifier, &QSocketNotifier::activated, this, [this]() {
+		char byte;
+		[[maybe_unused]] ssize_t got = ::read(signalFds[1], &byte, sizeof(byte));
+		blog(LOG_INFO, "[knurbs] Termination signal received, shutting down");
+		requestQuit();
+	});
+
+	struct sigaction action = {};
+	action.sa_handler = onTerminationSignal;
+	sigemptyset(&action.sa_mask);
+	action.sa_flags = SA_RESTART;
+	sigaction(SIGTERM, &action, nullptr);
+	sigaction(SIGINT, &action, nullptr);
+#endif
 }
 
 Application::~Application()
@@ -42,7 +91,10 @@ void Application::fail(const QString &message)
 	if (splash_) {
 		splash_->hide();
 	}
-	QMessageBox::critical(nullptr, QStringLiteral("Knurbs"), message);
+	// Offscreen (headless tests) has nobody to close the dialog.
+	if (platformName() != QStringLiteral("offscreen")) {
+		QMessageBox::critical(nullptr, QStringLiteral("Knurbs"), message);
+	}
 }
 
 static std::string obs_locale()
@@ -170,7 +222,7 @@ bool Application::startup()
 int Application::run()
 {
 	int result = 0;
-	if (startup()) {
+	if (startup() && !quitRequested_) {
 		result = exec();
 	}
 	shutdown();
@@ -182,6 +234,7 @@ void Application::requestQuit()
 	if (shuttingDown_) {
 		return;
 	}
+	quitRequested_ = true;
 	quit();
 }
 
