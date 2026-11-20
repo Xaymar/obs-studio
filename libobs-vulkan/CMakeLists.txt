@@ -5,7 +5,13 @@ cmake_minimum_required(VERSION 3.28...3.30)
 # glslang and SPIRV-Tools, and the two libraries it does not know are linked by path from the same directory.
 find_package(Vulkan REQUIRED COMPONENTS glslang SPIRV-Tools)
 
-add_library(libobs-vulkan MODULE)
+# Like the other renderers: a module next to libobs on Windows (libobs-d3d11), a prefix-less shared library in the
+# library directory elsewhere (libobs-opengl), because libobs loads it by name with os_dlopen("libobs-vulkan").
+if(OS_WINDOWS)
+  add_library(libobs-vulkan MODULE)
+else()
+  add_library(libobs-vulkan SHARED)
+endif()
 add_library(OBS::libobs-vulkan ALIAS libobs-vulkan)
 
 target_sources(
@@ -28,8 +34,8 @@ target_sources(
 
 target_compile_features(libobs-vulkan PRIVATE cxx_std_17)
 
-target_link_libraries(libobs-vulkan PRIVATE OBS::libobs OBS::vma Vulkan::Vulkan Vulkan::glslang Vulkan::SPIRV-Tools)
 if(OS_WINDOWS)
+  target_link_libraries(libobs-vulkan PRIVATE OBS::libobs OBS::vma Vulkan::Vulkan Vulkan::glslang Vulkan::SPIRV-Tools)
   cmake_path(GET Vulkan_glslang_LIBRARY PARENT_PATH _vulkan_lib_dir)
   foreach(_lib IN ITEMS glslang-default-resource-limits SPIRV-Tools-opt)
     if(NOT EXISTS "${_vulkan_lib_dir}/${_lib}.lib")
@@ -49,7 +55,20 @@ if(OS_WINDOWS)
   # The SDK ships the static libs without their PDBs.
   target_link_options(libobs-vulkan PRIVATE /IGNORE:4099)
 else()
-  target_link_libraries(libobs-vulkan PRIVATE glslang-default-resource-limits SPIRV-Tools-opt)
+  # Static archives resolve left to right: SPIRV-Tools-opt needs symbols from SPIRV-Tools, so it must come first.
+  target_link_libraries(
+    libobs-vulkan
+    PRIVATE
+      OBS::libobs
+      OBS::vma
+      Vulkan::Vulkan
+      glslang-default-resource-limits
+      Vulkan::glslang
+      SPIRV-Tools-opt
+      Vulkan::SPIRV-Tools
+  )
+  # Fail at link time, not at dlopen, if a symbol is left unresolved.
+  target_link_options(libobs-vulkan PRIVATE LINKER:--no-undefined)
 endif()
 
 # Windows delay-loads the loader so a machine without vulkan-1.dll still loads the module and device_create
@@ -65,6 +84,7 @@ set_target_properties_obs(
   libobs-vulkan
   PROPERTIES FOLDER core
              VERSION 0
+             PREFIX ""
              SOVERSION ${OBS_VERSION_MAJOR}
              COMPILE_WARNING_AS_ERROR FALSE
 )
