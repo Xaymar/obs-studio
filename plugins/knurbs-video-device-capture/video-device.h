@@ -17,8 +17,9 @@
 extern "C" {
 #endif
 
-/* Reverse-DNS, as all Knurbs source and filter IDs. */
-#define VIDEO_DEVICE_SOURCE_ID "com.xaymar.knurbs.video-device-capture"
+/* Reverse-DNS, as all Knurbs source and filter IDs; capture sources share
+ * com.xaymar.knurbs.capture. */
+#define VIDEO_DEVICE_SOURCE_ID "com.xaymar.knurbs.capture.video-device"
 
 /* ------------------------------------------------------------------------- */
 /* Common settings, the same on every platform.                              */
