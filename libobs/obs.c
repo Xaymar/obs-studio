@@ -3440,16 +3440,17 @@ bool obs_wait_for_destroy_queue(void)
 {
 	struct task_wait_info info = {0};
 
-	if (!obs->video.thread_initialized || !obs->audio.audio)
-		return false;
-
-	/* allow video and audio threads time to release objects */
-	os_event_init(&info.event, OS_EVENT_TYPE_AUTO);
-	obs_queue_task(OBS_TASK_GRAPHICS, task_wait_callback, &info, false);
-	os_event_wait(info.event);
-	obs_queue_task(OBS_TASK_AUDIO, task_wait_callback, &info, false);
-	os_event_wait(info.event);
-	os_event_destroy(info.event);
+	/* allow video and audio threads time to release objects. Without them
+	 * (headless, or before obs_reset_video) objects are still released
+	 * through the destruction queue, so always wait for that. */
+	if (obs->video.thread_initialized && obs->audio.audio) {
+		os_event_init(&info.event, OS_EVENT_TYPE_AUTO);
+		obs_queue_task(OBS_TASK_GRAPHICS, task_wait_callback, &info, false);
+		os_event_wait(info.event);
+		obs_queue_task(OBS_TASK_AUDIO, task_wait_callback, &info, false);
+		os_event_wait(info.event);
+		os_event_destroy(info.event);
+	}
 
 	/* wait for destroy task queue */
 	return os_task_queue_wait(obs->destruction_task_thread);

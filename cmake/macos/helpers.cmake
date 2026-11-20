@@ -103,30 +103,9 @@ function(set_target_properties_obs target)
         )
       endforeach()
 
-      if(VIRTUALCAM_DEVICE_UUID AND VIRTUALCAM_SOURCE_UUID AND VIRTUALCAM_SINK_UUID)
-        set(has_virtualcam_uuids TRUE)
-      else()
-        set(has_virtualcam_uuids FALSE)
-      endif()
-
-      if(CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_STYLE STREQUAL Automatic)
-        if(has_virtualcam_uuids)
-          set(entitlements_file "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos/entitlements-extension.plist")
-        else()
-          set(entitlements_file "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos/entitlements.plist")
-        endif()
-      else()
-        if(has_virtualcam_uuids AND OBS_PROVISIONING_PROFILE)
-          set(entitlements_file "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos/entitlements-extension.plist")
-          set_target_properties(
-            ${target}
-            PROPERTIES XCODE_ATTRIBUTE_PROVISIONING_PROFILE_SPECIFIER "${OBS_PROVISIONING_PROFILE}"
-          )
-          configure_file(cmake/macos/exportOptions-extension.plist.in ${CMAKE_BINARY_DIR}/exportOptions.plist)
-        else()
-          set(entitlements_file "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos/entitlements.plist")
-          configure_file(cmake/macos/exportOptions.plist.in ${CMAKE_BINARY_DIR}/exportOptions.plist)
-        endif()
+      set(entitlements_file "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos/entitlements.plist")
+      if(NOT CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_STYLE STREQUAL Automatic)
+        configure_file(cmake/macos/exportOptions.plist.in ${CMAKE_BINARY_DIR}/exportOptions.plist)
       endif()
 
       if(NOT EXISTS "${entitlements_file}")
@@ -177,29 +156,9 @@ function(set_target_properties_obs target)
         set_property(TARGET ${target} APPEND PROPERTY XCODE_EMBED_PLUGINS obslua)
       endif()
 
-      if(
-        TARGET mac-camera-extension
-        AND (CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_STYLE STREQUAL Automatic OR OBS_PROVISIONING_PROFILE)
-      )
-        target_enable_feature(mac-camera-extension "macOS CMIO Camera Extension")
-        add_custom_command(
-          TARGET ${target}
-          POST_BUILD
-          COMMAND
-            "${CMAKE_COMMAND}" -E copy_directory "$<TARGET_BUNDLE_DIR:mac-camera-extension>"
-            "$<TARGET_BUNDLE_CONTENT_DIR:${target}>/Library/SystemExtensions/$<TARGET_BUNDLE_DIR_NAME:mac-camera-extension>"
-          COMMENT "Add Camera Extension to application bundle"
-        )
-      else()
-        target_disable_feature(mac-camera-extension "macOS CMIO Camera Extension")
-      endif()
-
       _bundle_dependencies(${target})
 
       install(TARGETS ${target} BUNDLE DESTINATION "." COMPONENT Application)
-    elseif(${target} STREQUAL mac-camera-extension)
-      set_target_properties(${target} PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE)
-      set_property(GLOBAL APPEND PROPERTY _OBS_DEPENDENCIES ${target})
     elseif(${target} STREQUAL obs-ffmpeg-mux)
       if(OBS_CODESIGN_IDENTITY STREQUAL "-")
         set_target_xcode_properties(${target} PROPERTIES ENABLE_HARDENED_RUNTIME NO)
