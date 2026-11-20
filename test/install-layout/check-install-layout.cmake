@@ -131,6 +131,12 @@ if(CHECK_PKG_CONFIG)
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
   separate_arguments(cflags UNIX_COMMAND "${cflags}")
+  # Warnings as errors is the consumer's choice, not something libobs imposes.
+  foreach(flag IN LISTS cflags)
+    if(flag MATCHES "^-Werror($|=)" AND NOT flag STREQUAL "-Werror=return-type")
+      message(FATAL_ERROR "pkg-config ${packages} Cflags force '${flag}' on consumers")
+    endif()
+  endforeach()
   set(source "${CONSUMER_SOURCE_DIR}/consumer.c")
   if(CHECK_FRONTEND_API)
     set(source "${CONSUMER_SOURCE_DIR}/consumer-frontend.c")
