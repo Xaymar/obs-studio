@@ -221,6 +221,10 @@ bool bounds_intersection_line(const struct bounds *b, const struct vec3 *p1, con
 	if (!bounds_intersection_ray(b, p1, &dir, t))
 		return false;
 
+	/* the box is hit beyond the end of the segment */
+	if (*t > length)
+		return false;
+
 	*t /= length;
 	return true;
 }

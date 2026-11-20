@@ -791,7 +791,7 @@ void profiler_free(void)
 
 	da_free(old_root_entries);
 
-	pthread_mutex_destroy(&root_mutex);
+	/* root_mutex is statically initialized and used again by any later profiler call, so it is not destroyed */
 }
 
 /* ------------------------------------------------------------------------- */
@@ -1033,6 +1033,9 @@ void profiler_snapshot_enumerate_roots(profiler_snapshot_t *snap, profiler_entry
 
 void profiler_snapshot_filter_roots(profiler_snapshot_t *snap, profiler_name_filter_func func, void *data)
 {
+	if (!snap || !func)
+		return;
+
 	for (size_t i = 0; i < snap->roots.num;) {
 		bool remove = false;
 		bool res = func(data, snap->roots.array[i].name, &remove);

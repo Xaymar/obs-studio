@@ -854,6 +854,9 @@ void obs_volmeter_detach_source(obs_volmeter_t *volmeter)
 
 void obs_volmeter_set_peak_meter_type(obs_volmeter_t *volmeter, enum obs_peak_meter_type peak_meter_type)
 {
+	if (!volmeter)
+		return;
+
 	pthread_mutex_lock(&volmeter->mutex);
 	volmeter->peak_meter_type = peak_meter_type;
 	pthread_mutex_unlock(&volmeter->mutex);
@@ -863,6 +866,9 @@ int obs_volmeter_get_nr_channels(obs_volmeter_t *volmeter)
 {
 	int source_nr_audio_channels;
 	int obs_nr_audio_channels;
+
+	if (!volmeter)
+		return 0;
 
 	if (volmeter->source) {
 		source_nr_audio_channels = get_audio_channels(volmeter->source->sample_info.speakers);
@@ -916,5 +922,5 @@ float obs_db_to_mul(float db)
 
 obs_fader_conversion_t obs_fader_db_to_def(obs_fader_t *fader)
 {
-	return fader->db_to_def;
+	return fader ? fader->db_to_def : NULL;
 }

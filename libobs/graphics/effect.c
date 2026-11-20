@@ -218,7 +218,8 @@ bool gs_technique_begin_pass_by_name(gs_technique_t *tech, const char *name)
 
 	for (size_t i = 0; i < tech->passes.num; i++) {
 		struct gs_effect_pass *pass = tech->passes.array + i;
-		if (strcmp(pass->name, name) == 0) {
+		/* passes may be unnamed */
+		if (pass->name && name && strcmp(pass->name, name) == 0) {
 			gs_technique_begin_pass(tech, i);
 			return true;
 		}
@@ -326,7 +327,7 @@ gs_epass_t *gs_technique_get_pass_by_idx(const gs_technique_t *technique, size_t
 		return NULL;
 	struct gs_effect_pass *passes = technique->passes.array;
 
-	if (pass > technique->passes.num)
+	if (pass >= technique->passes.num)
 		return NULL;
 
 	return passes + pass;
@@ -340,7 +341,8 @@ gs_epass_t *gs_technique_get_pass_by_name(const gs_technique_t *technique, const
 
 	for (size_t i = 0; i < technique->passes.num; i++) {
 		struct gs_effect_pass *g_pass = passes + i;
-		if (strcmp(g_pass->name, name) == 0)
+		/* passes may be unnamed */
+		if (g_pass->name && name && strcmp(g_pass->name, name) == 0)
 			return g_pass;
 	}
 	return NULL;
@@ -541,6 +543,11 @@ size_t gs_effect_get_default_val_size(gs_eparam_t *param)
 
 void gs_effect_set_default(gs_eparam_t *param)
 {
+	if (!param) {
+		blog(LOG_ERROR, "gs_effect_set_default: invalid param");
+		return;
+	}
+
 	effect_setval_inline(param, param->default_val.array, param->default_val.num);
 }
 

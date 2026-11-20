@@ -602,8 +602,10 @@ static int ep_parse_sampler_state_item(struct effect_parser *ep, struct ep_sampl
 	for (;;) {
 		const char *cur_str;
 
-		if (!cf_next_valid_token(&ep->cfp))
-			return PARSE_EOF;
+		if (!cf_next_valid_token(&ep->cfp)) {
+			ret = PARSE_EOF;
+			goto fail;
+		}
 
 		cur_str = ep->cfp.cur_token->str.array;
 		if (*cur_str == ';')
@@ -612,11 +614,11 @@ static int ep_parse_sampler_state_item(struct effect_parser *ep, struct ep_sampl
 		dstr_ncat(&value, cur_str, ep->cfp.cur_token->str.len);
 	}
 
-	if (value.len) {
-		da_push_back(eps->states, &state);
-		da_push_back(eps->values, &value.array);
-	}
+	if (!value.len)
+		goto fail;
 
+	da_push_back(eps->states, &state);
+	da_push_back(eps->values, &value.array);
 	return ret;
 
 fail:
@@ -1724,8 +1726,10 @@ static void ep_makeshaderstring(struct effect_parser *ep, struct dstr *shader, c
 	}
 
 	func = ep_getfunc_strref(ep, &func_name->str);
-	if (!func)
+	if (!func) {
+		dstr_free(&call_str);
 		return;
+	}
 
 	ep_write_func(ep, shader, func, used_params);
 	ep_write_main(ep, shader, func, &call_str);

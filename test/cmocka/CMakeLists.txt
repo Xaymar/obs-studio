@@ -2,25 +2,83 @@ project(obs-cmocka)
 
 find_package(CMocka CONFIG REQUIRED)
 
+# obs.dll and the obs-deps runtime libraries are not next to the test executables on Windows
+set(_obs_runtime_env "")
+if(OS_WINDOWS)
+  list(APPEND _obs_runtime_env "PATH=path_list_prepend:${OBS_OUTPUT_DIR}/$<CONFIG>/${OBS_EXECUTABLE_DESTINATION}")
+  foreach(prefix IN LISTS CMAKE_PREFIX_PATH)
+    if(EXISTS "${prefix}/bin")
+      list(APPEND _obs_runtime_env "PATH=path_list_prepend:${prefix}/bin")
+    endif()
+  endforeach()
+endif()
+
+# Every unit test and what it needs, so run-coverage.ps1 can build them in one go
+add_custom_target(obs-unit-tests)
+
+# obs_add_unit_test(<name>): <name>.c linked with libobs and cmocka, run in its own scratch directory
+function(obs_add_unit_test name)
+  add_executable(${name} ${name}.c)
+  target_include_directories(${name} PRIVATE ${CMOCKA_INCLUDE_DIR})
+  target_link_libraries(${name} PRIVATE OBS::libobs cmocka::cmocka)
+  set_target_properties(${name} PROPERTIES FOLDER "Tests and Examples")
+  set(work_dir "${CMAKE_CURRENT_BINARY_DIR}/work/${name}")
+  file(MAKE_DIRECTORY "${work_dir}")
+  add_test(NAME ${name} COMMAND ${name} WORKING_DIRECTORY "${work_dir}")
+  set_tests_properties(${name} PROPERTIES ENVIRONMENT_MODIFICATION "${_obs_runtime_env}")
+  add_dependencies(obs-unit-tests ${name})
+endfunction()
+
+# obs_add_graphics_test(<name>): a unit test that runs gs_* on the libobs-null module (see gs-test.h)
+function(obs_add_graphics_test name)
+  obs_add_unit_test(${name})
+  target_compile_definitions(
+    ${name}
+    PRIVATE
+      NULL_GRAPHICS_MODULE="$<TARGET_FILE:libobs-null>"
+      OBS_DATA_DIR="${CMAKE_SOURCE_DIR}/libobs/data"
+      TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data"
+  )
+  add_dependencies(${name} libobs-null)
+endfunction()
+
+# obs_add_core_test(<name>): a graphics test that starts libobs (see obs-core-test.h). libobs finds its effects
+# in ../../data/libobs relative to the working directory, so the test runs in work/<name>/bin/64bit next to a
+# copy of the data.
+function(obs_add_core_test name)
+  obs_add_graphics_test(${name})
+  set(work_dir "${CMAKE_CURRENT_BINARY_DIR}/work/${name}/bin/64bit")
+  file(MAKE_DIRECTORY "${work_dir}")
+  set_tests_properties(${name} PROPERTIES WORKING_DIRECTORY "${work_dir}")
+  add_custom_command(
+    TARGET ${name}
+    POST_BUILD
+    COMMAND
+      "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_SOURCE_DIR}/libobs/data"
+      "${CMAKE_CURRENT_BINARY_DIR}/work/${name}/data/libobs"
+    VERBATIM
+  )
+endfunction()
+
 # Serializer test
 add_executable(test_serializer test_serializer.c)
 target_include_directories(test_serializer PRIVATE ${CMOCKA_INCLUDE_DIR})
 target_link_libraries(test_serializer PRIVATE OBS::libobs cmocka::cmocka)
-add_test(test_serializer test_serializer)
+add_test(NAME test_serializer COMMAND test_serializer)
 
 # darray test
 add_executable(test_darray test_darray.c)
 target_include_directories(test_darray PRIVATE ${CMOCKA_INCLUDE_DIR})
 target_link_libraries(test_darray PRIVATE OBS::libobs cmocka::cmocka)
 
-add_test(test_darray test_darray)
+add_test(NAME test_darray COMMAND test_darray)
 
 # bitstream test
 add_executable(test_bitstream test_bitstream.c)
 target_include_directories(test_bitstream PRIVATE ${CMOCKA_INCLUDE_DIR})
 target_link_libraries(test_bitstream PRIVATE OBS::libobs cmocka::cmocka)
 
-add_test(test_bitstream test_bitstream)
+add_test(NAME test_bitstream COMMAND test_bitstream)
 
 # Source ID aliases and settings migration
 add_executable(test_source_alias test_source_alias.c)
@@ -263,4 +321,178 @@ add_executable(test_os_path test_os_path.c)
 target_include_directories(test_os_path PRIVATE ${CMOCKA_INCLUDE_DIR})
 target_link_libraries(test_os_path PRIVATE OBS::libobs cmocka::cmocka)
 
-add_test(test_os_path test_os_path)
+add_test(NAME test_os_path COMMAND test_os_path)
+
+set_tests_properties(
+  test_serializer
+  test_darray
+  test_bitstream
+  test_os_path
+  PROPERTIES ENVIRONMENT_MODIFICATION "${_obs_runtime_env}"
+)
+
+# Tests that start libobs: run from the rundir so libobs finds its data files (../../data/libobs)
+if(TARGET libobs-null)
+  # Canvas weak reference regression test
+  add_executable(test_obs_canvas_weak test_obs_canvas_weak.c)
+  target_include_directories(test_obs_canvas_weak PRIVATE ${CMOCKA_INCLUDE_DIR})
+  target_link_libraries(test_obs_canvas_weak PRIVATE OBS::libobs cmocka::cmocka)
+  add_test(
+    NAME test_obs_canvas_weak
+    COMMAND test_obs_canvas_weak
+    WORKING_DIRECTORY "${OBS_OUTPUT_DIR}/$<CONFIG>/${OBS_EXECUTABLE_DESTINATION}"
+  )
+
+  # Video thread on the null graphics module
+  add_executable(test_obs_video_null test_obs_video_null.c)
+  target_include_directories(test_obs_video_null PRIVATE ${CMOCKA_INCLUDE_DIR})
+  target_link_libraries(test_obs_video_null PRIVATE OBS::libobs cmocka::cmocka)
+  target_compile_definitions(test_obs_video_null PRIVATE NULL_GRAPHICS_MODULE="$<TARGET_FILE:libobs-null>")
+  add_dependencies(test_obs_video_null libobs-null)
+  add_test(
+    NAME test_obs_video_null
+    COMMAND test_obs_video_null
+    WORKING_DIRECTORY "${OBS_OUTPUT_DIR}/$<CONFIG>/${OBS_EXECUTABLE_DESTINATION}"
+  )
+
+  set_tests_properties(test_obs_canvas_weak test_obs_video_null PROPERTIES ENVIRONMENT_MODIFICATION "${_obs_runtime_env}")
+endif()
+
+foreach(test IN ITEMS test_serializer test_darray test_bitstream test_os_path test_obs_canvas_weak test_obs_video_null)
+  if(TARGET ${test})
+    add_dependencies(obs-unit-tests ${test})
+  endif()
+endforeach()
+if(TARGET test-obs-mem)
+  add_dependencies(obs-unit-tests test-obs-mem)
+endif()
+
+# util/
+foreach(
+  test
+  IN
+  ITEMS
+    test_util_base
+    test_util_bmem
+    test_util_crc32
+    test_util_darray
+    test_util_deque
+    test_util_dstr
+    test_util_lexer
+    test_util_cf_lexer
+    test_util_cf_parser
+    test_util_config_file
+    test_util_text_lookup
+    test_util_array_serializer
+    test_util_file_serializer
+    test_util_buffered_file_serializer
+    test_util_platform
+    test_util_pipe
+    test_util_profiler
+    test_util_threading
+    test_util_task
+    test_util_spsc_fifo
+    test_util_windows
+)
+  obs_add_unit_test(${test})
+endforeach()
+
+# media-io/
+foreach(
+  test
+  IN
+  ITEMS
+    test_media_format_conversion
+    test_media_video_frame
+    test_media_video_formats
+    test_media_audio_resampler
+    test_media_video_scaler
+    test_media_video_io
+    test_media_audio_io
+    test_media_remux
+)
+  obs_add_unit_test(${test})
+endforeach()
+
+# graphics/ math
+foreach(
+  test
+  IN
+  ITEMS
+    test_graphics_vec
+    test_graphics_matrix
+    test_graphics_geometry
+    test_graphics_shader_parser
+)
+  obs_add_unit_test(${test})
+endforeach()
+
+# graphics/
+foreach(
+  test
+  IN
+  ITEMS
+    test_graphics_graphics
+    test_graphics_failures
+    test_graphics_effect
+    test_graphics_image_file
+    test_graphics_texture_render
+)
+  obs_add_graphics_test(${test})
+endforeach()
+
+# core/
+foreach(
+  test
+  IN
+  ITEMS
+    test_obs_data
+    test_obs_properties
+    test_callback
+    test_obs_codec_helpers
+)
+  obs_add_graphics_test(${test})
+endforeach()
+
+# core/ libobs
+foreach(
+  test
+  IN
+  ITEMS
+    test_obs_source
+    test_obs_source_av
+    test_obs_source_profiler
+    test_obs_register
+    test_obs_video_formats
+    test_obs_video_failures
+    test_obs_scene
+    test_obs_output
+    test_obs_audio
+    test_obs_hotkey
+    test_obs_canvas
+)
+  obs_add_core_test(${test})
+endforeach()
+
+# fake module for test_obs_module
+add_library(fake-module MODULE fake-module/fake-module.c)
+target_link_libraries(fake-module PRIVATE OBS::libobs)
+set_target_properties(fake-module PROPERTIES FOLDER "Tests and Examples" PREFIX "")
+obs_add_core_test(test_obs_module)
+target_compile_definitions(
+  test_obs_module
+  PRIVATE FAKE_MODULE_PATH="$<TARGET_FILE:fake-module>" FAKE_MODULE_DATA="${CMAKE_CURRENT_SOURCE_DIR}/fake-module/data"
+)
+add_dependencies(test_obs_module fake-module)
+
+# Every test program reports failures on stderr instead of opening a dialog (see noninteractive.c), and no
+# test may hang the run.
+get_property(_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+foreach(_target IN LISTS _test_targets)
+  get_target_property(_type ${_target} TYPE)
+  if(_type STREQUAL "EXECUTABLE")
+    target_sources(${_target} PRIVATE "${CMAKE_SOURCE_DIR}/test/common/noninteractive.c")
+  endif()
+endforeach()
+get_property(_tests DIRECTORY PROPERTY TESTS)
+set_tests_properties(${_tests} PROPERTIES TIMEOUT 300)

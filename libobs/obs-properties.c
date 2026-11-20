@@ -311,7 +311,7 @@ obs_property_t *obs_properties_get(obs_properties_t *props, const char *name)
 {
 	struct obs_property *property, *tmp;
 
-	if (!props)
+	if (!props || !name)
 		return NULL;
 
 	HASH_FIND_STR(props->properties, name, property);
@@ -337,12 +337,12 @@ obs_property_t *obs_properties_get(obs_properties_t *props, const char *name)
 
 obs_properties_t *obs_properties_get_parent(obs_properties_t *props)
 {
-	return props->parent ? props->parent->parent : NULL;
+	return (props && props->parent) ? props->parent->parent : NULL;
 }
 
 void obs_properties_remove_by_name(obs_properties_t *props, const char *name)
 {
-	if (!props)
+	if (!props || !name)
 		return;
 
 	struct obs_property *cur, *tmp;
@@ -504,7 +504,8 @@ static inline bool contains_prop(struct obs_properties *props, const char *name)
 
 static inline bool has_prop(struct obs_properties *props, const char *name)
 {
-	return contains_prop(get_topmost_parent(props), name);
+	/* properties are keyed by name, so a NULL name can never be added */
+	return !name || contains_prop(get_topmost_parent(props), name);
 }
 
 static inline void *get_property_data(struct obs_property *prop)
@@ -750,7 +751,8 @@ obs_property_t *obs_properties_add_group(obs_properties_t *props, const char *na
 {
 	if (!props || has_prop(props, name))
 		return NULL;
-	if (!group)
+	/* the group takes ownership of its content, so it can only have one parent */
+	if (!group || group->parent)
 		return NULL;
 
 	/* Prevent recursion. */
@@ -1134,6 +1136,9 @@ static size_t add_item(struct list_data *data, const char *name, const void *val
 
 static void insert_item(struct list_data *data, size_t idx, const char *name, const void *val)
 {
+	if (idx > data->items.num)
+		return;
+
 	struct list_item item = {NULL};
 	item.name = bstrdup(name);
 
@@ -1265,7 +1270,7 @@ double obs_property_list_item_float(obs_property_t *p, size_t idx)
 bool obs_property_list_item_bool(obs_property_t *p, size_t idx)
 {
 	struct list_data *data = get_list_fmt_data(p, OBS_COMBO_FORMAT_BOOL);
-	return (data && idx < data->items.num) ? data->items.array[idx].d : false;
+	return (data && idx < data->items.num) ? data->items.array[idx].b : false;
 }
 
 enum obs_editable_list_type obs_property_editable_list_type(obs_property_t *p)
@@ -1349,7 +1354,7 @@ size_t obs_property_frame_rate_fps_range_add(obs_property_t *p, struct media_fra
 void obs_property_frame_rate_option_insert(obs_property_t *p, size_t idx, const char *name, const char *description)
 {
 	struct frame_rate_data *data = get_type_data(p, OBS_PROPERTY_FRAME_RATE);
-	if (!data)
+	if (!data || idx > data->extra_options.num)
 		return;
 
 	struct frame_rate_option *opt = da_insert_new(data->extra_options, idx);
@@ -1362,7 +1367,7 @@ void obs_property_frame_rate_fps_range_insert(obs_property_t *p, size_t idx, str
 					      struct media_frames_per_second max)
 {
 	struct frame_rate_data *data = get_type_data(p, OBS_PROPERTY_FRAME_RATE);
-	if (!data)
+	if (!data || idx > data->ranges.num)
 		return;
 
 	struct frame_rate_range *rng = da_insert_new(data->ranges, idx);

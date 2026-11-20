@@ -726,7 +726,7 @@ obs_data_t *obs_hotkeys_save_encoder(obs_encoder_t *encoder)
 {
 	obs_data_t *result = NULL;
 
-	if (!lock())
+	if (!encoder || !lock())
 		return result;
 
 	result = save_context_hotkeys(&encoder->context);
@@ -739,7 +739,7 @@ obs_data_t *obs_hotkeys_save_output(obs_output_t *output)
 {
 	obs_data_t *result = NULL;
 
-	if (!lock())
+	if (!output || !lock())
 		return result;
 
 	result = save_context_hotkeys(&output->context);
@@ -752,7 +752,7 @@ obs_data_t *obs_hotkeys_save_service(obs_service_t *service)
 {
 	obs_data_t *result = NULL;
 
-	if (!lock())
+	if (!service || !lock())
 		return result;
 
 	result = save_context_hotkeys(&service->context);
@@ -765,7 +765,7 @@ obs_data_t *obs_hotkeys_save_source(obs_source_t *source)
 {
 	obs_data_t *result = NULL;
 
-	if (!lock())
+	if (!source || !lock())
 		return result;
 
 	result = save_context_hotkeys(&source->context);

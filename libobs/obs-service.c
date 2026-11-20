@@ -89,6 +89,10 @@ static obs_service_t *obs_service_create_internal(const char *id, const char *na
 	service->info = *info;
 	obs_context_init_control(&service->context, service, (obs_destroy_cb)obs_service_destroy);
 
+	/* like outputs and encoders, the instance's settings fall back to the type's defaults */
+	if (service->info.get_defaults)
+		service->info.get_defaults(service->context.settings);
+
 	service->context.data = service->info.create(service->context.settings, service);
 	if (!service->context.data)
 		blog(LOG_ERROR, "Failed to create service '%s'!", name);
@@ -402,6 +406,9 @@ void obs_service_get_max_bitrate(const obs_service_t *service, int *video_bitrat
 
 const char **obs_service_get_supported_video_codecs(const obs_service_t *service)
 {
+	if (!obs_service_valid(service, "obs_service_get_supported_video_codecs"))
+		return NULL;
+
 	if (service->info.get_supported_video_codecs)
 		return service->info.get_supported_video_codecs(service->context.data);
 	return NULL;
@@ -409,6 +416,9 @@ const char **obs_service_get_supported_video_codecs(const obs_service_t *service
 
 const char **obs_service_get_supported_audio_codecs(const obs_service_t *service)
 {
+	if (!obs_service_valid(service, "obs_service_get_supported_audio_codecs"))
+		return NULL;
+
 	if (service->info.get_supported_audio_codecs)
 		return service->info.get_supported_audio_codecs(service->context.data);
 	return NULL;

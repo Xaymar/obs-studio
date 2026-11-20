@@ -136,6 +136,8 @@ os_process_pipe_t *os_process_pipe_create(const char *cmd_line, const char *type
 error:
 	CloseHandle(output);
 	CloseHandle(input);
+	CloseHandle(err_output);
+	CloseHandle(err_input);
 	return NULL;
 }
 

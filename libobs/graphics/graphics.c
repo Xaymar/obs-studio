@@ -168,14 +168,13 @@ static bool graphics_init(struct graphics_subsystem *graphics)
 
 	thread_graphics = graphics;
 
-	if (!graphics_init_immediate_vb(graphics))
+	/* on failure, leave the context too: gs_destroy() would otherwise count graphics->ref down from 0 */
+	if (!graphics_init_immediate_vb(graphics) || !graphics_init_sprite_vbs(graphics) ||
+	    pthread_mutex_init(&graphics->mutex, NULL) != 0 || pthread_mutex_init(&graphics->effect_mutex, NULL) != 0) {
+		graphics->exports.device_leave_context(graphics->device);
+		thread_graphics = NULL;
 		return false;
-	if (!graphics_init_sprite_vbs(graphics))
-		return false;
-	if (pthread_mutex_init(&graphics->mutex, NULL) != 0)
-		return false;
-	if (pthread_mutex_init(&graphics->effect_mutex, NULL) != 0)
-		return false;
+	}
 
 	graphics->exports.device_blend_function_separate(graphics->device, GS_BLEND_SRCALPHA, GS_BLEND_INVSRCALPHA,
 							 GS_BLEND_ONE, GS_BLEND_INVSRCALPHA);
@@ -792,8 +791,8 @@ void gs_normal3v(const struct vec3 *v)
 
 void gs_color4v(const struct vec4 *v)
 {
-	/* TODO */
-	UNUSED_PARAMETER(v);
+	/* the byte order of gs_color(): red in the lowest byte */
+	gs_color(vec4_to_rgba(v));
 }
 
 void gs_texcoord2v(const struct vec2 *v, int unit)
@@ -1042,6 +1041,9 @@ void gs_draw_quadf(gs_texture_t *tex, uint32_t flip, float width, float height)
 	float fcx, fcy;
 	struct gs_vb_data *data;
 
+	if (!gs_valid("gs_draw_quadf"))
+		return;
+
 	if (tex) {
 		if (gs_get_texture_type(tex) != GS_TEXTURE_2D) {
 			blog(LOG_ERROR, "A sprite must be a 2D texture");
@@ -1089,6 +1091,9 @@ void gs_draw_sprite_subregion(gs_texture_t *tex, uint32_t flip, uint32_t sub_x, 
 	uint32_t cx, cy;
 	float fcx, fcy;
 	struct gs_vb_data *data;
+
+	if (!gs_valid("gs_draw_sprite_subregion"))
+		return;
 
 	if (tex) {
 		if (gs_get_texture_type(tex) != GS_TEXTURE_2D) {

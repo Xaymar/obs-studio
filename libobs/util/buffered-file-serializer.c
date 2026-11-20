@@ -45,6 +45,8 @@ struct io_buffer {
 	FILE *output_file;
 	struct deque data;
 	uint64_t next_pos;
+	/* the file size once every queued write is done */
+	uint64_t end_pos;
 
 	size_t buffer_size;
 	size_t chunk_size;
@@ -225,7 +227,7 @@ static int64_t file_output_seek(void *opaque, int64_t offset, enum serialize_see
 		out->io.next_pos += offset;
 		break;
 	case SERIALIZE_SEEK_END:
-		out->io.next_pos -= offset;
+		out->io.next_pos = out->io.end_pos + offset;
 		break;
 	}
 
@@ -293,6 +295,8 @@ static size_t file_output_write(void *opaque, const void *buf, size_t buf_size)
 
 			// Advance the next write position
 			out->io.next_pos += next_chunk_size;
+			if (out->io.next_pos > out->io.end_pos)
+				out->io.end_pos = out->io.next_pos;
 
 			// Update remainder and advance data pointer
 			remaining -= next_chunk_size;

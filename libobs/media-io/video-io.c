@@ -85,6 +85,8 @@ struct video_output {
 	size_t available_frames;
 	size_t first_added;
 	size_t last_added;
+	/* a frame from video_output_lock_frame() waits for video_output_unlock_frame() */
+	bool frame_locked;
 	struct cached_frame_info cache[MAX_CACHE_SIZE];
 
 	struct video_output *parent;
@@ -218,7 +220,8 @@ static void *video_thread(void *param)
 
 static inline bool valid_video_params(const struct video_output_info *info)
 {
-	return info->height != 0 && info->width != 0 && info->fps_den != 0 && info->fps_num != 0;
+	return info->height != 0 && info->width != 0 && info->fps_den != 0 && info->fps_num != 0 &&
+	       info->cache_size != 0;
 }
 
 static inline void init_cache(struct video_output *video)
@@ -400,10 +403,10 @@ bool video_output_connect2(video_t *video, const struct video_scale_info *conver
 {
 	bool success = false;
 
-	video = get_root(video);
-
 	if (!video || !callback || frame_rate_divisor == 0)
 		return false;
+
+	video = get_root(video);
 
 	pthread_mutex_lock(&video->input_mutex);
 
@@ -537,6 +540,7 @@ bool video_output_lock_frame(video_t *video, struct video_frame *frame, int coun
 		memcpy(frame, &cfi->frame, sizeof(*frame));
 
 		locked = true;
+		video->frame_locked = true;
 	}
 
 	pthread_mutex_unlock(&video->data_mutex);
@@ -553,8 +557,12 @@ void video_output_unlock_frame(video_t *video)
 
 	pthread_mutex_lock(&video->data_mutex);
 
-	video->available_frames--;
-	os_sem_post(video->update_semaphore);
+	/* without a locked frame there is nothing to hand to the video thread */
+	if (video->frame_locked) {
+		video->frame_locked = false;
+		video->available_frames--;
+		os_sem_post(video->update_semaphore);
+	}
 
 	pthread_mutex_unlock(&video->data_mutex);
 }
@@ -608,19 +616,18 @@ double video_output_get_frame_rate(const video_t *video)
 	if (!video)
 		return 0.0;
 
-	video = get_const_root(video);
-
+	/* not the root: a frame rate divisor output has its own fps_den */
 	return (double)video->info.fps_num / (double)video->info.fps_den;
 }
 
 uint32_t video_output_get_skipped_frames(const video_t *video)
 {
-	return (uint32_t)os_atomic_load_long(&get_const_root(video)->skipped_frames);
+	return video ? (uint32_t)os_atomic_load_long(&get_const_root(video)->skipped_frames) : 0;
 }
 
 uint32_t video_output_get_total_frames(const video_t *video)
 {
-	return (uint32_t)os_atomic_load_long(&get_const_root(video)->total_frames);
+	return video ? (uint32_t)os_atomic_load_long(&get_const_root(video)->total_frames) : 0;
 }
 
 /* Note: These four functions below are a very slight bit of a hack.  If the
@@ -668,6 +675,7 @@ video_t *video_output_create_with_frame_rate_divisor(video_t *video, uint32_t di
 	memcpy(new_video, video, sizeof(*new_video));
 	new_video->parent = video;
 	new_video->info.fps_den *= divisor;
+	new_video->frame_time *= divisor;
 
 	return new_video;
 }

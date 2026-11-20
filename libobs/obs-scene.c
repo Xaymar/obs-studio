@@ -2808,7 +2808,7 @@ void obs_sceneitem_set_order_position(obs_sceneitem_t *item, int position)
 
 	detach_sceneitem(item);
 
-	if (!scene->first_item || position == 0) {
+	if (!scene->first_item || position <= 0) {
 		attach_sceneitem(scene, item, NULL);
 	} else {
 		struct obs_scene_item *next = scene->first_item;

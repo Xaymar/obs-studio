@@ -1417,6 +1417,8 @@ struct obs_encoder {
 	 * up at the specific timestamp.  if this is the audio encoder,
 	 * it waits until it's ready to sync up with video */
 	bool first_received;
+	/* set by the GPU encode thread when an encode failed, until the encoder stops */
+	volatile bool gpu_encode_failed;
 	DARRAY(obs_weak_encoder_t *) paired_encoders;
 	int64_t offset_usec;
 	uint64_t first_raw_ts;

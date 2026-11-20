@@ -880,7 +880,7 @@ obs_data_t *obs_data_get_defaults(obs_data_t *data)
 
 static struct obs_data_item *get_item(struct obs_data *data, const char *name)
 {
-	if (!data)
+	if (!data || !name)
 		return NULL;
 
 	struct obs_data_item *item;
@@ -894,6 +894,10 @@ static void set_item_data(struct obs_data *data, struct obs_data_item **item, co
 	obs_data_item_t *new_item = NULL;
 
 	if ((!item || !*item) && data) {
+		/* items are keyed by name */
+		if (!name)
+			return;
+
 		new_item = obs_data_item_create(name, ptr, size, type, default_data, autoselect_data);
 		new_item->parent = data;
 		HASH_ADD_STR(data->items, name, new_item);
@@ -1553,7 +1557,12 @@ void obs_data_item_release(obs_data_item_t **item)
 void obs_data_item_remove(obs_data_item_t **item)
 {
 	if (item && *item) {
-		obs_data_item_detach(*item);
+		obs_data_item_t *it = *item;
+		if (it->parent) {
+			obs_data_item_detach(it);
+			/* drop the reference the parent held, as obs_data_erase() does */
+			obs_mem_release(it);
+		}
 		obs_data_item_release(item);
 	}
 }

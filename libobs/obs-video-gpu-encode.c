@@ -18,6 +18,14 @@
 #include "obs-internal.h"
 
 void handle_encoder_group_reconfigure_request(obs_encoder_t *encoder);
+extern void full_stop(struct obs_encoder *encoder);
+
+static void stop_failed_encoder(void *param)
+{
+	obs_encoder_t *encoder = param;
+	full_stop(encoder);
+	obs_encoder_release(encoder);
+}
 
 #define NBSP "\xC2\xA0"
 static const char *gpu_encode_frame_name = "gpu_encode_frame";
@@ -85,6 +93,10 @@ static void *gpu_encode_thread(void *data)
 			obs_encoder_t *encoder = encoders.array[i];
 			obs_weak_encoder_t **paired = encoder->paired_encoders.array;
 			size_t num_paired = encoder->paired_encoders.num;
+
+			/* stopping, see below */
+			if (os_atomic_load_bool(&encoder->gpu_encode_failed))
+				continue;
 
 			pkt.timebase_num = encoder->timebase_num * encoder->frame_rate_divisor;
 			pkt.timebase_den = encoder->timebase_den;
@@ -187,7 +199,17 @@ static void *gpu_encode_thread(void *data)
 				ept->fer = fer_ts;
 			}
 
-			send_off_encoder_packet(encoder, success, received, &pkt);
+			if (success) {
+				send_off_encoder_packet(encoder, success, received, &pkt);
+			} else {
+				/* full_stop() waits for this thread to go idle and may join it, so it runs on the
+				 * destroy task thread instead of here */
+				blog(LOG_ERROR, "Error encoding with encoder '%s'", encoder->context.name);
+				os_atomic_set_bool(&encoder->gpu_encode_failed, true);
+				obs_encoder_t *ref = obs_encoder_get_ref(encoder);
+				if (ref)
+					obs_queue_task(OBS_TASK_DESTROY, stop_failed_encoder, ref, false);
+			}
 
 			lock_key = next_key;
 

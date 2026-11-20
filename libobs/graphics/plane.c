@@ -30,28 +30,36 @@ void plane_from_tri(struct plane *dst, const struct vec3 *v1, const struct vec3 
 	dst->dist = vec3_dot(v1, &dst->dir);
 }
 
+/* shortcut: the normal follows the linear part of the matrix, which is right for rotation, translation and uniform
+ * scale; non-uniform scale needs the inverse transpose, add it when a caller needs that */
 void plane_transform(struct plane *dst, const struct plane *p, const struct matrix4 *m)
 {
-	struct vec3 temp;
+	struct vec3 origin, point, dir;
 
-	vec3_zero(&temp);
+	/* a point on the plane, and the matrix applied to points and to directions */
+	vec3_mulf(&point, &p->dir, p->dist);
+	vec3_transform(&point, &point, m);
 
-	vec3_transform(&dst->dir, &p->dir, m);
-	vec3_norm(&dst->dir, &dst->dir);
+	vec3_zero(&origin);
+	vec3_transform(&origin, &origin, m);
+	vec3_transform(&dir, &p->dir, m);
+	vec3_sub(&dir, &dir, &origin);
 
-	vec3_transform(&temp, &temp, m);
-	dst->dist = p->dist - vec3_dot(&dst->dir, &temp);
+	vec3_norm(&dst->dir, &dir);
+	dst->dist = vec3_dot(&dst->dir, &point);
 }
 
+/* moves the plane like vec3_transform3x4() moves points; same shortcut as plane_transform() */
 void plane_transform3x4(struct plane *dst, const struct plane *p, const struct matrix3 *m)
 {
-	struct vec3 temp;
+	struct vec3 point, dir;
 
-	vec3_transform3x4(&dst->dir, &p->dir, m);
-	vec3_norm(&dst->dir, &dst->dir);
+	vec3_mulf(&point, &p->dir, p->dist);
+	vec3_transform3x4(&point, &point, m);
 
-	vec3_transform3x4(&temp, &m->t, m);
-	dst->dist = p->dist - vec3_dot(&dst->dir, &temp);
+	vec3_rotate(&dir, &p->dir, m);
+	vec3_norm(&dst->dir, &dir);
+	dst->dist = vec3_dot(&dst->dir, &point);
 }
 
 bool plane_intersection_ray(const struct plane *p, const struct vec3 *orig, const struct vec3 *dir, float *t)
@@ -126,7 +134,8 @@ bool plane_tri_inside(const struct plane *p, const struct vec3 *v1, const struct
 	else if (d3 <= -precision)
 		sides |= 1;
 
-	return sides;
+	/* inside: every point lies on the plane */
+	return sides == 0;
 }
 
 bool plane_line_inside(const struct plane *p, const struct vec3 *v1, const struct vec3 *v2, float precision)
@@ -147,5 +156,6 @@ bool plane_line_inside(const struct plane *p, const struct vec3 *v1, const struc
 	else if (d2 <= -precision)
 		sides |= 1;
 
-	return sides;
+	/* inside: every point lies on the plane */
+	return sides == 0;
 }

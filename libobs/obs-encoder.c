@@ -524,6 +524,10 @@ void obs_encoder_destroy(obs_encoder_t *encoder)
 
 		if (encoder->context.data)
 			encoder->info.destroy(encoder->context.data);
+		/* normally released by obs_encoder_shutdown(), which an encode error skips */
+		for (size_t i = 0; i < encoder->paired_encoders.num; i++)
+			obs_weak_encoder_release(encoder->paired_encoders.array[i]);
+		da_free(encoder->paired_encoders);
 		da_free(encoder->callbacks);
 		da_free(encoder->roi);
 		da_free(encoder->encoder_packet_times);
@@ -2124,16 +2128,18 @@ uint64_t obs_encoder_get_pause_offset(const obs_encoder_t *encoder)
 
 bool obs_encoder_has_roi(const obs_encoder_t *encoder)
 {
-	return encoder->roi.num > 0;
+	return obs_encoder_valid(encoder, "obs_encoder_has_roi") && encoder->roi.num > 0;
 }
 
 bool obs_encoder_add_roi(obs_encoder_t *encoder, const struct obs_encoder_roi *roi)
 {
-	if (!roi)
+	if (!obs_encoder_valid(encoder, "obs_encoder_add_roi") || !roi)
 		return false;
 	if (!(encoder->info.caps & OBS_ENCODER_CAP_ROI))
 		return false;
-	/* Area smaller than the smallest possible block (16x16) */
+	/* Area smaller than the smallest possible block (16x16), or inverted (the edges are unsigned) */
+	if (roi->bottom < roi->top || roi->right < roi->left)
+		return false;
 	if (roi->bottom - roi->top < 16 || roi->right - roi->left < 16)
 		return false;
 	/* Other invalid ROIs */
@@ -2150,7 +2156,7 @@ bool obs_encoder_add_roi(obs_encoder_t *encoder, const struct obs_encoder_roi *r
 
 void obs_encoder_clear_roi(obs_encoder_t *encoder)
 {
-	if (!encoder->roi.num)
+	if (!obs_encoder_valid(encoder, "obs_encoder_clear_roi") || !encoder->roi.num)
 		return;
 	pthread_mutex_lock(&encoder->roi_mutex);
 	da_clear(encoder->roi);
@@ -2162,6 +2168,9 @@ void obs_encoder_enum_roi(obs_encoder_t *encoder, void (*enum_proc)(void *, stru
 {
 	float scale_x = 0;
 	float scale_y = 0;
+
+	if (!obs_encoder_valid(encoder, "obs_encoder_enum_roi") || !enum_proc)
+		return;
 
 	/* Scale ROI passed to callback to output size */
 	if (encoder->scaled_height && encoder->scaled_width) {
@@ -2201,7 +2210,7 @@ void obs_encoder_enum_roi(obs_encoder_t *encoder, void (*enum_proc)(void *, stru
 
 uint32_t obs_encoder_get_roi_increment(const obs_encoder_t *encoder)
 {
-	return encoder->roi_increment;
+	return obs_encoder_valid(encoder, "obs_encoder_get_roi_increment") ? encoder->roi_increment : 0;
 }
 
 bool obs_encoder_set_group(obs_encoder_t *encoder, obs_encoder_group_t *group)
@@ -2224,8 +2233,10 @@ bool obs_encoder_set_group(obs_encoder_t *encoder, obs_encoder_group_t *group)
 			return false;
 		}
 		da_erase_item(old_group->encoders, &encoder);
-		obs_encoder_release(encoder);
+		encoder->encoder_group = NULL;
 		pthread_mutex_unlock(&old_group->mutex);
+		/* the group's reference; after the unlock, the group may go with it */
+		obs_encoder_release(encoder);
 	}
 
 	if (!group)

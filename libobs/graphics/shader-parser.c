@@ -118,7 +118,8 @@ void shader_sampler_convert(struct shader_sampler *ss, struct gs_sampler_info *i
 		else if (astrcmpi(state, "MaxAnisotropy") == 0)
 			info->max_anisotropy = (int)strtol(value, NULL, 10);
 		else if (astrcmpi(state, "BorderColor") == 0)
-			info->border_color = strtol(value + 1, NULL, 16);
+			/* strtoul: long is 32 bits on Windows, so strtol() clamps colors with alpha >= 0x80 */
+			info->border_color = (uint32_t)strtoul(value, NULL, 16);
 	}
 }
 
@@ -535,39 +536,71 @@ static inline int sp_parse_param_assign_intfloat(struct shader_parser *sp, struc
 	return PARSE_SUCCESS;
 }
 
-/*
- * parses assignment for float1, float2, float3, float4, and any combination
- * for float3x3, float4x4, etc
- */
-static inline int sp_parse_param_assign_float_array(struct shader_parser *sp, struct shader_var *param)
+static inline int sp_parse_param_assign_bool(struct shader_parser *sp, struct shader_var *param)
 {
-	const char *float_type = param->type + 5;
-	int float_count = 0, code, i;
+	long l;
+
+	if (!cf_next_valid_token(&sp->cfp))
+		return PARSE_EOF;
+
+	if (cf_token_is(&sp->cfp, "true")) {
+		l = 1;
+	} else if (cf_token_is(&sp->cfp, "false")) {
+		l = 0;
+	} else {
+		cf_adderror_expecting(&sp->cfp, "true or false");
+		return PARSE_CONTINUE;
+	}
+
+	da_push_back_array(param->default_val, (uint8_t *)&l, sizeof(long));
+	return PARSE_SUCCESS;
+}
+
+/*
+ * parses assignment for float1-4, int1-4 and any combination for float3x3, int4x4, etc, as "{1, 2}" or "float2(1, 2)"
+ */
+static inline int sp_parse_param_assign_intfloat_array(struct shader_parser *sp, struct shader_var *param,
+							bool is_float)
+{
+	const char *intfloat_type = param->type + (is_float ? 5 : 3);
+	int intfloat_count = 0, code, i;
+	const char *end_char;
 
 	/* -------------------------------------------- */
 
-	if (float_type[0] < '1' || float_type[0] > '4')
+	if (intfloat_type[0] < '1' || intfloat_type[0] > '4')
 		cf_adderror(&sp->cfp, "Invalid row count", LEX_ERROR, NULL, NULL, NULL);
 
-	float_count = float_type[0] - '0';
+	intfloat_count = intfloat_type[0] - '0';
 
-	if (float_type[1] == 'x') {
-		if (float_type[2] < '1' || float_type[2] > '4')
+	if (intfloat_type[1] == 'x') {
+		if (intfloat_type[2] < '1' || intfloat_type[2] > '4')
 			cf_adderror(&sp->cfp, "Invalid column count", LEX_ERROR, NULL, NULL, NULL);
 
-		float_count *= float_type[2] - '0';
+		intfloat_count *= intfloat_type[2] - '0';
 	}
 
 	/* -------------------------------------------- */
 
-	code = cf_next_token_should_be(&sp->cfp, "{", ";", NULL);
-	if (code != PARSE_SUCCESS)
-		return code;
+	if (!cf_next_valid_token(&sp->cfp))
+		return PARSE_EOF;
 
-	for (i = 0; i < float_count; i++) {
-		char *next = ((i + 1) < float_count) ? "," : "}";
+	if (cf_token_is(&sp->cfp, "{")) {
+		end_char = "}";
+	} else if (cf_token_is(&sp->cfp, param->type)) {
+		end_char = ")";
+		code = cf_next_token_should_be(&sp->cfp, "(", ";", NULL);
+		if (code != PARSE_SUCCESS)
+			return code;
+	} else {
+		cf_adderror_expecting(&sp->cfp, "{");
+		return PARSE_CONTINUE;
+	}
 
-		code = sp_parse_param_assign_intfloat(sp, param, true);
+	for (i = 0; i < intfloat_count; i++) {
+		const char *next = ((i + 1) < intfloat_count) ? "," : end_char;
+
+		code = sp_parse_param_assign_intfloat(sp, param, is_float);
 		if (code != PARSE_SUCCESS)
 			return code;
 
@@ -585,17 +618,45 @@ static int sp_parse_param_assignment_val(struct shader_parser *sp, struct shader
 		return sp_parse_param_assign_intfloat(sp, param, false);
 	else if (strcmp(param->type, "float") == 0)
 		return sp_parse_param_assign_intfloat(sp, param, true);
+	else if (strcmp(param->type, "bool") == 0)
+		return sp_parse_param_assign_bool(sp, param);
+	else if (astrcmp_n(param->type, "int", 3) == 0)
+		return sp_parse_param_assign_intfloat_array(sp, param, false);
 	else if (astrcmp_n(param->type, "float", 5) == 0)
-		return sp_parse_param_assign_float_array(sp, param);
+		return sp_parse_param_assign_intfloat_array(sp, param, true);
 
 	cf_adderror(&sp->cfp, "Invalid type '$1' used for assignment", LEX_ERROR, param->type, NULL, NULL);
 
 	return PARSE_CONTINUE;
 }
 
+/* an array is initialized with "{" and one value per element */
+static int sp_parse_param_assignment_array(struct shader_parser *sp, struct shader_var *param)
+{
+	int code = cf_next_token_should_be(&sp->cfp, "{", ";", NULL);
+	if (code != PARSE_SUCCESS)
+		return code;
+
+	for (int i = 0; i < param->array_count; i++) {
+		const char *next = ((i + 1) < param->array_count) ? "," : "}";
+
+		code = sp_parse_param_assignment_val(sp, param);
+		if (code != PARSE_SUCCESS)
+			return code;
+
+		code = cf_next_token_should_be(&sp->cfp, next, ";", NULL);
+		if (code != PARSE_SUCCESS)
+			return code;
+	}
+
+	return PARSE_SUCCESS;
+}
+
 static inline bool sp_parse_param_assign(struct shader_parser *sp, struct shader_var *param)
 {
-	if (sp_parse_param_assignment_val(sp, param) != PARSE_SUCCESS)
+	int code = param->array_count ? sp_parse_param_assignment_array(sp, param)
+				      : sp_parse_param_assignment_val(sp, param);
+	if (code != PARSE_SUCCESS)
 		return false;
 
 	if (!cf_next_valid_token(&sp->cfp))
