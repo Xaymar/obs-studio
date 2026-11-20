@@ -20,7 +20,7 @@
 #include <util/dstr.h>
 
 #include "obs-ffmpeg-compat.h"
-#include "obs-ffmpeg-formats.h"
+#include <ffmpeg-formats.h>
 
 #include <media-playback/media-playback.h>
 

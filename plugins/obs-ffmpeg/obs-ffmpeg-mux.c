@@ -16,7 +16,7 @@
 ******************************************************************************/
 #include "ffmpeg-mux/ffmpeg-mux.h"
 #include "obs-ffmpeg-mux.h"
-#include "obs-ffmpeg-formats.h"
+#include <ffmpeg-formats.h>
 
 #ifdef _WIN32
 #include "util/windows/win-version.h"

@@ -8,6 +8,10 @@ if(NOT TARGET OBS::media-playback)
   add_subdirectory("${CMAKE_SOURCE_DIR}/shared/media-playback" "${CMAKE_BINARY_DIR}/shared/media-playback")
 endif()
 
+if(NOT TARGET OBS::ffmpeg-formats)
+  add_subdirectory("${CMAKE_SOURCE_DIR}/shared/ffmpeg-formats" "${CMAKE_BINARY_DIR}/shared/ffmpeg-formats")
+endif()
+
 if(NOT TARGET OBS::opts-parser)
   add_subdirectory("${CMAKE_SOURCE_DIR}/shared/opts-parser" "${CMAKE_BINARY_DIR}/shared/opts-parser")
 endif()

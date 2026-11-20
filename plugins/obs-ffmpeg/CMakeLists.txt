@@ -24,7 +24,6 @@ target_sources(
     obs-ffmpeg-audio-encoders.c
     obs-ffmpeg-av1.c
     obs-ffmpeg-compat.h
-    obs-ffmpeg-formats.h
     obs-ffmpeg-openh264.c
     obs-ffmpeg-hls-mux.c
     obs-ffmpeg-mux.c
@@ -50,6 +49,7 @@ target_link_libraries(
     OBS::libobs
     OBS::media-playback
     OBS::opts-parser
+    OBS::ffmpeg-formats
     FFmpeg::avcodec
     FFmpeg::avfilter
     FFmpeg::avformat

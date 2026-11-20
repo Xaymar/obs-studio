@@ -43,7 +43,7 @@
 #include <pci/pci.h>
 
 #include "vaapi-utils.h"
-#include "obs-ffmpeg-formats.h"
+#include <ffmpeg-formats.h>
 
 #include <va/va_drmcommon.h>
 #include <libdrm/drm_fourcc.h>
