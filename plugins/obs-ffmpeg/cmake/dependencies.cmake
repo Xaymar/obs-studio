@@ -16,12 +16,6 @@ if(NOT TARGET OBS::opts-parser)
   add_subdirectory("${CMAKE_SOURCE_DIR}/shared/opts-parser" "${CMAKE_BINARY_DIR}/shared/opts-parser")
 endif()
 
-if(OS_LINUX OR OS_FREEBSD OR OS_OPENBSD)
-  find_package(Libva REQUIRED)
-  find_package(Libpci REQUIRED)
-  find_package(Libdrm REQUIRED)
-endif()
-
 if(ENABLE_NEW_MPEGTS_OUTPUT)
   find_package(Librist QUIET)
   find_package(Libsrt QUIET)

@@ -18,9 +18,6 @@ target_sources(
     $<$<BOOL:${ENABLE_NEW_MPEGTS_OUTPUT}>:obs-ffmpeg-rist.h>
     $<$<BOOL:${ENABLE_NEW_MPEGTS_OUTPUT}>:obs-ffmpeg-srt.h>
     $<$<BOOL:${ENABLE_NEW_MPEGTS_OUTPUT}>:obs-ffmpeg-url.h>
-    $<$<PLATFORM_ID:Linux,FreeBSD,OpenBSD>:obs-ffmpeg-vaapi.c>
-    $<$<PLATFORM_ID:Linux,FreeBSD,OpenBSD>:vaapi-utils.c>
-    $<$<PLATFORM_ID:Linux,FreeBSD,OpenBSD>:vaapi-utils.h>
     obs-ffmpeg-audio-encoders.c
     obs-ffmpeg-av1.c
     obs-ffmpeg-compat.h
@@ -59,10 +56,6 @@ target_link_libraries(
     FFmpeg::swresample
     $<$<PLATFORM_ID:Windows>:OBS::w32-pthreads>
     $<$<PLATFORM_ID:Windows>:ws2_32>
-    $<$<PLATFORM_ID:Linux,FreeBSD,OpenBSD>:Libva::va>
-    $<$<PLATFORM_ID:Linux,FreeBSD,OpenBSD>:Libva::drm>
-    $<$<PLATFORM_ID:Linux,FreeBSD,OpenBSD>:Libpci::pci>
-    $<$<PLATFORM_ID:Linux,FreeBSD,OpenBSD>:Libdrm::Libdrm>
     $<$<BOOL:${ENABLE_NEW_MPEGTS_OUTPUT}>:Librist::Librist>
     $<$<BOOL:${ENABLE_NEW_MPEGTS_OUTPUT}>:Libsrt::Libsrt>
 )

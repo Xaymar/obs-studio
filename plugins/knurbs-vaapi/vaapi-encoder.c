@@ -42,6 +42,7 @@
 
 #include <pci/pci.h>
 
+#include "vaapi-ids.h"
 #include "vaapi-utils.h"
 #include <ffmpeg-formats.h>
 
@@ -98,20 +99,20 @@ struct vaapi_encoder {
 static const char *h264_vaapi_getname(void *unused)
 {
 	UNUSED_PARAMETER(unused);
-	return "FFmpeg VAAPI H.264";
+	return "VA-API H.264";
 }
 
 static const char *av1_vaapi_getname(void *unused)
 {
 	UNUSED_PARAMETER(unused);
-	return "FFmpeg VAAPI AV1";
+	return "VA-API AV1";
 }
 
 #ifdef ENABLE_HEVC
 static const char *hevc_vaapi_getname(void *unused)
 {
 	UNUSED_PARAMETER(unused);
-	return "FFmpeg VAAPI HEVC";
+	return "VA-API HEVC";
 }
 #endif
 
@@ -581,7 +582,7 @@ static void *h264_vaapi_create(obs_data_t *settings, obs_encoder_t *encoder)
 
 static void *h264_vaapi_create_tex(obs_data_t *settings, obs_encoder_t *encoder)
 {
-	return vaapi_create_tex_internal(settings, encoder, CODEC_H264, "ffmpeg_vaapi");
+	return vaapi_create_tex_internal(settings, encoder, CODEC_H264, VAAPI_ID_H264_RAW);
 }
 
 static void *av1_vaapi_create(obs_data_t *settings, obs_encoder_t *encoder)
@@ -591,7 +592,7 @@ static void *av1_vaapi_create(obs_data_t *settings, obs_encoder_t *encoder)
 
 static void *av1_vaapi_create_tex(obs_data_t *settings, obs_encoder_t *encoder)
 {
-	return vaapi_create_tex_internal(settings, encoder, CODEC_AV1, "av1_ffmpeg_vaapi");
+	return vaapi_create_tex_internal(settings, encoder, CODEC_AV1, VAAPI_ID_AV1_RAW);
 }
 
 #ifdef ENABLE_HEVC
@@ -602,7 +603,7 @@ static void *hevc_vaapi_create(obs_data_t *settings, obs_encoder_t *encoder)
 
 static void *hevc_vaapi_create_tex(obs_data_t *settings, obs_encoder_t *encoder)
 {
-	return vaapi_create_tex_internal(settings, encoder, CODEC_HEVC, "hevc_ffmpeg_vaapi");
+	return vaapi_create_tex_internal(settings, encoder, CODEC_HEVC, VAAPI_ID_HEVC_RAW);
 }
 #endif
 
@@ -1046,7 +1047,7 @@ static obs_properties_t *vaapi_properties_internal(enum codec_type codec)
 			// Use the return value of snprintf to prevent truncation warning.
 			int written = snprintf(path, 64, "/dev/dri/by-path/%s", file_name);
 			if (written >= 64)
-				blog(LOG_DEBUG, "obs-ffmpeg-vaapi: A format truncation may have occurred."
+				blog(LOG_DEBUG, "knurbs-vaapi: A format truncation may have occurred."
 						" This can be ignored since it is quite improbable.");
 
 			type = strrchr(file_name, '-');
@@ -1080,7 +1081,7 @@ static obs_properties_t *vaapi_properties_internal(enum codec_type codec)
 				char card[128];
 				int ret = snprintf(card, sizeof(card), "Card%d: %s", i - 28, path);
 				if (ret >= (int)sizeof(card))
-					blog(LOG_DEBUG, "obs-ffmpeg-vaapi: A format truncation may have occurred."
+					blog(LOG_DEBUG, "knurbs-vaapi: A format truncation may have occurred."
 							" This can be ignored since it is quite improbable.");
 
 				if (!vaapi_device_h264_supported(path))
@@ -1204,7 +1205,7 @@ static bool vaapi_sei_data(void *data, uint8_t **extra_data, size_t *size)
 }
 
 struct obs_encoder_info h264_vaapi_encoder_info = {
-	.id = "ffmpeg_vaapi",
+	.id = VAAPI_ID_H264_RAW,
 	.type = OBS_ENCODER_VIDEO,
 	.codec = "h264",
 	.get_name = h264_vaapi_getname,
@@ -1220,7 +1221,7 @@ struct obs_encoder_info h264_vaapi_encoder_info = {
 };
 
 struct obs_encoder_info h264_vaapi_encoder_tex_info = {
-	.id = "ffmpeg_vaapi_tex",
+	.id = VAAPI_ID_H264,
 	.type = OBS_ENCODER_VIDEO,
 	.codec = "h264",
 	.get_name = h264_vaapi_getname,
@@ -1236,7 +1237,7 @@ struct obs_encoder_info h264_vaapi_encoder_tex_info = {
 };
 
 struct obs_encoder_info av1_vaapi_encoder_info = {
-	.id = "av1_ffmpeg_vaapi",
+	.id = VAAPI_ID_AV1_RAW,
 	.type = OBS_ENCODER_VIDEO,
 	.codec = "av1",
 	.get_name = av1_vaapi_getname,
@@ -1252,7 +1253,7 @@ struct obs_encoder_info av1_vaapi_encoder_info = {
 };
 
 struct obs_encoder_info av1_vaapi_encoder_tex_info = {
-	.id = "av1_ffmpeg_vaapi_tex",
+	.id = VAAPI_ID_AV1,
 	.type = OBS_ENCODER_VIDEO,
 	.codec = "av1",
 	.get_name = av1_vaapi_getname,
@@ -1269,7 +1270,7 @@ struct obs_encoder_info av1_vaapi_encoder_tex_info = {
 
 #ifdef ENABLE_HEVC
 struct obs_encoder_info hevc_vaapi_encoder_info = {
-	.id = "hevc_ffmpeg_vaapi",
+	.id = VAAPI_ID_HEVC_RAW,
 	.type = OBS_ENCODER_VIDEO,
 	.codec = "hevc",
 	.get_name = hevc_vaapi_getname,
@@ -1285,7 +1286,7 @@ struct obs_encoder_info hevc_vaapi_encoder_info = {
 };
 
 struct obs_encoder_info hevc_vaapi_encoder_tex_info = {
-	.id = "hevc_ffmpeg_vaapi_tex",
+	.id = VAAPI_ID_HEVC,
 	.type = OBS_ENCODER_VIDEO,
 	.codec = "hevc",
 	.get_name = hevc_vaapi_getname,
