@@ -38,9 +38,11 @@ static void info_test(void **state)
 	assert_false(gs_nv12_available());
 	assert_false(gs_p010_available());
 	assert_false(gs_is_monitor_hdr(NULL));
+#ifdef _WIN32
 	assert_false(gs_shared_texture_available());
 	assert_false(gs_gdi_texture_available());
 	assert_false(gs_can_adapter_fast_clear());
+#endif
 	/* without device support, NV12 and P010 fall back to two separate plane textures */
 	gs_texture_t *y = NULL, *uv = NULL;
 	assert_true(gs_texture_create_nv12(&y, &uv, 16, 16, 0));
@@ -51,6 +53,7 @@ static void info_test(void **state)
 		gs_texture_destroy(y);
 		gs_texture_destroy(uv);
 	}
+#ifdef _WIN32
 	assert_null(gs_stagesurface_create_nv12(16, 16));
 	assert_null(gs_stagesurface_create_p010(16, 16));
 	assert_null(gs_duplicator_create(0));
@@ -64,6 +67,7 @@ static void info_test(void **state)
 	struct gs_device_loss loss = {0};
 	gs_register_loss_callbacks(&loss);
 	gs_unregister_loss_callbacks(NULL);
+#endif
 	gs_debug_marker_begin(marker_color, "marker");
 	gs_debug_marker_begin_format(marker_color, "marker %d", 1);
 	gs_debug_marker_end();

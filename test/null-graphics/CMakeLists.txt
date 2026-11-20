@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.28...3.30)
 
-# shortcut: exports only the Windows set of graphics-imports.c; add the Linux/macOS exports to run the tests there
-if(NOT OS_WINDOWS)
+# Exports the Windows and Linux sets of graphics-imports.c; macOS still needs its own exports.
+if(NOT OS_WINDOWS AND NOT OS_LINUX)
   return()
 endif()
 

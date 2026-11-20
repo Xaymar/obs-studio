@@ -4,6 +4,8 @@
  * cmocka.h. Each test calls core_start() and core_stop(); core_stop() checks that the whole libobs session
  * left no bmalloc allocation behind. */
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <obs.h>
@@ -284,6 +286,21 @@ static void register_fake_types(void)
 	transition.get_width = NULL;
 	transition.get_height = NULL;
 	obs_register_source(&transition);
+}
+
+/* sets or (value NULL) clears an environment variable the null graphics module reads */
+static void core_set_env(const char *name, const char *value)
+{
+#ifdef _WIN32
+	char buf[256];
+	snprintf(buf, sizeof(buf), "%s=%s", name, value ? value : "");
+	_putenv(buf);
+#else
+	if (value)
+		setenv(name, value, 1);
+	else
+		unsetenv(name);
+#endif
 }
 
 static long core_allocs_before;

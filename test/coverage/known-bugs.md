@@ -56,6 +56,7 @@ still open, with the reason.
 | media-io/video-io.c | **Fixed** in `1d79916d9`, **behaviour change**: The getters of a frame-rate divisor output (`video_output_get_frame_rate()`, `video_output_get_frame_time()`) read the root output, so a half-rate output reports the full frame rate. Format, size and frame counters still come from the root, which is right for them. |
 | media-io/video-io.c | **Fixed** in `e41de0eef`: `valid_video_params()` accepts `cache_size == 0`; such an output never locks a frame and keeps counting every frame as skipped. |
 | media-io/video-io.c | **Fixed** in `59c0b93e0`: `video_output_unlock_frame()` without a successful `video_output_lock_frame()` decrements `available_frames` below zero (it is a `size_t`). |
+| media-io/video-io.c | **Fixed** in `32d00e649`: The video thread holds `input_mutex` while CPU encoders handle a frame and takes it again right away when an encoder is slower than the frame rate, so the output's stop thread never gets the lock to disconnect the encoder. The output never stops, and the next start, release or `obs_shutdown()` hangs its caller. This is the "session freezes when the encoder is overloaded" bug known since OBS 21.x. |
 | media-io/media-remux.c | **Fixed** in `5f4062de7`: `media_remux_job_create()` passes `out_filename` to `strcmp()` without a NULL check. |
 
 ## graphics/

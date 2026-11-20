@@ -1,4 +1,4 @@
-/* X-include list of every export libobs/graphics/graphics-imports.c resolves on Windows, used for call counting.
+/* X-include list of every export libobs/graphics/graphics-imports.c resolves on Windows and Linux, used for call counting.
  * Include with NULL_CALL(name) defined. Keep in sync with graphics-imports.c. */
 
 NULL_CALL(device_get_name)
@@ -177,4 +177,16 @@ NULL_CALL(device_stagesurface_create_nv12)
 NULL_CALL(device_stagesurface_create_p010)
 NULL_CALL(device_register_loss_callbacks)
 NULL_CALL(device_unregister_loss_callbacks)
+#elif defined(__linux__) || defined(__FreeBSD__) || defined(__DragonFly__)
+NULL_CALL(device_texture_create_from_dmabuf)
+NULL_CALL(device_query_dmabuf_capabilities)
+NULL_CALL(device_query_dmabuf_modifiers_for_format)
+NULL_CALL(device_texture_create_from_pixmap)
+NULL_CALL(device_query_sync_capabilities)
+NULL_CALL(device_sync_create)
+NULL_CALL(device_sync_create_from_syncobj_timeline_point)
+NULL_CALL(device_sync_destroy)
+NULL_CALL(device_sync_export_syncobj_timeline_point)
+NULL_CALL(device_sync_signal_syncobj_timeline_point)
+NULL_CALL(device_sync_wait)
 #endif

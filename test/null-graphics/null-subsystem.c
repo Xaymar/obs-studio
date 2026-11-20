@@ -721,6 +721,7 @@ EXPORT void gs_stagesurface_unmap(gs_stagesurf_t *stagesurf)
 	stagesurf->mapped = false;
 }
 
+#ifdef _WIN32
 EXPORT gs_stagesurf_t *device_stagesurface_create_nv12(gs_device_t *device, uint32_t width, uint32_t height)
 {
 	COUNT(device_stagesurface_create_nv12);
@@ -740,6 +741,7 @@ EXPORT gs_stagesurf_t *device_stagesurface_create_p010(gs_device_t *device, uint
 	/* both planes in one buffer, the UV plane after the Y plane */
 	return device_stagesurface_create(device, width, height + height / 2, GS_R16);
 }
+#endif
 
 EXPORT gs_zstencil_t *device_zstencil_create(gs_device_t *device, uint32_t width, uint32_t height,
 					     enum gs_zstencil_format format)
@@ -1946,5 +1948,126 @@ EXPORT void device_unregister_loss_callbacks(gs_device_t *device, void *data)
 	UNUSED_PARAMETER(device);
 	UNUSED_PARAMETER(data);
 	COUNT(device_unregister_loss_callbacks);
+}
+#elif defined(__linux__) || defined(__FreeBSD__) || defined(__DragonFly__)
+/* Linux-specific exports: no dmabuf, pixmap or sync object support without a GPU */
+
+EXPORT gs_texture_t *device_texture_create_from_dmabuf(gs_device_t *device, unsigned int width, unsigned int height,
+							uint32_t drm_format, enum gs_color_format color_format,
+							uint32_t n_planes, const int *fds, const uint32_t *strides,
+							const uint32_t *offsets, const uint64_t *modifiers)
+{
+	UNUSED_PARAMETER(device);
+	UNUSED_PARAMETER(width);
+	UNUSED_PARAMETER(height);
+	UNUSED_PARAMETER(drm_format);
+	UNUSED_PARAMETER(color_format);
+	UNUSED_PARAMETER(n_planes);
+	UNUSED_PARAMETER(fds);
+	UNUSED_PARAMETER(strides);
+	UNUSED_PARAMETER(offsets);
+	UNUSED_PARAMETER(modifiers);
+	COUNT(device_texture_create_from_dmabuf);
+	return NULL;
+}
+
+EXPORT bool device_query_dmabuf_capabilities(gs_device_t *device, enum gs_dmabuf_flags *dmabuf_flags,
+					     uint32_t **drm_formats, size_t *n_formats)
+{
+	UNUSED_PARAMETER(device);
+	COUNT(device_query_dmabuf_capabilities);
+	if (dmabuf_flags)
+		*dmabuf_flags = GS_DMABUF_FLAG_NONE;
+	if (drm_formats)
+		*drm_formats = NULL;
+	if (n_formats)
+		*n_formats = 0;
+	return false;
+}
+
+EXPORT bool device_query_dmabuf_modifiers_for_format(gs_device_t *device, uint32_t drm_format, uint64_t **modifiers,
+						     size_t *n_modifiers)
+{
+	UNUSED_PARAMETER(device);
+	UNUSED_PARAMETER(drm_format);
+	COUNT(device_query_dmabuf_modifiers_for_format);
+	if (modifiers)
+		*modifiers = NULL;
+	if (n_modifiers)
+		*n_modifiers = 0;
+	return false;
+}
+
+EXPORT gs_texture_t *device_texture_create_from_pixmap(gs_device_t *device, uint32_t width, uint32_t height,
+							enum gs_color_format color_format, uint32_t target,
+							void *pixmap)
+{
+	UNUSED_PARAMETER(device);
+	UNUSED_PARAMETER(width);
+	UNUSED_PARAMETER(height);
+	UNUSED_PARAMETER(color_format);
+	UNUSED_PARAMETER(target);
+	UNUSED_PARAMETER(pixmap);
+	COUNT(device_texture_create_from_pixmap);
+	return NULL;
+}
+
+EXPORT bool device_query_sync_capabilities(gs_device_t *device)
+{
+	UNUSED_PARAMETER(device);
+	COUNT(device_query_sync_capabilities);
+	return false;
+}
+
+EXPORT gs_sync_t *device_sync_create(gs_device_t *device)
+{
+	UNUSED_PARAMETER(device);
+	COUNT(device_sync_create);
+	return NULL;
+}
+
+EXPORT gs_sync_t *device_sync_create_from_syncobj_timeline_point(gs_device_t *device, int syncobj_fd,
+								 uint64_t timeline_point)
+{
+	UNUSED_PARAMETER(device);
+	UNUSED_PARAMETER(syncobj_fd);
+	UNUSED_PARAMETER(timeline_point);
+	COUNT(device_sync_create_from_syncobj_timeline_point);
+	return NULL;
+}
+
+EXPORT void device_sync_destroy(gs_device_t *device, gs_sync_t *sync)
+{
+	UNUSED_PARAMETER(device);
+	UNUSED_PARAMETER(sync);
+	COUNT(device_sync_destroy);
+}
+
+EXPORT bool device_sync_export_syncobj_timeline_point(gs_device_t *device, gs_sync_t *sync, int syncobj_fd,
+						      uint64_t timeline_point)
+{
+	UNUSED_PARAMETER(device);
+	UNUSED_PARAMETER(sync);
+	UNUSED_PARAMETER(syncobj_fd);
+	UNUSED_PARAMETER(timeline_point);
+	COUNT(device_sync_export_syncobj_timeline_point);
+	return false;
+}
+
+EXPORT bool device_sync_signal_syncobj_timeline_point(gs_device_t *device, int syncobj_fd, uint64_t timeline_point)
+{
+	UNUSED_PARAMETER(device);
+	UNUSED_PARAMETER(syncobj_fd);
+	UNUSED_PARAMETER(timeline_point);
+	COUNT(device_sync_signal_syncobj_timeline_point);
+	return false;
+}
+
+EXPORT bool device_sync_wait(gs_device_t *device, gs_sync_t *sync)
+{
+	UNUSED_PARAMETER(device);
+	UNUSED_PARAMETER(sync);
+	COUNT(device_sync_wait);
+	return false;
 }
 #endif
