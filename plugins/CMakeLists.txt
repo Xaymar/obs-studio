@@ -72,6 +72,7 @@ add_core_module(
     WITH_MESSAGE
 )
 add_core_module(image-source)
+add_core_module(knurbs-nvenc PLATFORMS WINDOWS LINUX)
 add_core_module(linux-alsa PLATFORMS LINUX FREEBSD OPENBSD)
 add_core_module(linux-capture PLATFORMS LINUX FREEBSD OPENBSD)
 add_core_module(linux-jack PLATFORMS LINUX FREEBSD OPENBSD)
@@ -90,7 +91,6 @@ check_obs_browser()
 add_core_module(obs-ffmpeg)
 add_core_module(obs-filters)
 add_core_module(obs-libfdk)
-add_core_module(obs-nvenc PLATFORMS WINDOWS LINUX)
 add_core_module(obs-outputs)
 add_core_module(
     obs-qsv11

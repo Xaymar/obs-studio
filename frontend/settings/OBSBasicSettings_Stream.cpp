@@ -1515,9 +1515,8 @@ bool OBSBasicSettings::ServiceAndACodecCompatible()
 /* we really need a way to find fallbacks in a less hardcoded way. maybe. */
 static QString get_adv_fallback(const QString &enc)
 {
-	if (enc == "obs_nvenc_hevc_tex" || enc == "obs_nvenc_av1_tex" || enc == "jim_hevc_nvenc" ||
-	    enc == "jim_av1_nvenc") {
-		return "obs_nvenc_h264_tex";
+	if (enc == "com.xaymar.knurbs.nvenc.hevc" || enc == "com.xaymar.knurbs.nvenc.av1") {
+		return "com.xaymar.knurbs.nvenc.h264";
 	}
 	if (enc == "h265_texture_amf" || enc == "av1_texture_amf") {
 		return "h264_texture_amf";
@@ -1756,17 +1755,17 @@ void OBSBasicSettings::ResetEncoders(bool streamOnly)
 		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.QSV.AV1"), QString(SIMPLE_ENCODER_QSV_AV1));
 	}
 #endif
-	if (service_supports_encoder(vcodecs, "ffmpeg_nvenc")) {
+	if (service_supports_encoder(vcodecs, "com.xaymar.knurbs.nvenc.h264")) {
 		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.NVENC.H264"), QString(SIMPLE_ENCODER_NVENC));
 	}
-	if (service_supports_encoder(vcodecs, "obs_nvenc_av1_tex")) {
+	if (service_supports_encoder(vcodecs, "com.xaymar.knurbs.nvenc.av1")) {
 		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.NVENC.AV1"), QString(SIMPLE_ENCODER_NVENC_AV1));
 	}
 #ifdef ENABLE_HEVC
 	if (service_supports_encoder(vcodecs, "h265_texture_amf")) {
 		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.AMD.HEVC"), QString(SIMPLE_ENCODER_AMD_HEVC));
 	}
-	if (service_supports_encoder(vcodecs, "ffmpeg_hevc_nvenc")) {
+	if (service_supports_encoder(vcodecs, "com.xaymar.knurbs.nvenc.hevc")) {
 		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.NVENC.HEVC"),
 						 QString(SIMPLE_ENCODER_NVENC_HEVC));
 	}

@@ -764,7 +764,7 @@ bool OBSBasic::InitBasicConfigDefaults()
 void OBSBasic::InitBasicConfigDefaults2()
 {
 	bool oldEncDefaults = config_get_bool(App()->GetUserConfig(), "General", "Pre23Defaults");
-	bool useNV = EncoderAvailable("ffmpeg_nvenc") && !oldEncDefaults;
+	bool useNV = EncoderAvailable("com.xaymar.knurbs.nvenc.h264") && !oldEncDefaults;
 
 	config_set_default_string(activeConfiguration, "SimpleOutput", "StreamEncoder",
 				  useNV ? SIMPLE_ENCODER_NVENC : SIMPLE_ENCODER_X264);
@@ -780,6 +780,27 @@ void OBSBasic::InitBasicConfigDefaults2()
 
 	config_set_default_string(activeConfiguration, "AdvOut", "AudioEncoder", aac_default);
 	config_set_default_string(activeConfiguration, "AdvOut", "RecAudioEncoder", aac_default);
+
+	/* Encoder types that were renamed are registered as aliases by their
+	 * modules, so this only works after modules are loaded. Store the new
+	 * ID, so the settings dialog and the missing encoder check see it. */
+	bool changed = false;
+	for (const char *key : {"Encoder", "RecEncoder", "AudioEncoder", "RecAudioEncoder"}) {
+		if (!config_has_user_value(activeConfiguration, "AdvOut", key)) {
+			continue;
+		}
+
+		const char *id = config_get_string(activeConfiguration, "AdvOut", key);
+		const char *resolved = id ? obs_encoder_alias_resolve(id) : nullptr;
+		if (resolved && strcmp(id, resolved) != 0) {
+			config_set_string(activeConfiguration, "AdvOut", key, resolved);
+			changed = true;
+		}
+	}
+
+	if (changed) {
+		activeConfiguration.SaveSafe("tmp");
+	}
 }
 
 bool OBSBasic::InitBasicConfig()

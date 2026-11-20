@@ -16,7 +16,7 @@
 #endif
 
 #define do_log(level, format, ...) \
-	blog(level, "[obs-nvenc: '%s'] " format, obs_encoder_get_name(enc->encoder), ##__VA_ARGS__)
+	blog(level, "[knurbs-nvenc: '%s'] " format, obs_encoder_get_name(enc->encoder), ##__VA_ARGS__)
 
 #define error(format, ...) do_log(LOG_ERROR, format, ##__VA_ARGS__)
 #define warn(format, ...) do_log(LOG_WARNING, format, ##__VA_ARGS__)

@@ -11,7 +11,7 @@
 	if (strcmp(opt->name, #opt_name) == 0) {                                                                    \
 		uint32_t old_val = nv_conf->opt_name;                                                               \
 		nv_conf->opt_name = strtol(opt->value, NULL, 10);                                                   \
-		blog(LOG_DEBUG, "[obs-nvenc] Changing parameter: \"%s\": %u -> %u (%d bit(s))", #opt_name, old_val, \
+		blog(LOG_DEBUG, "[knurbs-nvenc] Changing parameter: \"%s\": %u -> %u (%d bit(s))", #opt_name, old_val, \
 		     nv_conf->opt_name, bits);                                                                      \
 		return true;                                                                                        \
 	}
@@ -20,7 +20,7 @@
 	if (strcmp(opt->name, #opt_name) == 0) {                                                                      \
 		type old_val = nv_conf->opt_name;                                                                     \
 		nv_conf->opt_name = (type)strtol(opt->value, NULL, 10);                                               \
-		blog(LOG_DEBUG, "[obs-nvenc] Changing parameter: \"%s\": %" format " -> %" format " (%s)", #opt_name, \
+		blog(LOG_DEBUG, "[knurbs-nvenc] Changing parameter: \"%s\": %" format " -> %" format " (%s)", #opt_name, \
 		     old_val, nv_conf->opt_name, #type);                                                              \
 		return true;                                                                                          \
 	}
@@ -35,7 +35,7 @@ static void parse_qp_opt(const char *name, const char *val, NV_ENC_QP *qp_opt)
 		p = b = i = atoi(val);
 	}
 
-	blog(LOG_DEBUG, "[obs-nvenc] Applying custom %s = %d / %d / %d (P / B / I)", name, p, b, i);
+	blog(LOG_DEBUG, "[knurbs-nvenc] Applying custom %s = %d / %d / %d (P / B / I)", name, p, b, i);
 
 	/* Values should be treated as int32_t but are passed in as uint32_t
 	 * for legacy reasons, see comment in nvEncodeAPI.h */
@@ -116,7 +116,7 @@ static void parse_level_opt(const char *val, uint32_t *level, bool hevc)
 	if (hevc)
 		int_val *= 3;
 
-	blog(LOG_DEBUG, "[obs-nvenc] Applying custom level = %s (%u)", val, int_val);
+	blog(LOG_DEBUG, "[knurbs-nvenc] Applying custom level = %s (%u)", val, int_val);
 	*level = int_val;
 }
 

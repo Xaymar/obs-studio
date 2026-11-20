@@ -6,6 +6,8 @@
 #endif
 
 #include <obs-module.h>
+
+#include "nvenc-migrate.h"
 #include <ffnvcodec/nvEncodeAPI.h>
 
 #define NVCODEC_CONFIGURED_VERSION ((NVENCAPI_MAJOR_VERSION << 4) | NVENCAPI_MINOR_VERSION)
@@ -82,7 +84,7 @@ bool is_codec_supported(enum codec_type codec);
 bool has_broken_split_encoding(void);
 
 void register_encoders(void);
-void register_compat_encoders(void);
+void register_encoder_aliases(void);
 
 #define nv_fail(encoder, format, ...) nv_fail2(encoder, enc->session, format, ##__VA_ARGS__)
 

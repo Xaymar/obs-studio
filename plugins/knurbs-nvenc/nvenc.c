@@ -942,16 +942,16 @@ static void *nvenc_create_base(enum codec_type codec, obs_data_t *settings, obs_
 #endif
 
 	if (gpu_set && gpu != -1 && texture && !force_tex) {
-		blog(LOG_INFO, "[obs-nvenc] different GPU selected by user, falling back "
+		blog(LOG_INFO, "[knurbs-nvenc] different GPU selected by user, falling back "
 			       "to non-texture encoder");
 		goto reroute;
 	}
 
 	if (obs_encoder_scaling_enabled(encoder)) {
 		if (obs_encoder_gpu_scaling_enabled(encoder)) {
-			blog(LOG_INFO, "[obs-nvenc] GPU scaling enabled");
+			blog(LOG_INFO, "[knurbs-nvenc] GPU scaling enabled");
 		} else if (texture) {
-			blog(LOG_INFO, "[obs-nvenc] CPU scaling enabled, falling back to"
+			blog(LOG_INFO, "[knurbs-nvenc] CPU scaling enabled, falling back to"
 				       " non-texture encoder");
 			goto reroute;
 		}
@@ -959,7 +959,7 @@ static void *nvenc_create_base(enum codec_type codec, obs_data_t *settings, obs_
 
 	if (texture && !obs_encoder_video_tex_active(encoder, VIDEO_FORMAT_NV12) &&
 	    !obs_encoder_video_tex_active(encoder, VIDEO_FORMAT_P010)) {
-		blog(LOG_INFO, "[obs-nvenc] nv12/p010 not active, falling back to "
+		blog(LOG_INFO, "[knurbs-nvenc] nv12/p010 not active, falling back to "
 			       "non-texture encoder");
 		goto reroute;
 	}
@@ -978,11 +978,11 @@ reroute:
 
 	switch (codec) {
 	case CODEC_H264:
-		return obs_encoder_create_rerouted(encoder, "obs_nvenc_h264_soft");
+		return obs_encoder_create_rerouted(encoder, NVENC_ID_H264_RAW);
 	case CODEC_HEVC:
-		return obs_encoder_create_rerouted(encoder, "obs_nvenc_hevc_soft");
+		return obs_encoder_create_rerouted(encoder, NVENC_ID_HEVC_RAW);
 	case CODEC_AV1:
-		return obs_encoder_create_rerouted(encoder, "obs_nvenc_av1_soft");
+		return obs_encoder_create_rerouted(encoder, NVENC_ID_AV1_RAW);
 	}
 
 	return NULL;
@@ -1401,7 +1401,7 @@ static bool nvenc_sei_data(void *data, uint8_t **sei, size_t *size)
 }
 
 struct obs_encoder_info h264_nvenc_info = {
-	.id = "obs_nvenc_h264_tex",
+	.id = NVENC_ID_H264,
 	.codec = "h264",
 	.type = OBS_ENCODER_VIDEO,
 	.caps = OBS_ENCODER_CAP_PASS_TEXTURE | OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_MULTITRACK_DYN_BITRATE |
@@ -1423,7 +1423,7 @@ struct obs_encoder_info h264_nvenc_info = {
 
 #ifdef ENABLE_HEVC
 struct obs_encoder_info hevc_nvenc_info = {
-	.id = "obs_nvenc_hevc_tex",
+	.id = NVENC_ID_HEVC,
 	.codec = "hevc",
 	.type = OBS_ENCODER_VIDEO,
 	.caps = OBS_ENCODER_CAP_PASS_TEXTURE | OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_MULTITRACK_DYN_BITRATE |
@@ -1445,7 +1445,7 @@ struct obs_encoder_info hevc_nvenc_info = {
 #endif
 
 struct obs_encoder_info av1_nvenc_info = {
-	.id = "obs_nvenc_av1_tex",
+	.id = NVENC_ID_AV1,
 	.codec = "av1",
 	.type = OBS_ENCODER_VIDEO,
 	.caps = OBS_ENCODER_CAP_PASS_TEXTURE | OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_MULTITRACK_DYN_BITRATE |
@@ -1465,7 +1465,7 @@ struct obs_encoder_info av1_nvenc_info = {
 };
 
 struct obs_encoder_info h264_nvenc_soft_info = {
-	.id = "obs_nvenc_h264_soft",
+	.id = NVENC_ID_H264_RAW,
 	.codec = "h264",
 	.type = OBS_ENCODER_VIDEO,
 	.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_MULTITRACK_DYN_BITRATE | OBS_ENCODER_CAP_ROI |
@@ -1484,7 +1484,7 @@ struct obs_encoder_info h264_nvenc_soft_info = {
 
 #ifdef ENABLE_HEVC
 struct obs_encoder_info hevc_nvenc_soft_info = {
-	.id = "obs_nvenc_hevc_soft",
+	.id = NVENC_ID_HEVC_RAW,
 	.codec = "hevc",
 	.type = OBS_ENCODER_VIDEO,
 	.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_MULTITRACK_DYN_BITRATE | OBS_ENCODER_CAP_ROI |
@@ -1503,7 +1503,7 @@ struct obs_encoder_info hevc_nvenc_soft_info = {
 #endif
 
 struct obs_encoder_info av1_nvenc_soft_info = {
-	.id = "obs_nvenc_av1_soft",
+	.id = NVENC_ID_AV1_RAW,
 	.codec = "av1",
 	.type = OBS_ENCODER_VIDEO,
 	.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_MULTITRACK_DYN_BITRATE | OBS_ENCODER_CAP_ROI |

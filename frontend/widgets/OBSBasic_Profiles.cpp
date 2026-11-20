@@ -819,13 +819,13 @@ void OBSBasic::CheckForSimpleModeX264Fallback()
 			qsv_supported = true;
 		} else if (strcmp(id, "obs_qsv11_av1") == 0) {
 			qsv_av1_supported = true;
-		} else if (strcmp(id, "ffmpeg_nvenc") == 0) {
+		} else if (strcmp(id, "com.xaymar.knurbs.nvenc.h264") == 0) {
 			nve_supported = true;
 		}
 #ifdef ENABLE_HEVC
 		else if (strcmp(id, "h265_texture_amf") == 0) {
 			amd_hevc_supported = true;
-		} else if (strcmp(id, "ffmpeg_hevc_nvenc") == 0) {
+		} else if (strcmp(id, "com.xaymar.knurbs.nvenc.hevc") == 0) {
 			nve_hevc_supported = true;
 		}
 #endif
@@ -953,14 +953,14 @@ CheckResult CheckNVENCInternal(const std::unordered_set<std::string_view> &missi
 	};
 
 	// Most basic check: Is the module even loaded?
-	if (!obs_get_module("obs-nvenc")) {
-		return ErrorDetails{"plugin_not_loaded", QTStr("EncoderMissing.MissingModule").arg("obs-nvenc")};
+	if (!obs_get_module("knurbs-nvenc")) {
+		return ErrorDetails{"plugin_not_loaded", QTStr("EncoderMissing.MissingModule").arg("knurbs-nvenc")};
 	}
 
 #ifdef _WIN32
-	BPtr testBinary = os_get_executable_path_ptr("obs-nvenc-test.exe");
+	BPtr testBinary = os_get_executable_path_ptr("knurbs-nvenc-test.exe");
 #else
-	BPtr testBinary = os_get_executable_path_ptr("obs-nvenc-test");
+	BPtr testBinary = os_get_executable_path_ptr("knurbs-nvenc-test");
 #endif
 
 	OsProcessArgs args{os_process_args_create(testBinary), os_process_args_destroy};
@@ -1033,8 +1033,7 @@ CheckResult CheckNVENCInternal(const std::unordered_set<std::string_view> &missi
 	// Finally, if everything else looks good but the encoder missing is AV1, and AV1 is not supported on any GPUs,
 	// that's probably the issue the user is having (for example, when copying a profile from another machine).
 	if (!config_get_bool(config, "av1", "codec_supported") &&
-	    (missing_encoders.count("obs_nvenc_av1_cuda") || missing_encoders.count("obs_nvenc_av1_soft") ||
-	     missing_encoders.count("obs_nvenc_av1_tex"))) {
+	    missing_encoders.count("com.xaymar.knurbs.nvenc.av1")) {
 		return ErrorDetails{"no_av1", QTStr("EncoderMissing.NVENC.Reason.AV1Unsupported")};
 	}
 
