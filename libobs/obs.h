@@ -601,6 +601,25 @@ OBS_DEPRECATED EXPORT void obs_load_all_modules2(struct obs_module_failure_info 
  * be called after all modules have been loaded. */
 EXPORT void obs_post_load_modules(void);
 
+/**
+ * Prepares for calling obs_post_load_module on each module. Call once after
+ * every module has been loaded and before the first obs_post_load_module.
+ */
+EXPORT void obs_prepare_post_load_modules(void);
+
+/**
+ * Calls obs_module_post_load for one module. Safe to call for different
+ * modules from different threads at the same time.
+ */
+EXPORT void obs_post_load_module(obs_module_t *module);
+
+/**
+ * Sorts every registered source, output, encoder and service type by id, so
+ * that the order no longer depends on which module finished loading first.
+ * Call once all modules have loaded, before any type is enumerated.
+ */
+EXPORT void obs_sort_registered_types(void);
+
 struct obs_module_info {
 	const char *bin_path;
 	const char *data_path;
@@ -628,6 +647,27 @@ EXPORT bool obs_load_core_modules(void);
 
 /** Loads plugins at a given path. omp defines if modern or legacy plugins at path. */
 EXPORT void obs_load_plugins(struct obs_runtime_module_info *info, struct obs_module_failure_info *error);
+
+/**
+ * Finds the core modules and calls the callback for each, without loading
+ * them. Use with obs_load_found_module to load modules on your own threads.
+ */
+EXPORT void obs_find_core_modules(obs_find_module_callback2_t callback, void *param);
+
+/** Finds the plugins described by info and calls the callback for each, without loading them. */
+EXPORT void obs_find_plugins(const struct obs_runtime_module_info *info, obs_find_module_callback2_t callback,
+			     void *param);
+
+/**
+ * Opens and initializes one module found by obs_find_core_modules,
+ * obs_find_plugins or obs_find_modules2, applying the safe and disabled module
+ * lists. Safe to call for different modules from different threads at once.
+ * Returns false if the module failed to open or initialize.
+ */
+EXPORT bool obs_load_found_module(const struct obs_module_info2 *info);
+
+/** Records whether every core module loaded, for frontends that load them with obs_load_found_module. */
+EXPORT void obs_set_core_modules_loaded(bool loaded);
 
 /** Returns true if a module is a core module. */
 EXPORT bool obs_is_core_module(obs_module_t *module);

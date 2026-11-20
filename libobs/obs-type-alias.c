@@ -26,8 +26,7 @@
 bool obs_type_alias_table_init(struct obs_type_alias_table *table)
 {
 	da_init(table->aliases);
-	pthread_mutex_init_value(&table->mutex);
-	return pthread_mutex_init(&table->mutex, NULL) == 0;
+	return true;
 }
 
 void obs_type_alias_table_free(struct obs_type_alias_table *table)
@@ -37,10 +36,9 @@ void obs_type_alias_table_free(struct obs_type_alias_table *table)
 		bfree(table->aliases.array[i].new_id);
 	}
 	da_free(table->aliases);
-	pthread_mutex_destroy(&table->mutex);
 }
 
-/* Caller holds table->mutex. */
+/* Caller holds obs->registration_mutex. */
 static struct obs_type_alias *find_type_alias(struct obs_type_alias_table *table, const char *old_id)
 {
 	for (size_t i = 0; i < table->aliases.num; i++) {
@@ -60,14 +58,17 @@ bool obs_type_alias_register(struct obs_type_alias_table *table, const char *kin
 		return false;
 	}
 
+	/* One lock with type registration, so a type registered by another
+	 * module loading in parallel can't slip in between check and insert. */
+	pthread_mutex_lock(&obs->registration_mutex);
 	if (lookup(old_id)) {
+		pthread_mutex_unlock(&obs->registration_mutex);
 		blog(LOG_WARNING, "obs_register_%s_alias: a %s type named '%s' is already registered", kind, kind,
 		     old_id);
 		return false;
 	}
 
 	bool added = false;
-	pthread_mutex_lock(&table->mutex);
 	if (!find_type_alias(table, old_id)) {
 		struct obs_type_alias *alias = da_push_back_new(table->aliases);
 		alias->old_id = bstrdup(old_id);
@@ -76,7 +77,7 @@ bool obs_type_alias_register(struct obs_type_alias_table *table, const char *kin
 		alias->param = param;
 		added = true;
 	}
-	pthread_mutex_unlock(&table->mutex);
+	pthread_mutex_unlock(&obs->registration_mutex);
 
 	if (!added)
 		blog(LOG_WARNING, "obs_register_%s_alias: '%s' is already an alias", kind, old_id);
@@ -91,11 +92,13 @@ const void *obs_type_alias_resolve(struct obs_type_alias_table *table, const cha
 	if (!id)
 		return NULL;
 
+	pthread_mutex_lock(&obs->registration_mutex);
 	const void *info = lookup(id);
-	if (info)
+	if (info) {
+		pthread_mutex_unlock(&obs->registration_mutex);
 		return info;
+	}
 
-	pthread_mutex_lock(&table->mutex);
 	const char *cur = id;
 	for (size_t i = 0; i < OBS_TYPE_ALIAS_MAX_HOPS; i++) {
 		struct obs_type_alias *alias = find_type_alias(table, cur);
@@ -112,7 +115,7 @@ const void *obs_type_alias_resolve(struct obs_type_alias_table *table, const cha
 			break;
 		cur = alias->new_id;
 	}
-	pthread_mutex_unlock(&table->mutex);
+	pthread_mutex_unlock(&obs->registration_mutex);
 
 	if (!info && *num_hops)
 		blog(LOG_WARNING, "%s ID '%s' is an alias, but its target was not found", kind, id);

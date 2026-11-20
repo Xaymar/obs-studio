@@ -575,8 +575,8 @@ struct obs_type_alias_hop {
 	void *param;
 };
 
+/* Guarded by obs->registration_mutex, like the type arrays it points into. */
 struct obs_type_alias_table {
-	pthread_mutex_t mutex;
 	DARRAY(struct obs_type_alias) aliases;
 };
 
@@ -594,6 +594,10 @@ extern const void *obs_type_alias_resolve(struct obs_type_alias_table *table, co
 extern obs_data_t *obs_type_alias_migrate(obs_data_t *settings, const struct obs_type_alias_hop *hops, size_t num_hops);
 
 struct obs_core {
+	/* Guards the module lists and the registered type arrays, so modules can be
+	 * loaded from several threads at once. Recursive. */
+	pthread_mutex_t registration_mutex;
+
 	struct obs_module *first_module;
 	struct obs_module *first_disabled_module;
 
@@ -605,7 +609,7 @@ struct obs_core {
 	obs_source_info_array_t input_types;
 	obs_source_info_array_t filter_types;
 	obs_source_info_array_t transition_types;
-	pthread_mutex_t source_aliases_mutex;
+	/* Guarded by registration_mutex. */
 	DARRAY(struct obs_source_alias) source_aliases;
 	DARRAY(struct obs_output_info) output_types;
 	DARRAY(struct obs_encoder_info) encoder_types;
