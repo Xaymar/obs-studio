@@ -23,7 +23,7 @@
 #include <util/platform.h>
 
 #include "obs-ffmpeg-output.h"
-#include "obs-ffmpeg-formats.h"
+#include <ffmpeg-formats.h>
 #include "obs-ffmpeg-compat.h"
 #include <libavutil/channel_layout.h>
 #include <libavutil/mastering_display_metadata.h>

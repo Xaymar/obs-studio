@@ -12,7 +12,7 @@
 #include <libavutil/pixdesc.h>
 #include <libavformat/avformat.h>
 
-#include "obs-ffmpeg-formats.h"
+#include <ffmpeg-formats.h>
 
 typedef void (*init_error_cb)(void *data, int ret);
 typedef void (*first_packet_cb)(void *data, AVPacket *pkt, struct darray *out);

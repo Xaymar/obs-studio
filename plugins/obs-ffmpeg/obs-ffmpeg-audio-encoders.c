@@ -24,7 +24,7 @@
 #include <libavutil/channel_layout.h>
 #include <libavformat/avformat.h>
 
-#include "obs-ffmpeg-formats.h"
+#include <ffmpeg-formats.h>
 #include "obs-ffmpeg-compat.h"
 
 #define do_log(level, format, ...) \

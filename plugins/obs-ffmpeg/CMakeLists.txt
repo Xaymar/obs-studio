@@ -18,13 +18,9 @@ target_sources(
     $<$<BOOL:${ENABLE_NEW_MPEGTS_OUTPUT}>:obs-ffmpeg-rist.h>
     $<$<BOOL:${ENABLE_NEW_MPEGTS_OUTPUT}>:obs-ffmpeg-srt.h>
     $<$<BOOL:${ENABLE_NEW_MPEGTS_OUTPUT}>:obs-ffmpeg-url.h>
-    $<$<PLATFORM_ID:Linux,FreeBSD,OpenBSD>:obs-ffmpeg-vaapi.c>
-    $<$<PLATFORM_ID:Linux,FreeBSD,OpenBSD>:vaapi-utils.c>
-    $<$<PLATFORM_ID:Linux,FreeBSD,OpenBSD>:vaapi-utils.h>
     obs-ffmpeg-audio-encoders.c
     obs-ffmpeg-av1.c
     obs-ffmpeg-compat.h
-    obs-ffmpeg-formats.h
     obs-ffmpeg-openh264.c
     obs-ffmpeg-hls-mux.c
     obs-ffmpeg-mux.c
@@ -50,6 +46,7 @@ target_link_libraries(
     OBS::libobs
     OBS::media-playback
     OBS::opts-parser
+    OBS::ffmpeg-formats
     FFmpeg::avcodec
     FFmpeg::avfilter
     FFmpeg::avformat
@@ -59,20 +56,11 @@ target_link_libraries(
     FFmpeg::swresample
     $<$<PLATFORM_ID:Windows>:OBS::w32-pthreads>
     $<$<PLATFORM_ID:Windows>:ws2_32>
-    $<$<PLATFORM_ID:Linux,FreeBSD,OpenBSD>:Libva::va>
-    $<$<PLATFORM_ID:Linux,FreeBSD,OpenBSD>:Libva::drm>
-    $<$<PLATFORM_ID:Linux,FreeBSD,OpenBSD>:Libpci::pci>
-    $<$<PLATFORM_ID:Linux,FreeBSD,OpenBSD>:Libdrm::Libdrm>
     $<$<BOOL:${ENABLE_NEW_MPEGTS_OUTPUT}>:Librist::Librist>
     $<$<BOOL:${ENABLE_NEW_MPEGTS_OUTPUT}>:Libsrt::Libsrt>
 )
 
 if(OS_WINDOWS)
-  if(CMAKE_VS_PLATFORM_NAME STREQUAL x64)
-    target_sources(obs-ffmpeg PRIVATE texture-amf-opts.hpp texture-amf.cpp)
-    target_link_libraries(obs-ffmpeg PRIVATE AMF::AMF)
-  endif()
-
   configure_file(cmake/windows/obs-module.rc.in obs-ffmpeg.rc)
   target_sources(obs-ffmpeg PRIVATE obs-ffmpeg.rc)
 endif()

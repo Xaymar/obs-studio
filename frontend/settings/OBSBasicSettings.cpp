@@ -4905,10 +4905,10 @@ void OBSBasicSettings::FillSimpleRecordingValues()
 
 	ui->simpleOutRecEncoder->addItem(ENCODER_STR("Software"), QString(SIMPLE_ENCODER_X264));
 	ui->simpleOutRecEncoder->addItem(ENCODER_STR("SoftwareLowCPU"), QString(SIMPLE_ENCODER_X264_LOWCPU));
-	if (EncoderAvailable("obs_qsv11")) {
+	if (EncoderAvailable("com.xaymar.knurbs.qsv.h264")) {
 		ui->simpleOutRecEncoder->addItem(ENCODER_STR("Hardware.QSV.H264"), QString(SIMPLE_ENCODER_QSV));
 	}
-	if (EncoderAvailable("obs_qsv11_av1")) {
+	if (EncoderAvailable("com.xaymar.knurbs.qsv.av1")) {
 		ui->simpleOutRecEncoder->addItem(ENCODER_STR("Hardware.QSV.AV1"), QString(SIMPLE_ENCODER_QSV_AV1));
 	}
 	if (EncoderAvailable("com.xaymar.knurbs.nvenc.h264")) {
@@ -4918,7 +4918,7 @@ void OBSBasicSettings::FillSimpleRecordingValues()
 		ui->simpleOutRecEncoder->addItem(ENCODER_STR("Hardware.NVENC.AV1"), QString(SIMPLE_ENCODER_NVENC_AV1));
 	}
 #ifdef ENABLE_HEVC
-	if (EncoderAvailable("h265_texture_amf")) {
+	if (EncoderAvailable("com.xaymar.knurbs.amf.hevc")) {
 		ui->simpleOutRecEncoder->addItem(ENCODER_STR("Hardware.AMD.HEVC"), QString(SIMPLE_ENCODER_AMD_HEVC));
 	}
 	if (EncoderAvailable("com.xaymar.knurbs.nvenc.hevc")) {
@@ -4926,10 +4926,10 @@ void OBSBasicSettings::FillSimpleRecordingValues()
 						 QString(SIMPLE_ENCODER_NVENC_HEVC));
 	}
 #endif
-	if (EncoderAvailable("h264_texture_amf")) {
+	if (EncoderAvailable("com.xaymar.knurbs.amf.h264")) {
 		ui->simpleOutRecEncoder->addItem(ENCODER_STR("Hardware.AMD.H264"), QString(SIMPLE_ENCODER_AMD));
 	}
-	if (EncoderAvailable("av1_texture_amf")) {
+	if (EncoderAvailable("com.xaymar.knurbs.amf.av1")) {
 		ui->simpleOutRecEncoder->addItem(ENCODER_STR("Hardware.AMD.AV1"), QString(SIMPLE_ENCODER_AMD_AV1));
 	}
 	if (EncoderAvailable("com.apple.videotoolbox.videoencoder.ave.avc")

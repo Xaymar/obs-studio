@@ -1518,14 +1518,14 @@ static QString get_adv_fallback(const QString &enc)
 	if (enc == "com.xaymar.knurbs.nvenc.hevc" || enc == "com.xaymar.knurbs.nvenc.av1") {
 		return "com.xaymar.knurbs.nvenc.h264";
 	}
-	if (enc == "h265_texture_amf" || enc == "av1_texture_amf") {
-		return "h264_texture_amf";
+	if (enc == "com.xaymar.knurbs.amf.hevc" || enc == "com.xaymar.knurbs.amf.av1") {
+		return "com.xaymar.knurbs.amf.h264";
 	}
 	if (enc == "com.apple.videotoolbox.videoencoder.ave.hevc") {
 		return "com.apple.videotoolbox.videoencoder.ave.avc";
 	}
-	if (enc == "obs_qsv11_av1") {
-		return "obs_qsv11";
+	if (enc == "com.xaymar.knurbs.qsv.hevc" || enc == "com.xaymar.knurbs.qsv.av1") {
+		return "com.xaymar.knurbs.qsv.h264";
 	}
 	return "obs_x264";
 }
@@ -1748,10 +1748,10 @@ void OBSBasicSettings::ResetEncoders(bool streamOnly)
 
 	ui->simpleOutStrEncoder->addItem(ENCODER_STR("Software"), QString(SIMPLE_ENCODER_X264));
 #ifdef _WIN32
-	if (service_supports_encoder(vcodecs, "obs_qsv11")) {
+	if (service_supports_encoder(vcodecs, "com.xaymar.knurbs.qsv.h264")) {
 		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.QSV.H264"), QString(SIMPLE_ENCODER_QSV));
 	}
-	if (service_supports_encoder(vcodecs, "obs_qsv11_av1")) {
+	if (service_supports_encoder(vcodecs, "com.xaymar.knurbs.qsv.av1")) {
 		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.QSV.AV1"), QString(SIMPLE_ENCODER_QSV_AV1));
 	}
 #endif
@@ -1762,7 +1762,7 @@ void OBSBasicSettings::ResetEncoders(bool streamOnly)
 		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.NVENC.AV1"), QString(SIMPLE_ENCODER_NVENC_AV1));
 	}
 #ifdef ENABLE_HEVC
-	if (service_supports_encoder(vcodecs, "h265_texture_amf")) {
+	if (service_supports_encoder(vcodecs, "com.xaymar.knurbs.amf.hevc")) {
 		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.AMD.HEVC"), QString(SIMPLE_ENCODER_AMD_HEVC));
 	}
 	if (service_supports_encoder(vcodecs, "com.xaymar.knurbs.nvenc.hevc")) {
@@ -1770,10 +1770,10 @@ void OBSBasicSettings::ResetEncoders(bool streamOnly)
 						 QString(SIMPLE_ENCODER_NVENC_HEVC));
 	}
 #endif
-	if (service_supports_encoder(vcodecs, "h264_texture_amf")) {
+	if (service_supports_encoder(vcodecs, "com.xaymar.knurbs.amf.h264")) {
 		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.AMD.H264"), QString(SIMPLE_ENCODER_AMD));
 	}
-	if (service_supports_encoder(vcodecs, "av1_texture_amf")) {
+	if (service_supports_encoder(vcodecs, "com.xaymar.knurbs.amf.av1")) {
 		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.AMD.AV1"), QString(SIMPLE_ENCODER_AMD_AV1));
 	}
 /* Preprocessor guard required for the macOS version check */

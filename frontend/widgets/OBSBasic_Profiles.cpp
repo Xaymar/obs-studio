@@ -813,23 +813,23 @@ void OBSBasic::CheckForSimpleModeX264Fallback()
 	const char *id;
 
 	while (obs_enum_encoder_types(idx++, &id)) {
-		if (strcmp(id, "h264_texture_amf") == 0) {
+		if (strcmp(id, "com.xaymar.knurbs.amf.h264") == 0) {
 			amd_supported = true;
-		} else if (strcmp(id, "obs_qsv11") == 0) {
+		} else if (strcmp(id, "com.xaymar.knurbs.qsv.h264") == 0) {
 			qsv_supported = true;
-		} else if (strcmp(id, "obs_qsv11_av1") == 0) {
+		} else if (strcmp(id, "com.xaymar.knurbs.qsv.av1") == 0) {
 			qsv_av1_supported = true;
 		} else if (strcmp(id, "com.xaymar.knurbs.nvenc.h264") == 0) {
 			nve_supported = true;
 		}
 #ifdef ENABLE_HEVC
-		else if (strcmp(id, "h265_texture_amf") == 0) {
+		else if (strcmp(id, "com.xaymar.knurbs.amf.hevc") == 0) {
 			amd_hevc_supported = true;
 		} else if (strcmp(id, "com.xaymar.knurbs.nvenc.hevc") == 0) {
 			nve_hevc_supported = true;
 		}
 #endif
-		else if (strcmp(id, "av1_texture_amf") == 0) {
+		else if (strcmp(id, "com.xaymar.knurbs.amf.av1") == 0) {
 			amd_av1_supported = true;
 		} else if (strcmp(id, "com.apple.videotoolbox.videoencoder.ave.avc") == 0) {
 			apple_supported = true;

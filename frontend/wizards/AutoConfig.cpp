@@ -215,9 +215,9 @@ void AutoConfig::TestHardwareEncoding()
 	while (obs_enum_encoder_types(idx++, &id)) {
 		if (strcmp(id, "com.xaymar.knurbs.nvenc.h264") == 0) {
 			hardwareEncodingAvailable = nvencAvailable = true;
-		} else if (strcmp(id, "obs_qsv11") == 0) {
+		} else if (strcmp(id, "com.xaymar.knurbs.qsv.h264") == 0) {
 			hardwareEncodingAvailable = qsvAvailable = true;
-		} else if (strcmp(id, "h264_texture_amf") == 0) {
+		} else if (strcmp(id, "com.xaymar.knurbs.amf.h264") == 0) {
 			hardwareEncodingAvailable = vceAvailable = true;
 		}
 #ifdef __APPLE__

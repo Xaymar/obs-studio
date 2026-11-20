@@ -95,17 +95,17 @@ const char *get_simple_output_encoder(const char *encoder)
 	} else if (strcmp(encoder, SIMPLE_ENCODER_X264_LOWCPU) == 0) {
 		return "obs_x264";
 	} else if (strcmp(encoder, SIMPLE_ENCODER_QSV) == 0) {
-		return "obs_qsv11_v2";
+		return "com.xaymar.knurbs.qsv.h264";
 	} else if (strcmp(encoder, SIMPLE_ENCODER_QSV_AV1) == 0) {
-		return "obs_qsv11_av1";
+		return "com.xaymar.knurbs.qsv.av1";
 	} else if (strcmp(encoder, SIMPLE_ENCODER_AMD) == 0) {
-		return "h264_texture_amf";
+		return "com.xaymar.knurbs.amf.h264";
 #ifdef ENABLE_HEVC
 	} else if (strcmp(encoder, SIMPLE_ENCODER_AMD_HEVC) == 0) {
-		return "h265_texture_amf";
+		return "com.xaymar.knurbs.amf.hevc";
 #endif
 	} else if (strcmp(encoder, SIMPLE_ENCODER_AMD_AV1) == 0) {
-		return "av1_texture_amf";
+		return "com.xaymar.knurbs.amf.av1";
 	} else if (strcmp(encoder, SIMPLE_ENCODER_NVENC) == 0) {
 		return "com.xaymar.knurbs.nvenc.h264";
 #ifdef ENABLE_HEVC

@@ -72,7 +72,10 @@ add_core_module(
     WITH_MESSAGE
 )
 add_core_module(image-source)
+add_core_module(knurbs-amf PLATFORMS WINDOWS ARCHITECTURES x64)
 add_core_module(knurbs-nvenc PLATFORMS WINDOWS LINUX)
+add_core_module(knurbs-qsv PLATFORMS WINDOWS LINUX ARCHITECTURES x64 x86_64)
+add_core_module(knurbs-vaapi PLATFORMS LINUX FREEBSD OPENBSD)
 add_core_module(linux-alsa PLATFORMS LINUX FREEBSD OPENBSD)
 add_core_module(linux-capture PLATFORMS LINUX FREEBSD OPENBSD)
 add_core_module(linux-jack PLATFORMS LINUX FREEBSD OPENBSD)
@@ -92,11 +95,6 @@ add_core_module(obs-ffmpeg)
 add_core_module(obs-filters)
 add_core_module(obs-libfdk)
 add_core_module(obs-outputs)
-add_core_module(
-    obs-qsv11
-    PLATFORMS WINDOWS LINUX
-    ARCHITECTURES x64 x86_64
-)
 add_core_module(obs-text PLATFORMS WINDOWS)
 add_core_module(obs-transitions)
 add_core_module(
