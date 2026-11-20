@@ -25,7 +25,7 @@ add_library(OBS::knurbs-vaapi ALIAS knurbs-vaapi)
 
 target_sources(
   knurbs-vaapi
-  PRIVATE knurbs-vaapi.c vaapi-encoder.c vaapi-ids.h vaapi-utils.c vaapi-utils.h
+  PRIVATE knurbs-vaapi.c vaapi-encoder.c vaapi-ids.h vaapi-utils.c vaapi-utils.h vaapi-vendor.c vaapi-vendor.h
 )
 
 target_link_libraries(

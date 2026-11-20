@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "vaapi-utils.h"
+#include "vaapi-vendor.h"
 
 #include <util/bmem.h>
 #include <util/dstr.h>
@@ -253,6 +254,9 @@ const char *vaapi_get_h264_default_device()
 			if (access(path, F_OK) != 0)
 				break;
 
+			if (vaapi_device_skipped(path))
+				continue;
+
 			ret = vaapi_device_h264_supported(path);
 			if (ret) {
 				default_h264_device = strdup(path);
@@ -306,6 +310,9 @@ const char *vaapi_get_av1_default_device()
 			sprintf(path, "/dev/dri/renderD1%d", i);
 			if (access(path, F_OK) != 0)
 				break;
+
+			if (vaapi_device_skipped(path))
+				continue;
 
 			ret = vaapi_device_av1_supported(path);
 			if (ret) {
@@ -364,6 +371,9 @@ const char *vaapi_get_hevc_default_device()
 			sprintf(path, "/dev/dri/renderD1%d", i);
 			if (access(path, F_OK) != 0)
 				break;
+
+			if (vaapi_device_skipped(path))
+				continue;
 
 			ret = vaapi_device_hevc_supported(path);
 			if (ret) {

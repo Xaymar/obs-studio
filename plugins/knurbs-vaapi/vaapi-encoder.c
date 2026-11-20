@@ -44,6 +44,7 @@
 
 #include "vaapi-ids.h"
 #include "vaapi-utils.h"
+#include "vaapi-vendor.h"
 #include <ffmpeg-formats.h>
 
 #include <va/va_drmcommon.h>
@@ -1061,7 +1062,7 @@ static obs_properties_t *vaapi_properties_internal(enum codec_type codec)
 				pci_slot[12] = 0;
 				bool name_found = get_device_name_from_pci(pacc, pci_slot, namebuf, sizeof(namebuf));
 
-				if (!vaapi_device_codec_supported(path, codec))
+				if (vaapi_device_skipped(path) || !vaapi_device_codec_supported(path, codec))
 					continue;
 
 				if (!name_found)
@@ -1084,7 +1085,7 @@ static obs_properties_t *vaapi_properties_internal(enum codec_type codec)
 					blog(LOG_DEBUG, "knurbs-vaapi: A format truncation may have occurred."
 							" This can be ignored since it is quite improbable.");
 
-				if (!vaapi_device_codec_supported(path, codec))
+				if (vaapi_device_skipped(path) || !vaapi_device_codec_supported(path, codec))
 					continue;
 
 				obs_property_list_add_string(list, card, path);
